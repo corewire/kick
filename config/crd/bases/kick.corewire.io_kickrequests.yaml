@@ -23,6 +23,15 @@ spec:
     - jsonPath: .spec.targetRef.name
       name: Target
       type: string
+    - jsonPath: .status.owner.provider
+      name: Provider
+      type: string
+    - jsonPath: .status.owner.name
+      name: Owner
+      type: string
+    - jsonPath: .status.gate.reason
+      name: Reason
+      type: string
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date

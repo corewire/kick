@@ -74,6 +74,9 @@ type KickRequestStatus struct {
 // +kubebuilder:resource:shortName=kick
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
 // +kubebuilder:printcolumn:name="Target",type=string,JSONPath=`.spec.targetRef.name`
+// +kubebuilder:printcolumn:name="Provider",type=string,JSONPath=`.status.owner.provider`
+// +kubebuilder:printcolumn:name="Owner",type=string,JSONPath=`.status.owner.name`
+// +kubebuilder:printcolumn:name="Reason",type=string,JSONPath=`.status.gate.reason`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 type KickRequest struct {
 	metav1.TypeMeta   `json:",inline"`

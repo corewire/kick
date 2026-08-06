@@ -14,11 +14,13 @@ import (
 	argocdprovider "github.com/corewire/kick/internal/gitops/argocd"
 	"github.com/corewire/kick/internal/observation"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -88,6 +90,7 @@ type RestartExecutor interface {
 type KickRequestReconciler struct {
 	client.Client
 	Scheme             *runtime.Scheme
+	Recorder           record.EventRecorder
 	GateResolver       GateResolver
 	ObservationStore   observation.Store
 	FreshnessEvaluator FreshnessEvaluator
@@ -98,11 +101,15 @@ type KickRequestReconciler struct {
 
 func (r *KickRequestReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	if r.GateResolver == nil || r.ObservationStore == nil || r.FreshnessEvaluator == nil || r.RestartExecutor == nil {
+		observeControllerError("kickrequest", "MissingDependency")
 		return ctrl.Result{}, fmt.Errorf("kickrequest reconciler dependencies are not fully configured")
 	}
 
 	var request kickv1alpha1.KickRequest
 	if err := r.Get(ctx, req.NamespacedName, &request); err != nil {
+		if !apierrors.IsNotFound(err) {
+			observeControllerError("kickrequest", "GetRequest")
+		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 	if isTerminalPhase(request.Status.Phase) {
@@ -113,8 +120,10 @@ func (r *KickRequestReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		if err := r.updateRequestStatus(ctx, req.NamespacedName, func(status *kickv1alpha1.KickRequestStatus) {
 			setPhase(status, kickv1alpha1.KickRequestPhaseFailed, "InvalidTarget", "unsupported or empty targetRef")
 		}); err != nil {
+			observeControllerError("kickrequest", "UpdateStatus")
 			return ctrl.Result{}, err
 		}
+		r.recordTransition(&request, kickv1alpha1.KickRequestPhaseFailed, "InvalidTarget", "unsupported or empty targetRef", "")
 		return ctrl.Result{}, nil
 	}
 
@@ -125,16 +134,20 @@ func (r *KickRequestReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			if statusErr := r.updateRequestStatus(ctx, req.NamespacedName, func(status *kickv1alpha1.KickRequestStatus) {
 				setPhase(status, kickv1alpha1.KickRequestPhaseFailed, "TargetNotFound", "target deployment no longer exists")
 			}); statusErr != nil {
+				observeControllerError("kickrequest", "UpdateStatus")
 				return ctrl.Result{}, statusErr
 			}
+			r.recordTransition(&request, kickv1alpha1.KickRequestPhaseFailed, "TargetNotFound", "target deployment no longer exists", "")
 			return ctrl.Result{}, nil
 		}
+		observeControllerError("kickrequest", "GetDeployment")
 		return ctrl.Result{}, err
 	}
 
 	now := r.now().UTC()
 	ownerStatus, gateDecision, err := r.GateResolver.ResolveOwnerAndGate(ctx, &deployment, now)
 	if err != nil {
+		observeControllerError("kickrequest", "ResolveOwnerAndGate")
 		return ctrl.Result{}, err
 	}
 
@@ -145,19 +158,23 @@ func (r *KickRequestReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			status.Gate = gateToStatus(gateDecision)
 			setPhase(status, phase, string(gateDecision.Reason), gateDecision.Message)
 		}); err != nil {
+			observeControllerError("kickrequest", "UpdateStatus")
 			return ctrl.Result{}, err
 		}
+		r.recordTransition(&request, phase, string(gateDecision.Reason), gateDecision.Message, ownerStatus.Provider)
 		return requeueForGate(gateDecision, now, r.requeueInterval()), nil
 	}
 
 	deps := dependency.ExtractDependencies(&deployment)
 	latestChanges, err := r.latestRelevantChanges(ctx, deps)
 	if err != nil {
+		observeControllerError("kickrequest", "LatestRelevantChanges")
 		return ctrl.Result{}, err
 	}
 
 	freshnessDecision, err := r.FreshnessEvaluator.Evaluate(ctx, &deployment, deps, latestChanges)
 	if err != nil {
+		observeControllerError("kickrequest", "FreshnessEvaluate")
 		return ctrl.Result{}, err
 	}
 
@@ -169,8 +186,10 @@ func (r *KickRequestReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			status.LatestObservedDependencyChange = toMetav1TimePtr(freshnessDecision.LatestChange)
 			setPhase(status, kickv1alpha1.KickRequestPhaseWaitingForRollout, freshnessDecision.BlockingReason, "deployment rollout is still in progress")
 		}); err != nil {
+			observeControllerError("kickrequest", "UpdateStatus")
 			return ctrl.Result{}, err
 		}
+		r.recordTransition(&request, kickv1alpha1.KickRequestPhaseWaitingForRollout, freshnessDecision.BlockingReason, "deployment rollout is still in progress", ownerStatus.Provider)
 		return ctrl.Result{RequeueAfter: r.requeueInterval()}, nil
 	}
 
@@ -182,8 +201,10 @@ func (r *KickRequestReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			status.LatestObservedDependencyChange = toMetav1TimePtr(freshnessDecision.LatestChange)
 			setPhase(status, kickv1alpha1.KickRequestPhaseNoLongerRequired, "Fresh", "live deployment is already fresh")
 		}); err != nil {
+			observeControllerError("kickrequest", "UpdateStatus")
 			return ctrl.Result{}, err
 		}
+		r.recordTransition(&request, kickv1alpha1.KickRequestPhaseNoLongerRequired, "Fresh", "live deployment is already fresh", ownerStatus.Provider)
 		return ctrl.Result{}, nil
 	}
 
@@ -194,17 +215,31 @@ func (r *KickRequestReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		status.LatestObservedDependencyChange = toMetav1TimePtr(freshnessDecision.LatestChange)
 		setPhase(status, kickv1alpha1.KickRequestPhaseExecuting, "RestartRequired", "restart required after live freshness check")
 	}); err != nil {
+		observeControllerError("kickrequest", "UpdateStatus")
 		return ctrl.Result{}, err
 	}
+	r.recordTransition(&request, kickv1alpha1.KickRequestPhaseExecuting, "RestartRequired", "restart required after live freshness check", ownerStatus.Provider)
 
 	result, err := r.RestartExecutor.Execute(ctx, req.NamespacedName, deploymentKey)
 	if err != nil {
+		observeControllerError("kickrequest", "ExecuteRestart")
 		return ctrl.Result{}, err
 	}
 
 	var updated kickv1alpha1.KickRequest
 	if err := r.Get(ctx, req.NamespacedName, &updated); err != nil {
+		if !apierrors.IsNotFound(err) {
+			observeControllerError("kickrequest", "GetUpdatedRequest")
+		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+	if updated.Status.Phase == kickv1alpha1.KickRequestPhaseSucceeded {
+		r.recordTransition(&request, kickv1alpha1.KickRequestPhaseSucceeded, "Completed", "rollout completed", ownerStatus.Provider)
+		observeRestartResult(ownerStatus.Provider, "succeeded")
+	}
+	if updated.Status.Phase == kickv1alpha1.KickRequestPhaseFailed {
+		r.recordTransition(&request, kickv1alpha1.KickRequestPhaseFailed, "Failed", "rollout failed", ownerStatus.Provider)
+		observeRestartResult(ownerStatus.Provider, "failed")
 	}
 	if isTerminalPhase(updated.Status.Phase) || result.Complete || result.Failed {
 		return ctrl.Result{}, nil
@@ -214,6 +249,11 @@ func (r *KickRequestReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 }
 
 func (r *KickRequestReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	registerControllerMetrics()
+	if r.Recorder == nil {
+		//nolint:staticcheck // controller-runtime still returns the client-go EventRecorder interface from this method.
+		r.Recorder = mgr.GetEventRecorderFor("kickrequest-controller")
+	}
 	return ctrl.NewControllerManagedBy(mgr).For(&kickv1alpha1.KickRequest{}).Complete(r)
 }
 
@@ -360,4 +400,55 @@ func toMetav1TimePtr(v *time.Time) *metav1.Time {
 	}
 	t := metav1.NewTime(v.UTC())
 	return &t
+}
+
+func (r *KickRequestReconciler) recordTransition(request *kickv1alpha1.KickRequest, newPhase kickv1alpha1.KickRequestPhase, reason, message, provider string) {
+	if request == nil || request.Status.Phase == newPhase {
+		return
+	}
+
+	switch newPhase {
+	case kickv1alpha1.KickRequestPhaseSucceeded:
+		observeRequestResult(provider, "succeeded")
+	case kickv1alpha1.KickRequestPhaseNoLongerRequired:
+		observeRequestResult(provider, "no_longer_required")
+	case kickv1alpha1.KickRequestPhaseFailed:
+		observeRequestResult(provider, "failed")
+	case kickv1alpha1.KickRequestPhaseExecuting:
+		observeRestartResult(provider, "started")
+	}
+
+	if r.Recorder != nil {
+		eventType, eventReason := phaseToEvent(newPhase, reason)
+		if eventReason != "" {
+			r.Recorder.Event(request, eventType, eventReason, message)
+		}
+	}
+	request.Status.Phase = newPhase
+}
+
+func phaseToEvent(phase kickv1alpha1.KickRequestPhase, reason string) (string, string) {
+	switch phase {
+	case kickv1alpha1.KickRequestPhaseWaitingForGate:
+		return corev1.EventTypeNormal, eventWaitingForSchedule
+	case kickv1alpha1.KickRequestPhaseWaitingForAppSync:
+		return corev1.EventTypeNormal, eventWaitingForGitOpsSync
+	case kickv1alpha1.KickRequestPhaseWaitingForRollout:
+		return corev1.EventTypeNormal, eventWaitingForRollout
+	case kickv1alpha1.KickRequestPhaseWaitingForOwner:
+		if reason == string(gitops.GateAmbiguousOwner) {
+			return corev1.EventTypeWarning, eventOwnerAmbiguous
+		}
+		return corev1.EventTypeWarning, eventOwnerUnknown
+	case kickv1alpha1.KickRequestPhaseExecuting:
+		return corev1.EventTypeNormal, eventKickStarted
+	case kickv1alpha1.KickRequestPhaseSucceeded:
+		return corev1.EventTypeNormal, eventKickSucceeded
+	case kickv1alpha1.KickRequestPhaseNoLongerRequired:
+		return corev1.EventTypeNormal, eventKickNoLongerRequired
+	case kickv1alpha1.KickRequestPhaseFailed:
+		return corev1.EventTypeWarning, eventKickFailed
+	default:
+		return "", ""
+	}
 }
