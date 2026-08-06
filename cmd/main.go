@@ -4,12 +4,18 @@ import (
 	"context"
 	"flag"
 	"os"
+	"time"
 
 	kickv1alpha1 "github.com/corewire/kick/api/v1alpha1"
 	"github.com/corewire/kick/internal/controller"
 	"github.com/corewire/kick/internal/dependency"
+	"github.com/corewire/kick/internal/executor"
+	"github.com/corewire/kick/internal/freshness"
+	"github.com/corewire/kick/internal/gitops"
+	argocdprovider "github.com/corewire/kick/internal/gitops/argocd"
 	"github.com/corewire/kick/internal/kickrequest"
 	"github.com/corewire/kick/internal/observation"
+	"github.com/corewire/kick/internal/rollout"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -47,7 +53,16 @@ func main() {
 	if err != nil {
 		os.Exit(1)
 	}
-	if err := (&controller.KickRequestReconciler{Client: mgr.GetClient(), Scheme: mgr.GetScheme()}).SetupWithManager(mgr); err != nil {
+	providerRegistry := gitops.NewRegistry(&argocdprovider.Provider{Client: mgr.GetClient(), ControlPlaneNamespace: "argocd"})
+	if err := (&controller.KickRequestReconciler{
+		Client:             mgr.GetClient(),
+		Scheme:             mgr.GetScheme(),
+		GateResolver:       &controller.RegistryGateResolver{Registry: providerRegistry},
+		ObservationStore:   observation.NewLeaseStore(mgr.GetClient()),
+		FreshnessEvaluator: &freshness.Evaluator{Inspector: &rollout.LiveRolloutInspector{Client: mgr.GetClient()}},
+		RestartExecutor:    executor.NewRestartExecutor(mgr.GetClient(), 10*time.Minute),
+		RequeueInterval:    30 * time.Second,
+	}).SetupWithManager(mgr); err != nil {
 		os.Exit(1)
 	}
 	if err := (&controller.SourceObservationReconciler{
