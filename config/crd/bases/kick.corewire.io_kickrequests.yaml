@@ -54,10 +54,15 @@ spec:
                 description: ObjectReference identifies the workload KICK may restart.
                 properties:
                   apiVersion:
+                    default: apps/v1
                     type: string
                   kind:
+                    default: Deployment
+                    enum:
+                    - Deployment
                     type: string
                   name:
+                    minLength: 1
                     type: string
                 required:
                 - apiVersion
@@ -170,6 +175,18 @@ spec:
                     type: string
                 type: object
               phase:
+                description: KickRequestPhase is the lifecycle state of a durable
+                  restart request.
+                enum:
+                - Pending
+                - WaitingForGate
+                - WaitingForOwner
+                - WaitingForApplicationSync
+                - WaitingForRollout
+                - Executing
+                - Succeeded
+                - NoLongerRequired
+                - Failed
                 type: string
             type: object
         type: object

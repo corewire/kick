@@ -8,6 +8,7 @@ import (
 	kickv1alpha1 "github.com/corewire/kick/api/v1alpha1"
 	"github.com/corewire/kick/internal/controller"
 	"github.com/corewire/kick/internal/dependency"
+	"github.com/corewire/kick/internal/kickrequest"
 	"github.com/corewire/kick/internal/observation"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -53,7 +54,7 @@ func main() {
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
 		Observer: observation.NewObserver(observation.NewLeaseStore(mgr.GetClient()), nil),
-		Enqueuer: controller.NoopConsumerRequestEnqueuer{},
+		Enqueuer: &controller.KickRequestEnqueuer{Coalescer: kickrequest.NewCoalescer(mgr.GetClient(), kickrequest.RetentionConfig{})},
 	}).SetupWithManager(mgr); err != nil {
 		os.Exit(1)
 	}

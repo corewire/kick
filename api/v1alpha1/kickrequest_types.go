@@ -4,11 +4,30 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// KickRequestPhase is the lifecycle state of a durable restart request.
+type KickRequestPhase string
+
+const (
+	KickRequestPhasePending           KickRequestPhase = "Pending"
+	KickRequestPhaseWaitingForGate    KickRequestPhase = "WaitingForGate"
+	KickRequestPhaseWaitingForOwner   KickRequestPhase = "WaitingForOwner"
+	KickRequestPhaseWaitingForAppSync KickRequestPhase = "WaitingForApplicationSync"
+	KickRequestPhaseWaitingForRollout KickRequestPhase = "WaitingForRollout"
+	KickRequestPhaseExecuting         KickRequestPhase = "Executing"
+	KickRequestPhaseSucceeded         KickRequestPhase = "Succeeded"
+	KickRequestPhaseNoLongerRequired  KickRequestPhase = "NoLongerRequired"
+	KickRequestPhaseFailed            KickRequestPhase = "Failed"
+)
+
 // ObjectReference identifies the workload KICK may restart.
 type ObjectReference struct {
+	// +kubebuilder:default:=apps/v1
 	APIVersion string `json:"apiVersion"`
-	Kind       string `json:"kind"`
-	Name       string `json:"name"`
+	// +kubebuilder:default:=Deployment
+	// +kubebuilder:validation:Enum=Deployment
+	Kind string `json:"kind"`
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
 }
 
 // GitOpsOwnerStatus records the provider owner resolved from live cluster state.
@@ -41,7 +60,8 @@ type KickRequestSpec struct {
 
 // KickRequestStatus is diagnostic and audit state. Live state remains authoritative.
 type KickRequestStatus struct {
-	Phase                          string             `json:"phase,omitempty"`
+	// +kubebuilder:validation:Enum=Pending;WaitingForGate;WaitingForOwner;WaitingForApplicationSync;WaitingForRollout;Executing;Succeeded;NoLongerRequired;Failed
+	Phase                          KickRequestPhase   `json:"phase,omitempty"`
 	Owner                          GitOpsOwnerStatus  `json:"owner,omitempty"`
 	Gate                           GateStatus         `json:"gate,omitempty"`
 	LatestObservedDependencyChange *metav1.Time       `json:"latestObservedDependencyChange,omitempty"`

@@ -1,0 +1,92 @@
+package kickrequest
+
+import (
+	"context"
+	"time"
+
+	kickv1alpha1 "github.com/corewire/kick/api/v1alpha1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+// RetentionConfig is a skeleton for terminal request retention policy.
+type RetentionConfig struct {
+	TerminalTTL time.Duration
+}
+
+// Coalescer ensures repeated source events map to one active request per target.
+type Coalescer struct {
+	client.Client
+	Retention RetentionConfig
+	now       func() time.Time
+}
+
+func NewCoalescer(c client.Client, retention RetentionConfig) *Coalescer {
+	return &Coalescer{Client: c, Retention: retention, now: time.Now}
+}
+
+// EnsureActiveRequest creates or updates one active KickRequest for a target.
+func (c *Coalescer) EnsureActiveRequest(ctx context.Context, target types.NamespacedName, latestObservedChange time.Time) (*kickv1alpha1.KickRequest, error) {
+	key := types.NamespacedName{Namespace: target.Namespace, Name: target.Name}
+	var request kickv1alpha1.KickRequest
+	if err := c.Get(ctx, key, &request); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return nil, err
+		}
+		request = kickv1alpha1.KickRequest{
+			ObjectMeta: metav1.ObjectMeta{Name: target.Name, Namespace: target.Namespace},
+			Spec: kickv1alpha1.KickRequestSpec{TargetRef: kickv1alpha1.ObjectReference{
+				APIVersion: "apps/v1",
+				Kind:       "Deployment",
+				Name:       target.Name,
+			}},
+		}
+		if err := c.Create(ctx, &request); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := c.updateStatusWithRetry(ctx, key, latestObservedChange); err != nil {
+		return nil, err
+	}
+
+	if err := c.Get(ctx, key, &request); err != nil {
+		return nil, err
+	}
+	return &request, nil
+}
+
+func (c *Coalescer) updateStatusWithRetry(ctx context.Context, key types.NamespacedName, latestObservedChange time.Time) error {
+	if latestObservedChange.IsZero() {
+		latestObservedChange = c.now().UTC()
+	}
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		var request kickv1alpha1.KickRequest
+		if err := c.Get(ctx, key, &request); err != nil {
+			return err
+		}
+
+		if request.Status.Phase == "" || isTerminalPhase(request.Status.Phase) {
+			request.Status.Phase = kickv1alpha1.KickRequestPhasePending
+		}
+
+		if request.Status.LatestObservedDependencyChange == nil || latestObservedChange.After(request.Status.LatestObservedDependencyChange.Time) {
+			t := metav1.NewTime(latestObservedChange.UTC())
+			request.Status.LatestObservedDependencyChange = &t
+		}
+
+		return c.Status().Update(ctx, &request)
+	})
+}
+
+func isTerminalPhase(phase kickv1alpha1.KickRequestPhase) bool {
+	switch phase {
+	case kickv1alpha1.KickRequestPhaseSucceeded, kickv1alpha1.KickRequestPhaseNoLongerRequired, kickv1alpha1.KickRequestPhaseFailed:
+		return true
+	default:
+		return false
+	}
+}
