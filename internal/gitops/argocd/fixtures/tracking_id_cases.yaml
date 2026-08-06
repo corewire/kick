@@ -1,0 +1,63 @@
+version: 1
+cases:
+  - id: valid-basic
+    trackingId: my-app:apps/Deployment:default/my-deployment
+    object:
+      group: apps
+      kind: Deployment
+      namespace: default
+      name: my-deployment
+    installationId: ""
+    expect:
+      valid: true
+      reason: Matched
+
+  - id: valid-annotation-plus-label
+    trackingId: team-app:apps/Deployment:team-a/payments-api
+    object:
+      group: apps
+      kind: Deployment
+      namespace: team-a
+      name: payments-api
+    installationId: platform-prod
+    objectInstallationId: platform-prod
+    expect:
+      valid: true
+      reason: Matched
+
+  - id: invalid-non-self-reference
+    trackingId: my-app:apps/Deployment:other-ns/my-deployment
+    object:
+      group: apps
+      kind: Deployment
+      namespace: default
+      name: my-deployment
+    installationId: ""
+    expect:
+      valid: false
+      reason: NonSelfReferencing
+
+  - id: invalid-group-mismatch
+    trackingId: my-app:batch/CronJob:default/my-job
+    object:
+      group: apps
+      kind: Deployment
+      namespace: default
+      name: my-job
+    installationId: ""
+    expect:
+      valid: false
+      reason: IdentityMismatch
+
+  - id: invalid-installation-id-mismatch
+    trackingId: team-app:apps/Deployment:team-a/payments-api
+    object:
+      group: apps
+      kind: Deployment
+      namespace: team-a
+      name: payments-api
+    installationId: platform-prod
+    objectInstallationId: platform-dev
+    expect:
+      valid: false
+      reason: InstallationIDMismatch

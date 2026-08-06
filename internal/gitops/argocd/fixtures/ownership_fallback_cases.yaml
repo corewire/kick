@@ -1,0 +1,40 @@
+version: 1
+cases:
+  - id: no-owner
+    workload:
+      group: apps
+      kind: Deployment
+      namespace: default
+      name: api
+    applicationMatches: []
+    expect:
+      result: OwnerUnknown
+
+  - id: single-owner
+    workload:
+      group: apps
+      kind: Deployment
+      namespace: payments
+      name: payments-api
+    applicationMatches:
+      - namespace: team-a
+        name: payments-app
+        project: production
+    expect:
+      result: Resolved
+
+  - id: ambiguous-owner
+    workload:
+      group: apps
+      kind: Deployment
+      namespace: shared
+      name: ingress
+    applicationMatches:
+      - namespace: team-a
+        name: ingress-app
+        project: platform
+      - namespace: team-b
+        name: ingress-app-alt
+        project: platform
+    expect:
+      result: AmbiguousOwner

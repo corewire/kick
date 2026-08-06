@@ -1,0 +1,31 @@
+version: 1
+cases:
+  - id: normal-apply-self-heal
+    mode: normal-sync
+    rolloutAnnotationReconciledByArgo: true
+    expect:
+      behavior: reevaluate-freshness-before-retry
+
+  - id: server-side-apply
+    mode: server-side-apply
+    rolloutAnnotationReconciledByArgo: true
+    expect:
+      behavior: reevaluate-freshness-before-retry
+
+  - id: replace-sync
+    mode: replace-sync
+    rolloutAnnotationReconciledByArgo: true
+    expect:
+      behavior: reevaluate-freshness-before-retry
+
+  - id: force-sync
+    mode: force-sync
+    rolloutAnnotationReconciledByArgo: true
+    expect:
+      behavior: reevaluate-freshness-before-retry
+
+  - id: chart-owns-annotation
+    mode: chart-declared-annotation
+    rolloutAnnotationReconciledByArgo: true
+    expect:
+      behavior: treat-as-argo-owned-and-reevaluate

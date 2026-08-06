@@ -1,0 +1,101 @@
+version: 1
+cases:
+  - id: no-windows
+    windows: []
+    app:
+      name: payments
+      destinationNamespace: payments
+      destinationClusterName: in-cluster
+      destinationServer: https://kubernetes.default.svc
+    now: 2026-08-06T10:00:00Z
+    expect:
+      allowed: true
+      reason: Allowed
+
+  - id: deny-overrides-allow
+    windows:
+      - kind: allow
+        schedule: "* * * * *"
+        duration: 1h
+        applications: ["payments"]
+      - kind: deny
+        schedule: "* * * * *"
+        duration: 1h
+        applications: ["payments"]
+    app:
+      name: payments
+      destinationNamespace: payments
+      destinationClusterName: in-cluster
+      destinationServer: https://kubernetes.default.svc
+    now: 2026-08-06T10:00:00Z
+    expect:
+      allowed: false
+      reason: OutsideSchedule
+
+  - id: allow-only-outside-window
+    windows:
+      - kind: allow
+        schedule: "0 9 * * *"
+        duration: 1h
+        applications: ["payments"]
+        timeZone: UTC
+    app:
+      name: payments
+      destinationNamespace: payments
+      destinationClusterName: in-cluster
+      destinationServer: https://kubernetes.default.svc
+    now: 2026-08-06T12:00:00Z
+    expect:
+      allowed: false
+      reason: OutsideSchedule
+
+  - id: selector-or-mode
+    windows:
+      - kind: deny
+        schedule: "* * * * *"
+        duration: 30m
+        applications: ["prod-*"]
+        namespaces: ["payments"]
+        useAndOperator: false
+    app:
+      name: prod-api
+      destinationNamespace: sandbox
+      destinationClusterName: in-cluster
+      destinationServer: https://kubernetes.default.svc
+    now: 2026-08-06T10:00:00Z
+    expect:
+      matched: true
+
+  - id: selector-and-mode
+    windows:
+      - kind: deny
+        schedule: "* * * * *"
+        duration: 30m
+        applications: ["prod-*"]
+        namespaces: ["payments"]
+        useAndOperator: true
+    app:
+      name: prod-api
+      destinationNamespace: sandbox
+      destinationClusterName: in-cluster
+      destinationServer: https://kubernetes.default.svc
+    now: 2026-08-06T10:00:00Z
+    expect:
+      matched: false
+
+  - id: manual-sync-does-not-bypass-kick
+    windows:
+      - kind: deny
+        schedule: "* * * * *"
+        duration: 1h
+        applications: ["payments"]
+        manualSync: true
+    app:
+      name: payments
+      destinationNamespace: payments
+      destinationClusterName: in-cluster
+      destinationServer: https://kubernetes.default.svc
+    now: 2026-08-06T10:00:00Z
+    expect:
+      allowed: false
+      reason: OutsideSchedule
