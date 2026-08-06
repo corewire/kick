@@ -60,6 +60,9 @@ jobs:
       - name: Docs generation check
         run: make docs-gen-check
 
+      - name: Feature coverage checker tests
+        run: make feature-coverage-test
+
       - name: Vulnerability check
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
@@ -67,3 +70,14 @@ jobs:
 
       - name: Feature coverage
         run: make feature-coverage
+
+      - name: Feature coverage summary
+        if: always()
+        run: cat traceability/feature-coverage-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload feature coverage report
+        if: always()
+        uses: actions/upload-artifact@v4.4.3
+        with:
+          name: feature-coverage-report
+          path: traceability/feature-coverage-report.md

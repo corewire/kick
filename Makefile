@@ -126,7 +126,11 @@ docs-gen-check: docs-gen
 
 .PHONY: feature-coverage
 feature-coverage:
-	python3 tools/check_feature_coverage.py
+	python3 tools/check_feature_coverage.py --report traceability/feature-coverage-report.md
+
+.PHONY: feature-coverage-test
+feature-coverage-test:
+	python3 -m unittest tools/check_feature_coverage_test.py
 
 .PHONY: tools
 tools: kustomize controller-gen setup-envtest golangci-lint chainsaw
