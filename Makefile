@@ -45,7 +45,28 @@ test: setup-envtest
 
 .PHONY: test-e2e
 test-e2e: chainsaw
-	$(CHAINSAW) test --kubeconfig $(KIND_KUBECONFIG) --kube-context $(KIND_CONTEXT) test/e2e/scenarios
+	$(CHAINSAW) test --config test/e2e/chainsaw-configuration.yaml --kubeconfig $(KIND_KUBECONFIG) --kube-context $(KIND_CONTEXT) test/e2e/scenarios
+
+.PHONY: test-e2e-core
+test-e2e-core: chainsaw
+	$(CHAINSAW) test --config test/e2e/chainsaw-configuration.yaml --kubeconfig $(KIND_KUBECONFIG) --kube-context $(KIND_CONTEXT) --exclude-test-regex "KICK-E2E-(024|025|026|027|028|029|030|031|032|033|034|035|036|037|038|039|040|041|042|048|049|050|051)" test/e2e/scenarios
+
+.PHONY: test-e2e-argocd
+test-e2e-argocd: chainsaw
+	$(CHAINSAW) test --config test/e2e/chainsaw-configuration.yaml --kubeconfig $(KIND_KUBECONFIG) --kube-context $(KIND_CONTEXT) --include-test-regex "KICK-E2E-(024|025|026|027|028|029|030|031|032|033|034|035|036|037|038|039|040|041|042)" test/e2e/scenarios
+
+.PHONY: test-e2e-recovery
+test-e2e-recovery: chainsaw
+	$(CHAINSAW) test --config test/e2e/chainsaw-configuration.yaml --kubeconfig $(KIND_KUBECONFIG) --kube-context $(KIND_CONTEXT) --include-test-regex "KICK-E2E-(048|049|050|051)" test/e2e/scenarios
+
+.PHONY: test-e2e-scenario
+test-e2e-scenario: chainsaw
+	@if [[ -z "$(E2E)" ]]; then echo "E2E is required, e.g. make test-e2e-scenario E2E=KICK-E2E-032"; exit 1; fi
+	$(CHAINSAW) test --config test/e2e/chainsaw-configuration.yaml --kubeconfig $(KIND_KUBECONFIG) --kube-context $(KIND_CONTEXT) --include-test-regex "$(E2E)" test/e2e/scenarios
+
+.PHONY: test-e2e-render
+test-e2e-render: chainsaw
+	$(CHAINSAW) test --config test/e2e/chainsaw-configuration.yaml --no-cluster test/e2e/scenarios
 
 .PHONY: kind-create
 kind-create:

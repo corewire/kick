@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-014
+name: identical-content-ignored
+features:
+  - KICK-FEAT-005
+provider: core
+class: behavior
+required: true

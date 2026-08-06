@@ -1,0 +1,11 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: configmap-data-update-relevant
+spec:
+  steps:
+    - name: scaffold
+      try:
+        - script:
+            content: |
+              echo "TODO: implement KICK-E2E-012 - ConfigMap data update relevant"

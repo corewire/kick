@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-028
+name: no-owner-blocks
+features:
+  - KICK-FEAT-010
+provider: argocd
+class: behavior
+required: true

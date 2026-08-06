@@ -1,0 +1,11 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: restart-while-waiting-for-sync
+spec:
+  steps:
+    - name: scaffold
+      try:
+        - script:
+            content: |
+              echo "TODO: implement KICK-E2E-049 - restart while waiting for sync"

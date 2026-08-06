@@ -1,0 +1,8 @@
+scenarioID: KICK-E2E-001
+name: envfrom-secret-triggers-kick
+features:
+  - KICK-FEAT-001
+  - KICK-FEAT-002
+provider: core
+class: behavior
+required: true

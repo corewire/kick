@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-043
+name: exactly-one-replicaset
+features:
+  - KICK-FEAT-015
+provider: core
+class: behavior
+required: true

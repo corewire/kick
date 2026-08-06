@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-013
+name: metadata-only-update-ignored
+features:
+  - KICK-FEAT-005
+provider: core
+class: behavior
+required: true

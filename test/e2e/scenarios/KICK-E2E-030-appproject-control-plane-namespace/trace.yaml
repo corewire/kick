@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-030
+name: appproject-control-plane-namespace
+features:
+  - KICK-FEAT-011
+provider: argocd
+class: behavior
+required: true

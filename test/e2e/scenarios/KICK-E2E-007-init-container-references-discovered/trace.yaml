@@ -1,0 +1,8 @@
+scenarioID: KICK-E2E-007
+name: init-container-references-discovered
+features:
+  - KICK-FEAT-001
+  - KICK-FEAT-002
+provider: core
+class: behavior
+required: true

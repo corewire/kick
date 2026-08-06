@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-045
+name: self-heal-no-duplicate
+features:
+  - KICK-FEAT-015
+provider: core
+class: behavior
+required: true

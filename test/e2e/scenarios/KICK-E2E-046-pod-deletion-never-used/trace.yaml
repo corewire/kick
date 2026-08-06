@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-046
+name: pod-deletion-never-used
+features:
+  - KICK-FEAT-015
+provider: core
+class: behavior
+required: true

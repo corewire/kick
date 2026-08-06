@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-029
+name: multiple-owners-block
+features:
+  - KICK-FEAT-010
+provider: argocd
+class: behavior
+required: true

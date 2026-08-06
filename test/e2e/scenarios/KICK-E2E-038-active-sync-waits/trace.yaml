@@ -1,0 +1,8 @@
+scenarioID: KICK-E2E-038
+name: active-sync-waits
+features:
+  - KICK-FEAT-008
+  - KICK-FEAT-013
+provider: argocd
+class: behavior
+required: true

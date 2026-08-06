@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-052
+name: observability-excludes-secret-data
+features:
+  - KICK-FEAT-016
+provider: core
+class: security
+required: true

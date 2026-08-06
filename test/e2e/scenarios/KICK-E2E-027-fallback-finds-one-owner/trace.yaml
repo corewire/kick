@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-027
+name: fallback-finds-one-owner
+features:
+  - KICK-FEAT-010
+provider: argocd
+class: behavior
+required: true

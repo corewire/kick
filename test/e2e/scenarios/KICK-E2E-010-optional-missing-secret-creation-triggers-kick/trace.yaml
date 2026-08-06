@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-010
+name: optional-missing-secret-creation-triggers-kick
+features:
+  - KICK-FEAT-001
+provider: core
+class: behavior
+required: true

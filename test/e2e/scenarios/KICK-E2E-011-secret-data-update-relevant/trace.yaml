@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-011
+name: secret-data-update-relevant
+features:
+  - KICK-FEAT-005
+provider: core
+class: behavior
+required: true

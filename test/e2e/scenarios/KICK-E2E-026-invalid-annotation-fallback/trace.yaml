@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-026
+name: invalid-annotation-fallback
+features:
+  - KICK-FEAT-009
+provider: argocd
+class: behavior
+required: true

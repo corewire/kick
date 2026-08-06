@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-035
+name: window-precedence
+features:
+  - KICK-FEAT-012
+provider: argocd
+class: behavior
+required: true

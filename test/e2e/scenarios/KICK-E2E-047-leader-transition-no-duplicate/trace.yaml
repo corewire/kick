@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-047
+name: leader-transition-no-duplicate
+features:
+  - KICK-FEAT-015
+provider: core
+class: behavior
+required: true

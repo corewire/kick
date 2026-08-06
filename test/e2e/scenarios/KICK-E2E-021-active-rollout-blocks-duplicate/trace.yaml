@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-021
+name: active-rollout-blocks-duplicate
+features:
+  - KICK-FEAT-007
+provider: core
+class: behavior
+required: true

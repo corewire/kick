@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-025
+name: annotation-owner-in-other-namespace
+features:
+  - KICK-FEAT-009
+provider: argocd
+class: behavior
+required: true

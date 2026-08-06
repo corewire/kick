@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-018
+name: older-dependency-does-not
+features:
+  - KICK-FEAT-007
+provider: core
+class: behavior
+required: true

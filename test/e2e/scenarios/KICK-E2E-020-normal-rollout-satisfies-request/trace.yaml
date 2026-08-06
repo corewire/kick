@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-020
+name: normal-rollout-satisfies-request
+features:
+  - KICK-FEAT-007
+provider: core
+class: behavior
+required: true

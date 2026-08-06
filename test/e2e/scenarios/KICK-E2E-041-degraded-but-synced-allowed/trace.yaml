@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-041
+name: degraded-but-synced-allowed
+features:
+  - KICK-FEAT-013
+provider: argocd
+class: behavior
+required: true

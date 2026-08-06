@@ -1,0 +1,11 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: annotation-owner-in-other-namespace
+spec:
+  steps:
+    - name: scaffold
+      try:
+        - script:
+            content: |
+              echo "TODO: implement KICK-E2E-025 - annotation owner in other namespace"

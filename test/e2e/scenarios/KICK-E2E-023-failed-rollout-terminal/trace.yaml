@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-023
+name: failed-rollout-terminal
+features:
+  - KICK-FEAT-007
+provider: core
+class: behavior
+required: true

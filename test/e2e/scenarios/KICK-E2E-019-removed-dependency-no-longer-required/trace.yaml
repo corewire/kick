@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-019
+name: removed-dependency-no-longer-required
+features:
+  - KICK-FEAT-007
+provider: core
+class: behavior
+required: true

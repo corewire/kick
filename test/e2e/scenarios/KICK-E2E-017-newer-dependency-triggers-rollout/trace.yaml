@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-017
+name: newer-dependency-triggers-rollout
+features:
+  - KICK-FEAT-007
+provider: core
+class: behavior
+required: true

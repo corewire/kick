@@ -1,0 +1,11 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: removed-dependency-no-longer-required
+spec:
+  steps:
+    - name: scaffold
+      try:
+        - script:
+            content: |
+              echo "TODO: implement KICK-E2E-019 - removed dependency no longer required"

@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-016
+name: controller-restart-preserves-observations
+features:
+  - KICK-FEAT-006
+provider: core
+class: behavior
+required: true

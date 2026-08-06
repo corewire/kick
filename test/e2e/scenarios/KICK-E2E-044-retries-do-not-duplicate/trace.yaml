@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-044
+name: retries-do-not-duplicate
+features:
+  - KICK-FEAT-015
+provider: core
+class: behavior
+required: true

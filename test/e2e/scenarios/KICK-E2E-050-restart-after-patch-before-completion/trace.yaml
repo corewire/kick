@@ -1,0 +1,8 @@
+scenarioID: KICK-E2E-050
+name: restart-after-patch-before-completion
+features:
+  - KICK-FEAT-006
+  - KICK-FEAT-014
+provider: core
+class: recovery
+required: true

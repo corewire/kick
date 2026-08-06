@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-022
+name: scaled-to-zero-deterministic
+features:
+  - KICK-FEAT-007
+provider: core
+class: behavior
+required: true

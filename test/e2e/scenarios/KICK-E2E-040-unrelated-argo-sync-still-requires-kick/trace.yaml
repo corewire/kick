@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-040
+name: unrelated-argo-sync-still-requires-kick
+features:
+  - KICK-FEAT-013
+provider: argocd
+class: behavior
+required: true

@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-008
+name: imagepullsecrets-ignored
+features:
+  - KICK-FEAT-004
+provider: core
+class: behavior
+required: true

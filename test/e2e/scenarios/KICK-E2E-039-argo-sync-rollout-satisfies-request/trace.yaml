@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-039
+name: argo-sync-rollout-satisfies-request
+features:
+  - KICK-FEAT-013
+provider: argocd
+class: behavior
+required: true

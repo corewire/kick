@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-051
+name: stale-requeue-recomputed
+features:
+  - KICK-FEAT-006
+provider: core
+class: recovery
+required: true

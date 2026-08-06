@@ -1,0 +1,8 @@
+scenarioID: KICK-E2E-004
+name: secret-volume-triggers-kick
+features:
+  - KICK-FEAT-001
+  - KICK-FEAT-003
+provider: core
+class: behavior
+required: true

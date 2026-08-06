@@ -1,0 +1,8 @@
+scenarioID: KICK-E2E-048
+name: restart-while-waiting-for-window
+features:
+  - KICK-FEAT-006
+  - KICK-FEAT-014
+provider: core
+class: recovery
+required: true

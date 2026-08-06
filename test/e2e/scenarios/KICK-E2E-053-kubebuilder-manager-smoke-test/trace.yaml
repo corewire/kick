@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-053
+name: kubebuilder-manager-smoke-test
+features:
+  - KICK-FEAT-017
+provider: core
+class: smoke
+required: true

@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-031
+name: missing-appproject-blocks
+features:
+  - KICK-FEAT-011
+provider: argocd
+class: behavior
+required: true

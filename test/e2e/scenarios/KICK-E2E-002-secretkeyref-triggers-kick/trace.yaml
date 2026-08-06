@@ -1,0 +1,8 @@
+scenarioID: KICK-E2E-002
+name: secretkeyref-triggers-kick
+features:
+  - KICK-FEAT-001
+  - KICK-FEAT-002
+provider: core
+class: behavior
+required: true

@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-015
+name: changes-coalesce
+features:
+  - KICK-FEAT-014
+provider: core
+class: behavior
+required: true
