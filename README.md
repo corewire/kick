@@ -50,4 +50,8 @@ make uninstall
 make tilt-down
 ```
 
+## Security note
+
+The controller ServiceAccount requires read access to Secrets and ConfigMaps in managed namespaces to evaluate dependency freshness. Treat this ServiceAccount as sensitive and scope RBAC and namespace access accordingly.
+
 Dependencies are pinned as starter values and must be reviewed before the first production implementation pull request.

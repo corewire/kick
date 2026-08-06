@@ -1,0 +1,11 @@
+{{- if and .Values.rbac.create .Values.argocd.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kick-argocd-appproject-reader
+  namespace: {{ .Values.argocd.namespace }}
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["appprojects"]
+    verbs: ["get", "list", "watch"]
+{{- end }}

@@ -2,6 +2,18 @@ namespace:
   create: true
   name: kick-system
 
+rbac:
+  create: true
+
+argocd:
+  enabled: true
+  namespace: argocd
+  applicationNamespaces:
+    - "*"
+
+requestRetention: 24h
+rolloutTimeout: 15m
+
 image:
   repository: ghcr.io/corewire/kick
   tag: dev
@@ -12,6 +24,34 @@ replicaCount: 1
 serviceAccount:
   create: true
   name: controller-manager
+
+leaderElection:
+  enabled: true
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+podSecurityContext:
+  runAsNonRoot: true
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+probes:
+  liveness:
+    path: /healthz
+    port: 8081
+    initialDelaySeconds: 15
+    periodSeconds: 20
+  readiness:
+    path: /readyz
+    port: 8081
+    initialDelaySeconds: 5
+    periodSeconds: 10
 
 resources:
   requests:
