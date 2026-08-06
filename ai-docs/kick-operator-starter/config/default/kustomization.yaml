@@ -1,0 +1,11 @@
+namespace: kick-system
+namePrefix: kick-
+resources:
+- namespace.yaml
+- ../crd
+- ../rbac
+- ../manager
+images:
+- name: controller
+  newName: ghcr.io/corewire/kick
+  newTag: dev

@@ -1,0 +1,22 @@
+namespace:
+  create: true
+  name: kick-system
+
+image:
+  repository: ghcr.io/corewire/kick
+  tag: dev
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+serviceAccount:
+  create: true
+  name: controller-manager
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi

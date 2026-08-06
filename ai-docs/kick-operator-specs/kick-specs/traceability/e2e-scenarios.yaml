@@ -1,0 +1,333 @@
+version: 1
+scenarios:
+- id: KICK-E2E-001
+  name: envFrom Secret triggers kick
+  directory: test/e2e/001-envfrom-secret-triggers-kick
+  status: required
+  features:
+  - KICK-FEAT-001
+  - KICK-FEAT-002
+- id: KICK-E2E-002
+  name: secretKeyRef triggers kick
+  directory: test/e2e/002-secretkeyref-triggers-kick
+  status: required
+  features:
+  - KICK-FEAT-001
+  - KICK-FEAT-002
+- id: KICK-E2E-003
+  name: ConfigMap environment reference triggers kick
+  directory: test/e2e/003-configmap-environment-reference-triggers-kick
+  status: required
+  features:
+  - KICK-FEAT-001
+  - KICK-FEAT-002
+- id: KICK-E2E-004
+  name: Secret volume triggers kick
+  directory: test/e2e/004-secret-volume-triggers-kick
+  status: required
+  features:
+  - KICK-FEAT-001
+  - KICK-FEAT-003
+- id: KICK-E2E-005
+  name: ConfigMap volume triggers kick
+  directory: test/e2e/005-configmap-volume-triggers-kick
+  status: required
+  features:
+  - KICK-FEAT-001
+  - KICK-FEAT-003
+- id: KICK-E2E-006
+  name: projected sources trigger kick
+  directory: test/e2e/006-projected-sources-trigger-kick
+  status: required
+  features:
+  - KICK-FEAT-001
+  - KICK-FEAT-003
+- id: KICK-E2E-007
+  name: init-container references discovered
+  directory: test/e2e/007-init-container-references-discovered
+  status: required
+  features:
+  - KICK-FEAT-001
+  - KICK-FEAT-002
+- id: KICK-E2E-008
+  name: imagePullSecrets ignored
+  directory: test/e2e/008-imagepullsecrets-ignored
+  status: required
+  features:
+  - KICK-FEAT-004
+- id: KICK-E2E-009
+  name: duplicate references create one request
+  directory: test/e2e/009-duplicate-references-create-one-request
+  status: required
+  features:
+  - KICK-FEAT-014
+- id: KICK-E2E-010
+  name: optional missing Secret creation triggers kick
+  directory: test/e2e/010-optional-missing-secret-creation-triggers-kick
+  status: required
+  features:
+  - KICK-FEAT-001
+- id: KICK-E2E-011
+  name: Secret data update relevant
+  directory: test/e2e/011-secret-data-update-relevant
+  status: required
+  features:
+  - KICK-FEAT-005
+- id: KICK-E2E-012
+  name: ConfigMap data update relevant
+  directory: test/e2e/012-configmap-data-update-relevant
+  status: required
+  features:
+  - KICK-FEAT-005
+- id: KICK-E2E-013
+  name: metadata-only update ignored
+  directory: test/e2e/013-metadata-only-update-ignored
+  status: required
+  features:
+  - KICK-FEAT-005
+- id: KICK-E2E-014
+  name: identical content ignored
+  directory: test/e2e/014-identical-content-ignored
+  status: required
+  features:
+  - KICK-FEAT-005
+- id: KICK-E2E-015
+  name: changes coalesce
+  directory: test/e2e/015-changes-coalesce
+  status: required
+  features:
+  - KICK-FEAT-014
+- id: KICK-E2E-016
+  name: controller restart preserves observations
+  directory: test/e2e/016-controller-restart-preserves-observations
+  status: required
+  features:
+  - KICK-FEAT-006
+- id: KICK-E2E-017
+  name: newer dependency triggers rollout
+  directory: test/e2e/017-newer-dependency-triggers-rollout
+  status: required
+  features:
+  - KICK-FEAT-007
+- id: KICK-E2E-018
+  name: older dependency does not
+  directory: test/e2e/018-older-dependency-does-not
+  status: required
+  features:
+  - KICK-FEAT-007
+- id: KICK-E2E-019
+  name: removed dependency no longer required
+  directory: test/e2e/019-removed-dependency-no-longer-required
+  status: required
+  features:
+  - KICK-FEAT-007
+- id: KICK-E2E-020
+  name: normal rollout satisfies request
+  directory: test/e2e/020-normal-rollout-satisfies-request
+  status: required
+  features:
+  - KICK-FEAT-007
+- id: KICK-E2E-021
+  name: active rollout blocks duplicate
+  directory: test/e2e/021-active-rollout-blocks-duplicate
+  status: required
+  features:
+  - KICK-FEAT-007
+- id: KICK-E2E-022
+  name: scaled-to-zero deterministic
+  directory: test/e2e/022-scaled-to-zero-deterministic
+  status: required
+  features:
+  - KICK-FEAT-007
+- id: KICK-E2E-023
+  name: failed rollout terminal
+  directory: test/e2e/023-failed-rollout-terminal
+  status: required
+  features:
+  - KICK-FEAT-007
+- id: KICK-E2E-024
+  name: annotation owner in Argo CD namespace
+  directory: test/e2e/024-annotation-owner-in-argo-cd-namespace
+  status: required
+  features:
+  - KICK-FEAT-009
+- id: KICK-E2E-025
+  name: annotation owner in other namespace
+  directory: test/e2e/025-annotation-owner-in-other-namespace
+  status: required
+  features:
+  - KICK-FEAT-009
+- id: KICK-E2E-026
+  name: invalid annotation fallback
+  directory: test/e2e/026-invalid-annotation-fallback
+  status: required
+  features:
+  - KICK-FEAT-009
+- id: KICK-E2E-027
+  name: fallback finds one owner
+  directory: test/e2e/027-fallback-finds-one-owner
+  status: required
+  features:
+  - KICK-FEAT-010
+- id: KICK-E2E-028
+  name: no owner blocks
+  directory: test/e2e/028-no-owner-blocks
+  status: required
+  features:
+  - KICK-FEAT-010
+- id: KICK-E2E-029
+  name: multiple owners block
+  directory: test/e2e/029-multiple-owners-block
+  status: required
+  features:
+  - KICK-FEAT-010
+- id: KICK-E2E-030
+  name: AppProject control-plane namespace
+  directory: test/e2e/030-appproject-control-plane-namespace
+  status: required
+  features:
+  - KICK-FEAT-011
+- id: KICK-E2E-031
+  name: missing AppProject blocks
+  directory: test/e2e/031-missing-appproject-blocks
+  status: required
+  features:
+  - KICK-FEAT-011
+- id: KICK-E2E-032
+  name: open window and synced allows kick
+  directory: test/e2e/032-open-window-and-synced-allows-kick
+  status: required
+  features:
+  - KICK-FEAT-008
+  - KICK-FEAT-012
+- id: KICK-E2E-033
+  name: closed allow window waits
+  directory: test/e2e/033-closed-allow-window-waits
+  status: required
+  features:
+  - KICK-FEAT-012
+- id: KICK-E2E-034
+  name: deny window waits
+  directory: test/e2e/034-deny-window-waits
+  status: required
+  features:
+  - KICK-FEAT-012
+- id: KICK-E2E-035
+  name: window precedence
+  directory: test/e2e/035-window-precedence
+  status: required
+  features:
+  - KICK-FEAT-012
+- id: KICK-E2E-036
+  name: window edit reenqueues
+  directory: test/e2e/036-window-edit-reenqueues
+  status: required
+  features:
+  - KICK-FEAT-012
+- id: KICK-E2E-037
+  name: OutOfSync waits
+  directory: test/e2e/037-outofsync-waits
+  status: required
+  features:
+  - KICK-FEAT-008
+  - KICK-FEAT-013
+- id: KICK-E2E-038
+  name: active sync waits
+  directory: test/e2e/038-active-sync-waits
+  status: required
+  features:
+  - KICK-FEAT-008
+  - KICK-FEAT-013
+- id: KICK-E2E-039
+  name: Argo sync rollout satisfies request
+  directory: test/e2e/039-argo-sync-rollout-satisfies-request
+  status: required
+  features:
+  - KICK-FEAT-013
+- id: KICK-E2E-040
+  name: unrelated Argo sync still requires kick
+  directory: test/e2e/040-unrelated-argo-sync-still-requires-kick
+  status: required
+  features:
+  - KICK-FEAT-013
+- id: KICK-E2E-041
+  name: degraded but synced allowed
+  directory: test/e2e/041-degraded-but-synced-allowed
+  status: required
+  features:
+  - KICK-FEAT-013
+- id: KICK-E2E-042
+  name: no applicable windows permits
+  directory: test/e2e/042-no-applicable-windows-permits
+  status: required
+  features:
+  - KICK-FEAT-012
+- id: KICK-E2E-043
+  name: exactly one ReplicaSet
+  directory: test/e2e/043-exactly-one-replicaset
+  status: required
+  features:
+  - KICK-FEAT-015
+- id: KICK-E2E-044
+  name: retries do not duplicate
+  directory: test/e2e/044-retries-do-not-duplicate
+  status: required
+  features:
+  - KICK-FEAT-015
+- id: KICK-E2E-045
+  name: self-heal no duplicate
+  directory: test/e2e/045-self-heal-no-duplicate
+  status: required
+  features:
+  - KICK-FEAT-015
+- id: KICK-E2E-046
+  name: Pod deletion never used
+  directory: test/e2e/046-pod-deletion-never-used
+  status: required
+  features:
+  - KICK-FEAT-015
+- id: KICK-E2E-047
+  name: leader transition no duplicate
+  directory: test/e2e/047-leader-transition-no-duplicate
+  status: required
+  features:
+  - KICK-FEAT-015
+- id: KICK-E2E-048
+  name: restart while waiting for window
+  directory: test/e2e/048-restart-while-waiting-for-window
+  status: required
+  features:
+  - KICK-FEAT-006
+  - KICK-FEAT-014
+- id: KICK-E2E-049
+  name: restart while waiting for sync
+  directory: test/e2e/049-restart-while-waiting-for-sync
+  status: required
+  features:
+  - KICK-FEAT-006
+  - KICK-FEAT-014
+- id: KICK-E2E-050
+  name: restart after patch before completion
+  directory: test/e2e/050-restart-after-patch-before-completion
+  status: required
+  features:
+  - KICK-FEAT-006
+  - KICK-FEAT-014
+- id: KICK-E2E-051
+  name: stale requeue recomputed
+  directory: test/e2e/051-stale-requeue-recomputed
+  status: required
+  features:
+  - KICK-FEAT-006
+- id: KICK-E2E-052
+  name: observability excludes Secret data
+  directory: test/e2e/052-observability-excludes-secret-data
+  status: required
+  features:
+  - KICK-FEAT-016
+- id: KICK-E2E-053
+  name: Kubebuilder manager smoke test
+  directory: test/e2e/053-kubebuilder-manager-smoke-test
+  status: required
+  features:
+  - KICK-FEAT-017

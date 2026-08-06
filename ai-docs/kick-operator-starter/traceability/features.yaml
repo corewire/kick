@@ -1,0 +1,237 @@
+version: 1
+features:
+- id: KICK-FEAT-001
+  name: Full automatic dependency discovery
+  spec: specs/02-dependency-discovery.md
+  task: tasks/02-dependency-index.md
+  tests:
+    unit: required
+    envtest: required
+    e2e: required
+  e2e:
+  - KICK-E2E-001
+  - KICK-E2E-002
+  - KICK-E2E-003
+  - KICK-E2E-004
+  - KICK-E2E-005
+  - KICK-E2E-006
+  - KICK-E2E-007
+  - KICK-E2E-010
+- id: KICK-FEAT-002
+  name: Environment Secret and ConfigMap references
+  spec: specs/02-dependency-discovery.md
+  task: tasks/01-dependency-extractor.md
+  tests:
+    unit: required
+    envtest: optional
+    e2e: required
+  e2e:
+  - KICK-E2E-001
+  - KICK-E2E-002
+  - KICK-E2E-003
+  - KICK-E2E-007
+- id: KICK-FEAT-003
+  name: Mounted and projected Secret and ConfigMap references
+  spec: specs/02-dependency-discovery.md
+  task: tasks/01-dependency-extractor.md
+  tests:
+    unit: required
+    envtest: optional
+    e2e: required
+  e2e:
+  - KICK-E2E-004
+  - KICK-E2E-005
+  - KICK-E2E-006
+- id: KICK-FEAT-004
+  name: Image pull Secrets never trigger kicks
+  spec: specs/02-dependency-discovery.md
+  task: tasks/01-dependency-extractor.md
+  tests:
+    unit: required
+    envtest: optional
+    e2e: required
+  e2e:
+  - KICK-E2E-008
+- id: KICK-FEAT-005
+  name: Relevant content change detection
+  spec: specs/03-change-observation.md
+  task: tasks/04-source-observer.md
+  tests:
+    unit: required
+    envtest: required
+    e2e: required
+  e2e:
+  - KICK-E2E-011
+  - KICK-E2E-012
+  - KICK-E2E-013
+  - KICK-E2E-014
+- id: KICK-FEAT-006
+  name: Durable change observations and recovery
+  spec: specs/03-change-observation.md
+  task: tasks/04-source-observer.md
+  tests:
+    unit: required
+    envtest: required
+    e2e: required
+  e2e:
+  - KICK-E2E-016
+  - KICK-E2E-048
+  - KICK-E2E-049
+  - KICK-E2E-050
+  - KICK-E2E-051
+- id: KICK-FEAT-007
+  name: Deployment freshness comparison
+  spec: specs/04-deployment-freshness.md
+  task: tasks/07-freshness-evaluator.md
+  tests:
+    unit: required
+    envtest: required
+    e2e: required
+  e2e:
+  - KICK-E2E-017
+  - KICK-E2E-018
+  - KICK-E2E-019
+  - KICK-E2E-020
+  - KICK-E2E-021
+  - KICK-E2E-022
+  - KICK-E2E-023
+- id: KICK-FEAT-008
+  name: Provider-neutral GitOps gate
+  spec: specs/05-gitops-provider-contract.md
+  task: tasks/08-provider-contract.md
+  tests:
+    unit: required
+    envtest: optional
+    e2e: required
+  e2e:
+  - KICK-E2E-032
+  - KICK-E2E-037
+  - KICK-E2E-038
+- id: KICK-FEAT-009
+  name: Argo CD owner discovery from tracking annotation
+  spec: specs/06-argocd-ownership.md
+  task: tasks/10-argocd-owner-resolver.md
+  tests:
+    unit: required
+    envtest: required
+    e2e: required
+  e2e:
+  - KICK-E2E-024
+  - KICK-E2E-025
+  - KICK-E2E-026
+- id: KICK-FEAT-010
+  name: Argo CD ownership fallback and ambiguity blocking
+  spec: specs/06-argocd-ownership.md
+  task: tasks/10-argocd-owner-resolver.md
+  tests:
+    unit: required
+    envtest: required
+    e2e: required
+  e2e:
+  - KICK-E2E-027
+  - KICK-E2E-028
+  - KICK-E2E-029
+- id: KICK-FEAT-011
+  name: AppProject discovery in Argo CD control-plane namespace
+  spec: specs/06-argocd-ownership.md
+  task: tasks/10-argocd-owner-resolver.md
+  tests:
+    unit: required
+    envtest: required
+    e2e: required
+  e2e:
+  - KICK-E2E-030
+  - KICK-E2E-031
+- id: KICK-FEAT-012
+  name: Argo CD AppProject sync-window evaluation
+  spec: specs/07-argocd-sync-windows.md
+  task: tasks/11-argocd-gate.md
+  tests:
+    unit: required
+    envtest: required
+    e2e: required
+  e2e:
+  - KICK-E2E-032
+  - KICK-E2E-033
+  - KICK-E2E-034
+  - KICK-E2E-035
+  - KICK-E2E-036
+  - KICK-E2E-042
+- id: KICK-FEAT-013
+  name: Wait for Argo CD synchronization before reevaluation
+  spec: specs/08-argocd-application-gate.md
+  task: tasks/11-argocd-gate.md
+  tests:
+    unit: required
+    envtest: required
+    e2e: required
+  e2e:
+  - KICK-E2E-037
+  - KICK-E2E-038
+  - KICK-E2E-039
+  - KICK-E2E-040
+  - KICK-E2E-041
+- id: KICK-FEAT-014
+  name: Durable KickRequest state machine and coalescing
+  spec: specs/09-restart-request-api.md
+  task: tasks/05-kickrequest-api.md
+  tests:
+    unit: required
+    envtest: required
+    e2e: required
+  e2e:
+  - KICK-E2E-009
+  - KICK-E2E-015
+  - KICK-E2E-048
+  - KICK-E2E-049
+  - KICK-E2E-050
+- id: KICK-FEAT-015
+  name: Idempotent standard Deployment rollout restart
+  spec: specs/10-restart-execution.md
+  task: tasks/12-kick-executor.md
+  tests:
+    unit: required
+    envtest: required
+    e2e: required
+  e2e:
+  - KICK-E2E-043
+  - KICK-E2E-044
+  - KICK-E2E-045
+  - KICK-E2E-046
+  - KICK-E2E-047
+- id: KICK-FEAT-016
+  name: Observability without Secret disclosure
+  spec: specs/13-observability.md
+  task: tasks/14-observability.md
+  tests:
+    unit: required
+    envtest: required
+    e2e: required
+  e2e:
+  - KICK-E2E-052
+- id: KICK-FEAT-017
+  name: Kubebuilder and controller-runtime foundation
+  spec: specs/19-framework-and-test-traceability.md
+  task: tasks/00-bootstrap.md
+  tests:
+    unit: not_applicable
+    envtest: required
+    e2e: required
+  rationale:
+    unit: Framework selection is verified through repository structure, compilation,
+      Envtest, and manager smoke tests rather than a pure unit test.
+  e2e:
+  - KICK-E2E-053
+- id: KICK-FEAT-018
+  name: Feature-to-test traceability enforcement
+  spec: specs/19-framework-and-test-traceability.md
+  task: tasks/18-feature-test-traceability.md
+  tests:
+    unit: required
+    envtest: not_applicable
+    e2e: not_applicable
+  rationale:
+    envtest: The checker operates on repository metadata and files, not Kubernetes
+      APIs.
+    e2e: The checker is CI infrastructure rather than runtime operator behavior.
+  e2e: []

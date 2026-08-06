@@ -1,0 +1,8 @@
+id: KICK-E2E-001
+features:
+  - KICK-FEAT-001
+level: e2e
+status: scaffold
+notes: >-
+  Replace this scaffold with a Chainsaw test that proves a Secret referenced via
+  envFrom is discovered, while imagePullSecrets are ignored.

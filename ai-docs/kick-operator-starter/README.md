@@ -22,26 +22,4 @@ make test
 make feature-coverage
 ```
 
-## Local dev with Tilt (kind-kick-dev only)
-
-```bash
-make kind-create
-make tilt-up
-```
-
-Rules enforced by this repository:
-
-- cluster context is `kind-kick-dev`;
-- kubeconfig path is `.kubeconfig-kind-kick-dev` in repo root;
-- commands always pass explicit `--kubeconfig` and `--context`.
-
-Additional helpers:
-
-```bash
-make kind-load
-make install
-make uninstall
-make tilt-down
-```
-
 Dependencies are pinned as starter values and must be reviewed before the first production implementation pull request.
