@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"os"
 
 	kickv1alpha1 "github.com/corewire/kick/api/v1alpha1"
 	"github.com/corewire/kick/internal/controller"
+	"github.com/corewire/kick/internal/dependency"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -44,6 +46,9 @@ func main() {
 		os.Exit(1)
 	}
 	if err := (&controller.KickRequestReconciler{Client: mgr.GetClient(), Scheme: mgr.GetScheme()}).SetupWithManager(mgr); err != nil {
+		os.Exit(1)
+	}
+	if err := dependency.RegisterDeploymentReverseIndexes(context.Background(), mgr.GetFieldIndexer()); err != nil {
 		os.Exit(1)
 	}
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
