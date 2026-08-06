@@ -250,6 +250,35 @@ class FeatureCoverageCheckerTests(unittest.TestCase):
         result = validate_repository(self.tmpdir)
         self.assertTrue(any("missing from api-field-coverage.yaml" in e for e in result.errors))
 
+    def test_api_field_partial_e2e_status_is_reported(self):
+        def mutate_features(data):
+            data["features"][0]["e2e"] = ["KICK-E2E-001", "KICK-E2E-002"]
+
+        def mutate_scenarios(data):
+            data["scenarios"].append(
+                {
+                    "id": "KICK-E2E-002",
+                    "name": "example-2",
+                    "directory": "test/e2e/scenarios/KICK-E2E-002-example",
+                    "status": "required",
+                    "features": ["KICK-FEAT-001"],
+                }
+            )
+
+        def mutate_api_fields(data):
+            data["resources"][0]["fields"][0]["coverage"]["e2e"] = ["KICK-E2E-001", "KICK-E2E-002"]
+
+        self._write_features(mutate_features)
+        self._write_scenarios(mutate_scenarios)
+        self._write_api_fields(mutate_api_fields)
+        scenario_dir = self.tmpdir / "test" / "e2e" / "scenarios" / "KICK-E2E-002-example"
+        scenario_dir.mkdir(parents=True, exist_ok=True)
+        (scenario_dir / "chainsaw-test.yaml").write_text('echo "TODO: implement KICK-E2E-002"\n', encoding="utf-8")
+        (scenario_dir / "trace.yaml").write_text("scenarioID: KICK-E2E-002\n", encoding="utf-8")
+
+        result = validate_repository(self.tmpdir)
+        self.assertIn("| KickRequestSpec | targetRef.name | yes | Covered | Covered | Partial | PASS |", result.report)
+
 
 class ApiFieldGeneratorTests(unittest.TestCase):
     def test_generate_discovers_root_spec_and_status_paths(self):

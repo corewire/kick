@@ -126,31 +126,35 @@ def scenario_level_status(scenarios: list[str], scenario_map: dict, repo_root: P
 
     evidence: list[str] = []
     missing: list[str] = []
-    all_implemented = True
+    implemented = 0
+    scaffolded = 0
 
     for sid in scenarios:
         scenario = scenario_map.get(sid)
         if scenario is None:
             missing.append(sid)
-            all_implemented = False
             continue
         directory = scenario.get("directory", "")
         chainsaw_path = repo_root / directory / "chainsaw-test.yaml"
         if not chainsaw_path.exists():
             missing.append(f"{sid}:chainsaw-test.yaml")
-            all_implemented = False
             continue
         content = chainsaw_path.read_text(encoding="utf-8", errors="ignore")
         if E2E_TODO_RE.search(content):
             evidence.append(f"{sid}(scaffold)")
-            all_implemented = False
+            scaffolded += 1
         else:
             evidence.append(f"{sid}(covered)")
+            implemented += 1
 
     if missing:
         return "Missing", evidence, missing
-    if all_implemented:
+    if implemented == len(scenarios):
         return "Covered", evidence, []
+    if implemented > 0:
+        return "Partial", evidence, []
+    if scaffolded > 0:
+        return "Scaffolded", evidence, []
     return "Scaffolded", evidence, []
 
 

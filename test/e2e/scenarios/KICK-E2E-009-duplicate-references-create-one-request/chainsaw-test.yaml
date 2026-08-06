@@ -4,8 +4,88 @@ metadata:
   name: duplicate-references-create-one-request
 spec:
   steps:
-    - name: scaffold
+    - name: create-fixtures
       try:
         - script:
             content: |
-              echo "TODO: implement KICK-E2E-009 - duplicate references create one request"
+              cat <<'EOF' | kubectl apply -f -
+              apiVersion: v1
+              kind: Namespace
+              metadata:
+                name: kick-e2e-009
+              ---
+              apiVersion: kick.corewire.io/v1alpha1
+              kind: KickPolicy
+              metadata:
+                name: default
+                namespace: kick-e2e-009
+              spec:
+                discovery:
+                  mode: Auto
+                gitOps:
+                  provider: Auto
+              ---
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: duplicate-api
+                namespace: kick-e2e-009
+              spec:
+                replicas: 1
+                selector:
+                  matchLabels:
+                    app: duplicate-api
+                template:
+                  metadata:
+                    labels:
+                      app: duplicate-api
+                  spec:
+                    containers:
+                      - name: app
+                        image: registry.k8s.io/pause:3.10
+                        envFrom:
+                          - secretRef:
+                              name: shared-secret
+                        env:
+                          - name: TOKEN
+                            valueFrom:
+                              secretKeyRef:
+                                name: shared-secret
+                                key: token
+              ---
+              apiVersion: v1
+              kind: Secret
+              metadata:
+                name: shared-secret
+                namespace: kick-e2e-009
+              type: Opaque
+              stringData:
+                token: fake-token
+              EOF
+    - name: assert-single-request
+      try:
+        - script:
+            content: |
+              set -euo pipefail
+              deadline=$((SECONDS + 90))
+              while true; do
+                count=$(kubectl -n kick-e2e-009 get kickrequests --no-headers 2>/dev/null | wc -l | tr -d ' ')
+                phase=$(kubectl -n kick-e2e-009 get kickrequest duplicate-api -o jsonpath='{.status.phase}' 2>/dev/null || true)
+                reason=$(kubectl -n kick-e2e-009 get kickrequest duplicate-api -o jsonpath='{.status.gate.reason}' 2>/dev/null || true)
+                target=$(kubectl -n kick-e2e-009 get kickrequest duplicate-api -o jsonpath='{.spec.targetRef.name}' 2>/dev/null || true)
+                latest=$(kubectl -n kick-e2e-009 get kickrequest duplicate-api -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
+                if [[ "$count" == "1" && "$phase" == "WaitingForOwner" && "$reason" == "OwnerUnknown" && "$target" == "duplicate-api" && -n "$latest" ]]; then
+                  break
+                fi
+                if (( SECONDS >= deadline )); then
+                  echo "expected one KickRequest with WaitingForOwner/OwnerUnknown for duplicate-api" >&2
+                  kubectl -n kick-e2e-009 get kickrequests -o yaml >&2 || true
+                  exit 1
+                fi
+                sleep 2
+              done
+    - name: cleanup
+      try:
+        - script:
+            content: |
+              kubectl delete namespace kick-e2e-009 --ignore-not-found=true --wait=false

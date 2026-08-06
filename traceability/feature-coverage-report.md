@@ -28,7 +28,7 @@
 | KickRequestSpec | targetRef.apiVersion | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickrequest_api_test.go |
 | KickRequestSpec | targetRef.kind | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickrequest_api_test.go |
 | KickRequestSpec | targetRef.name | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickrequest_api_test.go |
-| KickRequestStatus | phase | yes | Covered | Covered | Scaffolded | PASS | unit=internal/kickrequest/coalescer_test.go,internal/controller/kickrequest_controller_test.go; envtest=test/envtest/kickrequest_api_test.go; e2e=KICK-E2E-009(scaffold),KICK-E2E-015(scaffold),KICK-E2E-048(scaffold) |
+| KickRequestStatus | phase | yes | Covered | Covered | Partial | PASS | unit=internal/kickrequest/coalescer_test.go,internal/controller/kickrequest_controller_test.go; envtest=test/envtest/kickrequest_api_test.go; e2e=KICK-E2E-009(covered),KICK-E2E-015(scaffold),KICK-E2E-048(scaffold) |
 | KickRequestStatus | owner.provider | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickrequest_api_test.go |
 | KickRequestStatus | owner.apiVersion | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickrequest_api_test.go |
 | KickRequestStatus | owner.kind | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickrequest_api_test.go |
