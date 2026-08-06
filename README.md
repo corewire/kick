@@ -1,8 +1,8 @@
-# KICK operator starter
+# KICK operator
 
 KICK detects workloads whose consumed Secrets or ConfigMaps changed after their latest rollout, then triggers a controlled restart when the configured GitOps provider allows it.
 
-This repository is **boilerplate**, not a finished operator. It deliberately implements only stable, provider-neutral foundations:
+This repository currently contains a **bootstrap baseline**, not a finished operator. It implements only stable, provider-neutral foundations:
 
 - Kubebuilder-compatible project layout;
 - `KickRequest` API skeleton;
@@ -13,6 +13,11 @@ This repository is **boilerplate**, not a finished operator. It deliberately imp
 - feature/e2e traceability scaffolding.
 
 Unresolved Kubernetes timestamps and Argo CD ownership/window behavior remain explicit research tasks. Do not replace those tasks with assumptions.
+
+## Specs and references
+
+- authoritative specifications: `ai-docs/kick-operator-specs/kick-specs/`
+- copied starter reference: `ai-docs/kick-operator-starter/`
 
 ## First checks
 
@@ -40,6 +45,7 @@ Additional helpers:
 ```bash
 make kind-load
 make install
+make test-e2e
 make uninstall
 make tilt-down
 ```
