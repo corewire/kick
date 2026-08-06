@@ -13,6 +13,7 @@ import (
 	"github.com/corewire/kick/internal/gitops"
 	argocdprovider "github.com/corewire/kick/internal/gitops/argocd"
 	"github.com/corewire/kick/internal/observation"
+	"github.com/corewire/kick/internal/policy"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -24,6 +25,8 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 const (
@@ -91,6 +94,7 @@ type KickRequestReconciler struct {
 	client.Client
 	Scheme             *runtime.Scheme
 	Recorder           record.EventRecorder
+	PolicyMatcher      policy.DeploymentMatcher
 	GateResolver       GateResolver
 	ObservationStore   observation.Store
 	FreshnessEvaluator FreshnessEvaluator
@@ -142,6 +146,28 @@ func (r *KickRequestReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		}
 		observeControllerError("kickrequest", "GetDeployment")
 		return ctrl.Result{}, err
+	}
+
+	if r.PolicyMatcher != nil {
+		match, err := r.PolicyMatcher.MatchDeployment(ctx, &deployment)
+		if err != nil {
+			observeControllerError("kickrequest", "PolicyMatch")
+			return ctrl.Result{}, err
+		}
+		if !match.Managed {
+			reason := match.Reason
+			if reason == policy.ReasonNoMatchingPolicy || reason == policy.ReasonPolicyDeleted {
+				reason = policy.ReasonPolicyDeleted
+			}
+			if err := r.updateRequestStatus(ctx, req.NamespacedName, func(status *kickv1alpha1.KickRequestStatus) {
+				setPhase(status, kickv1alpha1.KickRequestPhaseFailed, reason, "kickrequest canceled due to policy scope")
+			}); err != nil {
+				observeControllerError("kickrequest", "UpdateStatus")
+				return ctrl.Result{}, err
+			}
+			r.recordTransition(&request, kickv1alpha1.KickRequestPhaseFailed, reason, "kickrequest canceled due to policy scope", "")
+			return ctrl.Result{}, nil
+		}
 	}
 
 	now := r.now().UTC()
@@ -254,7 +280,20 @@ func (r *KickRequestReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		//nolint:staticcheck // controller-runtime still returns the client-go EventRecorder interface from this method.
 		r.Recorder = mgr.GetEventRecorderFor("kickrequest-controller")
 	}
-	return ctrl.NewControllerManagedBy(mgr).For(&kickv1alpha1.KickRequest{}).Complete(r)
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&kickv1alpha1.KickRequest{}).
+		Watches(&kickv1alpha1.KickPolicy{}, handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
+			var list kickv1alpha1.KickRequestList
+			if err := r.List(ctx, &list, client.InNamespace(obj.GetNamespace())); err != nil {
+				return nil
+			}
+			requests := make([]reconcile.Request, 0, len(list.Items))
+			for _, item := range list.Items {
+				requests = append(requests, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: item.Namespace, Name: item.Name}})
+			}
+			return requests
+		})).
+		Complete(r)
 }
 
 func (r *KickRequestReconciler) now() time.Time {

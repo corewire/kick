@@ -11,6 +11,7 @@ import (
 	"github.com/corewire/kick/internal/freshness"
 	"github.com/corewire/kick/internal/gitops"
 	"github.com/corewire/kick/internal/observation"
+	"github.com/corewire/kick/internal/policy"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -59,6 +60,17 @@ func (s *stubRestartExecutor) Execute(context.Context, types.NamespacedName, typ
 type completingRestartExecutor struct {
 	client client.Client
 	calls  int
+}
+
+type stubPolicyMatcher struct {
+	result policy.MatchResult
+	err    error
+	calls  int
+}
+
+func (s *stubPolicyMatcher) MatchDeployment(context.Context, *appsv1.Deployment) (policy.MatchResult, error) {
+	s.calls++
+	return s.result, s.err
 }
 
 func (e *completingRestartExecutor) Execute(ctx context.Context, requestKey, _ types.NamespacedName) (executor.Result, error) {
@@ -255,6 +267,49 @@ func TestKickRequestReconcileRecoversExecutingRequest(t *testing.T) {
 	}
 	if got.Status.Phase != kickv1alpha1.KickRequestPhaseSucceeded {
 		t.Fatalf("phase = %s, want %s", got.Status.Phase, kickv1alpha1.KickRequestPhaseSucceeded)
+	}
+}
+
+func TestKickRequestReconcilePolicyUnmanagedCancelsRequest(t *testing.T) {
+	scheme := testScheme(t)
+	dep := testDeployment("team-a", "api")
+	req := testKickRequest("team-a", "api")
+
+	c := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(&kickv1alpha1.KickRequest{}).WithObjects(dep, req).Build()
+	gate := &stubGateResolver{decision: gitops.GateDecision{Allowed: true, Reconciled: true, Reconciling: false, Reason: gitops.GateAllowed, Message: "allowed"}}
+	fresh := &stubFreshnessEvaluator{decision: freshness.FreshnessDecision{RestartRequired: true}}
+	exec := &stubRestartExecutor{}
+	matcher := &stubPolicyMatcher{result: policy.MatchResult{Managed: false, Reason: policy.ReasonPolicyDeleted}}
+
+	r := &KickRequestReconciler{
+		Client:             c,
+		Scheme:             scheme,
+		PolicyMatcher:      matcher,
+		GateResolver:       gate,
+		ObservationStore:   observation.NewMemoryStore(),
+		FreshnessEvaluator: fresh,
+		RestartExecutor:    exec,
+		Clock:              func() time.Time { return time.Now().UTC() },
+		RequeueInterval:    30 * time.Second,
+	}
+
+	result, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Namespace: "team-a", Name: "api"}})
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if result.RequeueAfter != 0 {
+		t.Fatalf("unexpected requeue: %s", result.RequeueAfter)
+	}
+	if gate.calls != 0 || fresh.calls != 0 || exec.calls != 0 {
+		t.Fatalf("expected policy cancellation before gate/freshness/executor")
+	}
+
+	var got kickv1alpha1.KickRequest
+	if err := c.Get(context.Background(), types.NamespacedName{Namespace: "team-a", Name: "api"}, &got); err != nil {
+		t.Fatalf("get request: %v", err)
+	}
+	if got.Status.Phase != kickv1alpha1.KickRequestPhaseFailed {
+		t.Fatalf("phase = %s, want %s", got.Status.Phase, kickv1alpha1.KickRequestPhaseFailed)
 	}
 }
 

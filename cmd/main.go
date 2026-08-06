@@ -15,6 +15,7 @@ import (
 	argocdprovider "github.com/corewire/kick/internal/gitops/argocd"
 	"github.com/corewire/kick/internal/kickrequest"
 	"github.com/corewire/kick/internal/observation"
+	"github.com/corewire/kick/internal/policy"
 	"github.com/corewire/kick/internal/rollout"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -53,10 +54,12 @@ func main() {
 	if err != nil {
 		os.Exit(1)
 	}
+	policyMatcher := &policy.DeploymentPolicyMatcher{Client: mgr.GetClient()}
 	providerRegistry := gitops.NewRegistry(&argocdprovider.Provider{Client: mgr.GetClient(), ControlPlaneNamespace: "argocd"})
 	if err := (&controller.KickRequestReconciler{
 		Client:             mgr.GetClient(),
 		Scheme:             mgr.GetScheme(),
+		PolicyMatcher:      policyMatcher,
 		GateResolver:       &controller.RegistryGateResolver{Registry: providerRegistry},
 		ObservationStore:   observation.NewLeaseStore(mgr.GetClient()),
 		FreshnessEvaluator: &freshness.Evaluator{Inspector: &rollout.LiveRolloutInspector{Client: mgr.GetClient()}},
@@ -69,7 +72,7 @@ func main() {
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
 		Observer: observation.NewObserver(observation.NewLeaseStore(mgr.GetClient()), nil),
-		Enqueuer: &controller.KickRequestEnqueuer{Coalescer: kickrequest.NewCoalescer(mgr.GetClient(), kickrequest.RetentionConfig{})},
+		Enqueuer: &controller.KickRequestEnqueuer{Client: mgr.GetClient(), Coalescer: kickrequest.NewCoalescer(mgr.GetClient(), kickrequest.RetentionConfig{}), PolicyMatcher: policyMatcher},
 	}).SetupWithManager(mgr); err != nil {
 		os.Exit(1)
 	}
