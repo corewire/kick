@@ -62,20 +62,39 @@ func (p *Provider) EvaluateGate(ctx context.Context, owner gitops.Owner, _ time.
 		return gitops.GateDecision{Allowed: false, Reconciled: false, Reconciling: false, Reason: gitops.GateProviderUnavailable, Message: err.Error()}, nil
 	}
 
+	project, _, _ := unstructured.NestedString(app.Object, "spec", "project")
+	if project == "" {
+		return gitops.GateDecision{Allowed: false, Reconciled: false, Reconciling: false, Reason: gitops.GateProjectUnknown, Message: "missing application project"}, nil
+	}
+	projectObj, err := p.getAppProjectObject(ctx, project)
+	if err != nil {
+		return gitops.GateDecision{Allowed: false, Reconciled: false, Reconciling: false, Reason: gitops.GateProjectUnknown, Message: err.Error()}, nil
+	}
+	windows, _, _ := unstructured.NestedSlice(projectObj.Object, "spec", "syncWindows")
+	windowMaps := make([]map[string]interface{}, 0, len(windows))
+	for _, w := range windows {
+		m, ok := w.(map[string]interface{})
+		if ok {
+			windowMaps = append(windowMaps, m)
+		}
+	}
+	destinationNS, _, _ := unstructured.NestedString(app.Object, "spec", "destination", "namespace")
+	destinationName, _, _ := unstructured.NestedString(app.Object, "spec", "destination", "name")
+	destinationServer, _, _ := unstructured.NestedString(app.Object, "spec", "destination", "server")
+	windowDecision, evalErr := evaluateSyncWindows(time.Now().UTC(), appWindowContext{Name: owner.Name, DestinationNS: destinationNS, DestinationName: destinationName, DestinationServer: destinationServer}, windowMaps)
+	if evalErr != nil {
+		return gitops.GateDecision{Allowed: false, Reconciled: false, Reconciling: false, Reason: gitops.GateConfigurationError, Message: evalErr.Error()}, nil
+	}
+	if !windowDecision.Allowed {
+		return gitops.GateDecision{Allowed: false, Reconciled: false, Reconciling: false, RequeueAt: windowDecision.RequeueAt, Reason: gitops.GateOutsideSchedule, Message: "blocked by sync window"}, nil
+	}
+
 	if phase, _, _ := unstructured.NestedString(app.Object, "status", "operationState", "phase"); phase != "" && phase != "Succeeded" {
 		return gitops.GateDecision{Allowed: false, Reconciled: false, Reconciling: true, Reason: gitops.GateOwnerReconciling, Message: "application operation in progress"}, nil
 	}
 
 	if syncStatus, _, _ := unstructured.NestedString(app.Object, "status", "sync", "status"); syncStatus != "Synced" {
 		return gitops.GateDecision{Allowed: false, Reconciled: false, Reconciling: false, Reason: gitops.GateOwnerOutOfSync, Message: "application is not synced"}, nil
-	}
-
-	project, _, _ := unstructured.NestedString(app.Object, "spec", "project")
-	if project == "" {
-		return gitops.GateDecision{Allowed: false, Reconciled: false, Reconciling: false, Reason: gitops.GateProjectUnknown, Message: "missing application project"}, nil
-	}
-	if err := p.getAppProject(ctx, project); err != nil {
-		return gitops.GateDecision{Allowed: false, Reconciled: false, Reconciling: false, Reason: gitops.GateProjectUnknown, Message: err.Error()}, nil
 	}
 
 	return gitops.GateDecision{Allowed: true, Reconciled: true, Reconciling: false, Reason: gitops.GateAllowed, Message: "application synced and project found"}, nil
@@ -163,10 +182,13 @@ func (p *Provider) getApplication(ctx context.Context, key types.NamespacedName)
 	return obj, nil
 }
 
-func (p *Provider) getAppProject(ctx context.Context, name string) error {
+func (p *Provider) getAppProjectObject(ctx context.Context, name string) (*unstructured.Unstructured, error) {
 	obj := &unstructured.Unstructured{}
 	obj.SetGroupVersionKind(appProjectGVK)
-	return p.Client.Get(ctx, types.NamespacedName{Namespace: p.ControlPlaneNamespace, Name: name}, obj)
+	if err := p.Client.Get(ctx, types.NamespacedName{Namespace: p.ControlPlaneNamespace, Name: name}, obj); err != nil {
+		return nil, err
+	}
+	return obj, nil
 }
 
 func (p *Provider) findFallbackMatches(ctx context.Context, group, kind, namespace, name string) ([]unstructured.Unstructured, error) {
