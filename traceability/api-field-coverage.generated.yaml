@@ -1,0 +1,45 @@
+version: 1
+resources:
+- type: KickPolicySpec
+  file: api/v1alpha1/kickpolicy_types.go
+  generated: true
+  fields:
+  - path: discovery.mode
+  - path: discovery.workloadSelector
+  - path: gitOps.provider
+  - path: gitOps.requireReconciled
+  - path: gitOps.schedule.source
+  - path: minInterval
+- type: KickPolicyStatus
+  file: api/v1alpha1/kickpolicy_types.go
+  generated: true
+  fields:
+  - path: observedGeneration
+  - path: matchedWorkloads
+  - path: blockedWorkloads
+  - path: conditions
+- type: KickRequestSpec
+  file: api/v1alpha1/kickrequest_types.go
+  generated: true
+  fields:
+  - path: targetRef.apiVersion
+  - path: targetRef.kind
+  - path: targetRef.name
+- type: KickRequestStatus
+  file: api/v1alpha1/kickrequest_types.go
+  generated: true
+  fields:
+  - path: phase
+  - path: owner.provider
+  - path: owner.apiVersion
+  - path: owner.kind
+  - path: owner.namespace
+  - path: owner.name
+  - path: owner.project
+  - path: gate.reason
+  - path: gate.message
+  - path: gate.requeueAt
+  - path: latestObservedDependencyChange
+  - path: currentRollout.replicaSet
+  - path: currentRollout.startedAt
+  - path: conditions

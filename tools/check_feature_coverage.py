@@ -21,6 +21,7 @@ DISABLED_SCENARIO_STATUSES = {"disabled", "skipped", "planned"}
 FEATURE_ID_RE = re.compile(r"KICK-FEAT-[0-9]{3}$")
 SCENARIO_ID_RE = re.compile(r"KICK-E2E-[0-9]{3}$")
 FEATURE_TOKEN_RE = re.compile(r"KICK-FEAT-[0-9]{3}")
+E2E_TODO_RE = re.compile(r"TODO: implement KICK-E2E")
 
 
 @dataclass
@@ -89,12 +90,88 @@ def build_report(rows: list[dict]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def build_api_field_report(rows: list[dict]) -> str:
+    header = "| Type | Field | Required | Unit | Envtest | E2E | Result | Evidence |"
+    sep = "|---|---|---:|---:|---:|---:|---|---|"
+    lines = ["# API Field Coverage Report", "", header, sep]
+    for row in rows:
+        lines.append(
+            "| {type_name} | {field_path} | {required} | {unit} | {envtest} | {e2e} | {result} | {evidence} |".format(
+                type_name=row["type_name"],
+                field_path=row["field_path"],
+                required="yes" if row["required"] else "no",
+                unit=row["unit"],
+                envtest=row["envtest"],
+                e2e=row["e2e"],
+                result=row["result"],
+                evidence=row["evidence"],
+            )
+        )
+    return "\n".join(lines) + "\n"
+
+
+def file_level_status(paths: list[str], repo_root: Path) -> tuple[str, list[str], list[str]]:
+    existing, planned = resolve_coverage_paths(repo_root, paths)
+    missing = [p for p in paths if not p.startswith("planned:") and not (repo_root / p).exists()]
+    if existing:
+        return "Covered", [str(p.relative_to(repo_root)) for p in existing], missing
+    if planned:
+        return "Planned", planned, missing
+    return "Missing", [], missing
+
+
+def scenario_level_status(scenarios: list[str], scenario_map: dict, repo_root: Path) -> tuple[str, list[str], list[str]]:
+    if not scenarios:
+        return "Missing", [], []
+
+    evidence: list[str] = []
+    missing: list[str] = []
+    all_implemented = True
+
+    for sid in scenarios:
+        scenario = scenario_map.get(sid)
+        if scenario is None:
+            missing.append(sid)
+            all_implemented = False
+            continue
+        directory = scenario.get("directory", "")
+        chainsaw_path = repo_root / directory / "chainsaw-test.yaml"
+        if not chainsaw_path.exists():
+            missing.append(f"{sid}:chainsaw-test.yaml")
+            all_implemented = False
+            continue
+        content = chainsaw_path.read_text(encoding="utf-8", errors="ignore")
+        if E2E_TODO_RE.search(content):
+            evidence.append(f"{sid}(scaffold)")
+            all_implemented = False
+        else:
+            evidence.append(f"{sid}(covered)")
+
+    if missing:
+        return "Missing", evidence, missing
+    if all_implemented:
+        return "Covered", evidence, []
+    return "Scaffolded", evidence, []
+
+
 def validate_repository(repo_root: Path) -> ValidationResult:
     errors: list[str] = []
     features_file = repo_root / "traceability" / "features.yaml"
     scenarios_file = repo_root / "traceability" / "e2e-scenarios.yaml"
+    api_fields_file = repo_root / "traceability" / "api-field-coverage.yaml"
+    api_fields_generated_file = repo_root / "traceability" / "api-field-coverage.generated.yaml"
     features = load_yaml(features_file).get("features", [])
     scenarios = load_yaml(scenarios_file).get("scenarios", [])
+    if not api_fields_file.exists():
+        errors.append("missing traceability/api-field-coverage.yaml")
+        api_fields = []
+    else:
+        api_fields = load_yaml(api_fields_file).get("resources", [])
+    if not api_fields_generated_file.exists():
+        errors.append("missing traceability/api-field-coverage.generated.yaml")
+        api_generated = []
+    else:
+        api_generated = load_yaml(api_fields_generated_file).get("resources", [])
 
     feature_ids = [f.get("id") for f in features]
     scenario_ids = [s.get("id") for s in scenarios]
@@ -263,7 +340,104 @@ def validate_repository(repo_root: Path) -> ValidationResult:
                 if sid not in feature.get("e2e", []):
                     errors.append(f"{sid}: {fid} does not map back to the scenario")
 
-    report = build_report(rows)
+    api_rows: list[dict] = []
+    seen_type_names: set[str] = set()
+    generated_field_map: dict[str, set[str]] = {}
+
+    for resource in api_generated:
+        type_name = resource.get("type")
+        if not type_name:
+            continue
+        generated_field_map[type_name] = {field.get("path") for field in resource.get("fields", []) if isinstance(field, dict) and field.get("path")}
+
+    for resource in api_fields:
+        if not isinstance(resource, dict):
+            errors.append("invalid api-field resource entry")
+            continue
+        type_name = resource.get("type")
+        if not type_name:
+            errors.append("api-field resource is missing type")
+            continue
+        if type_name in seen_type_names:
+            errors.append(f"duplicate api-field resource type: {type_name}")
+            continue
+        seen_type_names.add(type_name)
+        expected_fields = generated_field_map.get(type_name)
+        if expected_fields is None:
+            errors.append(f"{type_name}: not present in generated api field skeleton")
+            expected_fields = set()
+
+        fields = resource.get("fields", []) or []
+        seen_field_paths: set[str] = set()
+
+        for field in fields:
+            if not isinstance(field, dict):
+                errors.append(f"{type_name}: invalid field entry")
+                continue
+            field_path = field.get("path")
+            if not field_path:
+                errors.append(f"{type_name}: field entry missing path")
+                continue
+            if field_path in seen_field_paths:
+                errors.append(f"{type_name}: duplicate field path {field_path}")
+                continue
+            seen_field_paths.add(field_path)
+            if field_path not in expected_fields:
+                errors.append(f"{type_name}.{field_path}: not present in generated api field skeleton")
+
+            coverage = field.get("coverage", {}) or {}
+            required = bool(field.get("required", False))
+            unit_paths = coverage.get("unit", []) or []
+            envtest_paths = coverage.get("envtest", []) or []
+            e2e_scenarios = coverage.get("e2e", []) or []
+
+            unit_status, unit_evidence, unit_missing = file_level_status(unit_paths, repo_root)
+            envtest_status, envtest_evidence, envtest_missing = file_level_status(envtest_paths, repo_root)
+            e2e_status, e2e_evidence, e2e_missing = scenario_level_status(e2e_scenarios, scenario_map, repo_root)
+
+            for missing in unit_missing:
+                errors.append(f"{type_name}.{field_path}: unit coverage path missing: {missing}")
+            for missing in envtest_missing:
+                errors.append(f"{type_name}.{field_path}: envtest coverage path missing: {missing}")
+            for missing in e2e_missing:
+                errors.append(f"{type_name}.{field_path}: e2e coverage scenario missing: {missing}")
+
+            direct_coverage = unit_status == "Covered" or envtest_status == "Covered" or e2e_status == "Covered"
+            if required and not direct_coverage:
+                errors.append(f"{type_name}.{field_path}: required field lacks implemented direct coverage")
+
+            evidence = []
+            if unit_evidence:
+                evidence.append("unit=" + ",".join(unit_evidence))
+            if envtest_evidence:
+                evidence.append("envtest=" + ",".join(envtest_evidence))
+            if e2e_evidence:
+                evidence.append("e2e=" + ",".join(e2e_evidence))
+            evidence_text = "; ".join(evidence) if evidence else "-"
+            result = "PASS" if (not required or direct_coverage) else "FAIL"
+
+            api_rows.append(
+                {
+                    "type_name": type_name,
+                    "field_path": field_path,
+                    "required": required,
+                    "unit": unit_status,
+                    "envtest": envtest_status,
+                    "e2e": e2e_status,
+                    "result": result,
+                    "evidence": evidence_text,
+                }
+            )
+
+        missing_generated = expected_fields - seen_field_paths
+        for missing_path in sorted(missing_generated):
+            errors.append(f"{type_name}.{missing_path}: missing from api-field-coverage.yaml")
+
+    for generated_type in generated_field_map:
+        if generated_type not in seen_type_names:
+            errors.append(f"{generated_type}: missing resource entry in api-field-coverage.yaml")
+
+    report = build_report(rows) + "\n" + build_api_field_report(api_rows)
     return ValidationResult(errors=errors, report=report)
 
 

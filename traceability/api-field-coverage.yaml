@@ -1,0 +1,173 @@
+version: 1
+resources:
+- type: KickRequestSpec
+  file: api/v1alpha1/kickrequest_types.go
+  fields:
+  - path: targetRef.apiVersion
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/kickrequest_api_test.go
+  - path: targetRef.kind
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/kickrequest_api_test.go
+  - path: targetRef.name
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/kickrequest_api_test.go
+- type: KickRequestStatus
+  file: api/v1alpha1/kickrequest_types.go
+  fields:
+  - path: phase
+    required: true
+    coverage:
+      unit:
+      - internal/kickrequest/coalescer_test.go
+      - internal/controller/kickrequest_controller_test.go
+      envtest:
+      - test/envtest/kickrequest_api_test.go
+      e2e:
+      - KICK-E2E-009
+      - KICK-E2E-015
+      - KICK-E2E-048
+  - path: owner.provider
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/kickrequest_api_test.go
+  - path: owner.apiVersion
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/kickrequest_api_test.go
+  - path: owner.kind
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/kickrequest_api_test.go
+  - path: owner.namespace
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/kickrequest_api_test.go
+  - path: owner.name
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/kickrequest_api_test.go
+  - path: owner.project
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/kickrequest_api_test.go
+  - path: gate.reason
+    required: true
+    coverage:
+      unit:
+      - internal/controller/kickrequest_controller_test.go
+      envtest:
+      - test/envtest/kickrequest_api_test.go
+      e2e:
+      - KICK-E2E-033
+      - KICK-E2E-034
+  - path: gate.message
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/kickrequest_api_test.go
+  - path: gate.requeueAt
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/kickrequest_api_test.go
+  - path: latestObservedDependencyChange
+    required: true
+    coverage:
+      unit:
+      - internal/kickrequest/coalescer_test.go
+      envtest:
+      - test/envtest/kickrequest_api_test.go
+      e2e:
+      - KICK-E2E-011
+      - KICK-E2E-012
+  - path: currentRollout.replicaSet
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/kickrequest_api_test.go
+  - path: currentRollout.startedAt
+    required: true
+    coverage:
+      unit:
+      - internal/executor/restart_test.go
+      - internal/controller/kickrequest_controller_test.go
+      envtest:
+      - test/envtest/kickrequest_api_test.go
+      e2e:
+      - KICK-E2E-043
+  - path: conditions
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/kickrequest_api_test.go
+- type: KickPolicySpec
+  file: api/v1alpha1/kickpolicy_types.go
+  fields:
+  - path: discovery.mode
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/kickpolicy_api_test.go
+  - path: discovery.workloadSelector
+    required: true
+    coverage:
+      unit:
+      - internal/policy/matcher_test.go
+      envtest:
+      - test/envtest/kickpolicy_api_test.go
+  - path: gitOps.provider
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/kickpolicy_api_test.go
+  - path: gitOps.requireReconciled
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/kickpolicy_api_test.go
+  - path: gitOps.schedule.source
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/kickpolicy_api_test.go
+  - path: minInterval
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/kickpolicy_api_test.go
+- type: KickPolicyStatus
+  file: api/v1alpha1/kickpolicy_types.go
+  fields:
+  - path: observedGeneration
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/kickpolicy_api_test.go
+  - path: matchedWorkloads
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/kickpolicy_api_test.go
+  - path: blockedWorkloads
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/kickpolicy_api_test.go
+  - path: conditions
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/kickpolicy_api_test.go

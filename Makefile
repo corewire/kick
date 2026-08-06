@@ -126,7 +126,12 @@ docs-gen-check: docs-gen
 
 .PHONY: feature-coverage
 feature-coverage:
+	python3 tools/gen_api_field_coverage.py --output traceability/api-field-coverage.generated.yaml
 	python3 tools/check_feature_coverage.py --report traceability/feature-coverage-report.md
+
+.PHONY: api-field-coverage-gen
+api-field-coverage-gen:
+	python3 tools/gen_api_field_coverage.py --output traceability/api-field-coverage.generated.yaml
 
 .PHONY: feature-coverage-test
 feature-coverage-test:
