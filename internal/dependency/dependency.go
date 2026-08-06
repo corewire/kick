@@ -2,6 +2,8 @@ package dependency
 
 import "sort"
 
+const coreAPIVersion = "v1"
+
 // Kind is a supported runtime dependency kind.
 type Kind string
 
@@ -10,19 +12,24 @@ const (
 	ConfigMap Kind = "ConfigMap"
 )
 
-// Ref is a namespaced Secret or ConfigMap consumed by a workload.
-type Ref struct {
-	Kind      Kind
-	Namespace string
-	Name      string
+// DependencyRef is a namespaced Secret or ConfigMap consumed by a workload.
+// Identity is apiVersion+kind+namespace+name.
+type DependencyRef struct {
+	APIVersion string
+	Kind       Kind
+	Namespace  string
+	Name       string
 }
 
+// Ref is kept as an alias for compatibility with in-progress tasks.
+type Ref = DependencyRef
+
 // Normalize removes duplicates and returns deterministic ordering.
-func Normalize(in []Ref) []Ref {
-	seen := make(map[Ref]struct{}, len(in))
-	out := make([]Ref, 0, len(in))
+func Normalize(in []DependencyRef) []DependencyRef {
+	seen := make(map[DependencyRef]struct{}, len(in))
+	out := make([]DependencyRef, 0, len(in))
 	for _, ref := range in {
-		if ref.Name == "" || ref.Namespace == "" {
+		if ref.APIVersion == "" || ref.Name == "" || ref.Namespace == "" {
 			continue
 		}
 		if _, ok := seen[ref]; ok {
@@ -32,6 +39,9 @@ func Normalize(in []Ref) []Ref {
 		out = append(out, ref)
 	}
 	sort.Slice(out, func(i, j int) bool {
+		if out[i].APIVersion != out[j].APIVersion {
+			return out[i].APIVersion < out[j].APIVersion
+		}
 		if out[i].Kind != out[j].Kind {
 			return out[i].Kind < out[j].Kind
 		}

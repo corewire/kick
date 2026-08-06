@@ -2,33 +2,33 @@ package dependency
 
 import appsv1 "k8s.io/api/apps/v1"
 
-// FromDeployment extracts Secret and ConfigMap references exposed to regular or
-// init containers through env/envFrom or mounted volumes. imagePullSecrets are
-// deliberately excluded by product definition.
-func FromDeployment(deployment *appsv1.Deployment) []Ref {
+// ExtractDependencies extracts Secret and ConfigMap references exposed to
+// regular/init containers through env/envFrom and mounted/projected volumes.
+// imagePullSecrets are deliberately excluded by product definition.
+func ExtractDependencies(deployment *appsv1.Deployment) []DependencyRef {
 	if deployment == nil {
 		return nil
 	}
 	namespace := deployment.Namespace
 	pod := deployment.Spec.Template.Spec
-	refs := make([]Ref, 0)
+	refs := make([]DependencyRef, 0)
 
 	appendContainerRefs := func(containers []coreContainer) {
 		for _, c := range containers {
 			for _, source := range c.envFrom {
 				if source.secret != "" {
-					refs = append(refs, Ref{Kind: Secret, Namespace: namespace, Name: source.secret})
+					refs = append(refs, DependencyRef{APIVersion: coreAPIVersion, Kind: Secret, Namespace: namespace, Name: source.secret})
 				}
 				if source.configMap != "" {
-					refs = append(refs, Ref{Kind: ConfigMap, Namespace: namespace, Name: source.configMap})
+					refs = append(refs, DependencyRef{APIVersion: coreAPIVersion, Kind: ConfigMap, Namespace: namespace, Name: source.configMap})
 				}
 			}
 			for _, source := range c.env {
 				if source.secret != "" {
-					refs = append(refs, Ref{Kind: Secret, Namespace: namespace, Name: source.secret})
+					refs = append(refs, DependencyRef{APIVersion: coreAPIVersion, Kind: Secret, Namespace: namespace, Name: source.secret})
 				}
 				if source.configMap != "" {
-					refs = append(refs, Ref{Kind: ConfigMap, Namespace: namespace, Name: source.configMap})
+					refs = append(refs, DependencyRef{APIVersion: coreAPIVersion, Kind: ConfigMap, Namespace: namespace, Name: source.configMap})
 				}
 			}
 		}
@@ -47,21 +47,26 @@ func FromDeployment(deployment *appsv1.Deployment) []Ref {
 
 	for _, volume := range pod.Volumes {
 		if volume.Secret != nil {
-			refs = append(refs, Ref{Kind: Secret, Namespace: namespace, Name: volume.Secret.SecretName})
+			refs = append(refs, DependencyRef{APIVersion: coreAPIVersion, Kind: Secret, Namespace: namespace, Name: volume.Secret.SecretName})
 		}
 		if volume.ConfigMap != nil {
-			refs = append(refs, Ref{Kind: ConfigMap, Namespace: namespace, Name: volume.ConfigMap.Name})
+			refs = append(refs, DependencyRef{APIVersion: coreAPIVersion, Kind: ConfigMap, Namespace: namespace, Name: volume.ConfigMap.Name})
 		}
 		if volume.Projected != nil {
 			for _, source := range volume.Projected.Sources {
 				if source.Secret != nil {
-					refs = append(refs, Ref{Kind: Secret, Namespace: namespace, Name: source.Secret.Name})
+					refs = append(refs, DependencyRef{APIVersion: coreAPIVersion, Kind: Secret, Namespace: namespace, Name: source.Secret.Name})
 				}
 				if source.ConfigMap != nil {
-					refs = append(refs, Ref{Kind: ConfigMap, Namespace: namespace, Name: source.ConfigMap.Name})
+					refs = append(refs, DependencyRef{APIVersion: coreAPIVersion, Kind: ConfigMap, Namespace: namespace, Name: source.ConfigMap.Name})
 				}
 			}
 		}
 	}
 	return Normalize(refs)
+}
+
+// FromDeployment is a compatibility wrapper retained for existing callers.
+func FromDeployment(deployment *appsv1.Deployment) []Ref {
+	return ExtractDependencies(deployment)
 }
