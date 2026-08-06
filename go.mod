@@ -1,6 +1,6 @@
 module github.com/corewire/kick
 
-go 1.26.0
+go 1.26.5
 
 require (
 	k8s.io/api v0.36.1

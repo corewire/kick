@@ -8,6 +8,7 @@ import (
 	kickv1alpha1 "github.com/corewire/kick/api/v1alpha1"
 	"github.com/corewire/kick/internal/controller"
 	"github.com/corewire/kick/internal/dependency"
+	"github.com/corewire/kick/internal/observation"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -46,6 +47,14 @@ func main() {
 		os.Exit(1)
 	}
 	if err := (&controller.KickRequestReconciler{Client: mgr.GetClient(), Scheme: mgr.GetScheme()}).SetupWithManager(mgr); err != nil {
+		os.Exit(1)
+	}
+	if err := (&controller.SourceObservationReconciler{
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Observer: observation.NewObserver(observation.NewLeaseStore(mgr.GetClient()), nil),
+		Enqueuer: controller.NoopConsumerRequestEnqueuer{},
+	}).SetupWithManager(mgr); err != nil {
 		os.Exit(1)
 	}
 	if err := dependency.RegisterDeploymentReverseIndexes(context.Background(), mgr.GetFieldIndexer()); err != nil {
