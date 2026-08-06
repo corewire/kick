@@ -38,7 +38,7 @@
 | KickRequestStatus | gate.reason | yes | Covered | Covered | Scaffolded | PASS | unit=internal/controller/kickrequest_controller_test.go; envtest=test/envtest/kickrequest_api_test.go; e2e=KICK-E2E-033(scaffold),KICK-E2E-034(scaffold) |
 | KickRequestStatus | gate.message | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickrequest_api_test.go |
 | KickRequestStatus | gate.requeueAt | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickrequest_api_test.go |
-| KickRequestStatus | latestObservedDependencyChange | yes | Covered | Covered | Scaffolded | PASS | unit=internal/kickrequest/coalescer_test.go; envtest=test/envtest/kickrequest_api_test.go; e2e=KICK-E2E-011(scaffold),KICK-E2E-012(scaffold) |
+| KickRequestStatus | latestObservedDependencyChange | yes | Covered | Covered | Covered | PASS | unit=internal/kickrequest/coalescer_test.go; envtest=test/envtest/kickrequest_api_test.go; e2e=KICK-E2E-011(covered),KICK-E2E-012(covered) |
 | KickRequestStatus | currentRollout.replicaSet | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickrequest_api_test.go |
 | KickRequestStatus | currentRollout.startedAt | yes | Covered | Covered | Scaffolded | PASS | unit=internal/executor/restart_test.go,internal/controller/kickrequest_controller_test.go; envtest=test/envtest/kickrequest_api_test.go; e2e=KICK-E2E-043(scaffold) |
 | KickRequestStatus | conditions | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickrequest_api_test.go |

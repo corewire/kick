@@ -4,8 +4,98 @@ metadata:
   name: secret-data-update-relevant
 spec:
   steps:
-    - name: scaffold
+    - name: create-fixtures
       try:
         - script:
             content: |
-              echo "TODO: implement KICK-E2E-011 - Secret data update relevant"
+              cat <<'EOF' | kubectl apply -f -
+              apiVersion: v1
+              kind: Namespace
+              metadata:
+                name: kick-e2e-011
+              ---
+              apiVersion: kick.corewire.io/v1alpha1
+              kind: KickPolicy
+              metadata:
+                name: default
+                namespace: kick-e2e-011
+              spec:
+                discovery:
+                  mode: Auto
+                gitOps:
+                  provider: Auto
+              ---
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: secret-api
+                namespace: kick-e2e-011
+              spec:
+                replicas: 1
+                selector:
+                  matchLabels:
+                    app: secret-api
+                template:
+                  metadata:
+                    labels:
+                      app: secret-api
+                  spec:
+                    containers:
+                      - name: app
+                        image: registry.k8s.io/pause:3.10
+                        envFrom:
+                          - secretRef:
+                              name: app-secret
+              ---
+              apiVersion: v1
+              kind: Secret
+              metadata:
+                name: app-secret
+                namespace: kick-e2e-011
+              type: Opaque
+              stringData:
+                token: alpha
+              EOF
+    - name: assert-relevant-update-advances-timestamp
+      try:
+        - script:
+            content: |
+              set -euo pipefail
+              deadline=$((SECONDS + 120))
+              initial=""
+              while true; do
+                count=$(kubectl -n kick-e2e-011 get kickrequests --no-headers 2>/dev/null | wc -l | tr -d ' ')
+                initial=$(kubectl -n kick-e2e-011 get kickrequest secret-api -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
+                if [[ "$count" == "1" && -n "$initial" ]]; then
+                  break
+                fi
+                if (( SECONDS >= deadline )); then
+                  echo "expected initial KickRequest and timestamp for secret-api" >&2
+                  kubectl -n kick-e2e-011 get kickrequests -o yaml >&2 || true
+                  exit 1
+                fi
+                sleep 2
+              done
+
+              kubectl -n kick-e2e-011 patch secret app-secret --type merge -p '{"stringData":{"token":"bravo"}}'
+
+              while true; do
+                count=$(kubectl -n kick-e2e-011 get kickrequests --no-headers 2>/dev/null | wc -l | tr -d ' ')
+                updated=$(kubectl -n kick-e2e-011 get kickrequest secret-api -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
+                phase=$(kubectl -n kick-e2e-011 get kickrequest secret-api -o jsonpath='{.status.phase}' 2>/dev/null || true)
+                if [[ "$count" == "1" && -n "$updated" && "$updated" != "$initial" && "$phase" == "WaitingForOwner" ]]; then
+                  break
+                fi
+                if (( SECONDS >= deadline )); then
+                  echo "expected relevant Secret update to advance latestObservedDependencyChange" >&2
+                  kubectl -n kick-e2e-011 get secret app-secret -o yaml >&2 || true
+                  kubectl -n kick-e2e-011 get kickrequest secret-api -o yaml >&2 || true
+                  exit 1
+                fi
+                sleep 2
+              done
+    - name: cleanup
+      try:
+        - script:
+            content: |
+              kubectl delete namespace kick-e2e-011 --ignore-not-found=true --wait=false
