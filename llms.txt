@@ -1,0 +1,25 @@
+# KICK Operator (AI quick context)
+
+KICK watches Secret and ConfigMap changes and evaluates whether a Deployment restart is required and currently allowed.
+
+## APIs
+- KickRequest (`kick.corewire.io/v1alpha1`): durable restart request state machine.
+- KickPolicy (`kick.corewire.io/v1alpha1`): workload scope and GitOps gate policy.
+
+## Runtime model
+- Source observation detects relevant dependency content changes.
+- KickRequest reconciliation re-resolves owner/gates and re-checks freshness before restart.
+- Restart action patches `kubectl.kubernetes.io/restartedAt` on Deployments only.
+
+## Key references
+- docs/getting-started/installation.md
+- docs/getting-started/quickstart.md
+- docs/reference/kickrequest.md
+- docs/reference/kickpolicy.md
+- docs/reference/configuration.md
+- docs/reference/metrics.md
+- docs/reference/events.md
+
+## Security
+- Controller needs read access to Secrets/ConfigMaps to evaluate freshness.
+- KICK never logs Secret data or content digests.

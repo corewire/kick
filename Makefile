@@ -118,11 +118,11 @@ helm-template:
 
 .PHONY: docs-gen
 docs-gen:
-	@echo "No generated docs step required yet for starter repository."
+	bash hack/gen-docs.sh
 
 .PHONY: docs-gen-check
 docs-gen-check: docs-gen
-	@echo "Docs generation check passed."
+	git diff --exit-code -- llms.txt llms-full.txt
 
 .PHONY: feature-coverage
 feature-coverage:
