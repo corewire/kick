@@ -7,6 +7,14 @@ resources:
 - api:
     crdVersion: v1
     namespaced: true
+  domain: corewire.io
+  group: kick
+  kind: KickPolicy
+  path: github.com/corewire/kick/api/v1alpha1
+  version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
   controller: true
   domain: corewire.io
   group: kick
