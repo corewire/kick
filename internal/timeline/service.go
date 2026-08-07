@@ -90,6 +90,32 @@ type DAGResponse struct {
 	Edges     []DAGEdge `json:"edges"`
 }
 
+type OverviewEvent struct {
+	At        time.Time `json:"at"`
+	Namespace string    `json:"namespace"`
+	Kind      string    `json:"kind"`
+	Name      string    `json:"name"`
+	Type      string    `json:"type"`
+	Reason    string    `json:"reason,omitempty"`
+	Message   string    `json:"message"`
+}
+
+type OverviewWorkload struct {
+	Namespace  string          `json:"namespace"`
+	Kind       string          `json:"kind"`
+	Name       string          `json:"name"`
+	Policy     string          `json:"policy"`
+	Phase      string          `json:"phase,omitempty"`
+	GateReason string          `json:"gateReason,omitempty"`
+	Events     []OverviewEvent `json:"events"`
+}
+
+type OverviewResponse struct {
+	GeneratedAt time.Time          `json:"generatedAt"`
+	Workloads   []OverviewWorkload `json:"workloads"`
+	Events      []OverviewEvent    `json:"events"`
+}
+
 type Service struct {
 	Client           client.Client
 	ObservationStore observation.Store
@@ -108,6 +134,7 @@ func RegisterHandlers(mux *http.ServeMux, svc *Service) {
 	mux.HandleFunc("/timeline/resources", svc.handleResources)
 	mux.HandleFunc("/timeline/discovery", svc.handleDiscovery)
 	mux.HandleFunc("/timeline/dag", svc.handleDAG)
+	mux.HandleFunc("/timeline/overview", svc.handleOverview)
 	mux.HandleFunc("/timeline/ui", serveUI)
 }
 
@@ -260,6 +287,95 @@ func (s *Service) handleDAG(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(dag)
+}
+
+// handleOverview aggregates managed workloads and their timeline events across
+// every namespace into a single, time-sorted view so the UI can answer "what
+// happened when" without drilling into one workload at a time.
+func (s *Service) handleOverview(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var namespaces corev1.NamespaceList
+	if err := s.Client.List(ctx, &namespaces); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	workloads := make([]OverviewWorkload, 0)
+	allEvents := make([]OverviewEvent, 0)
+	seen := map[string]struct{}{}
+
+	for _, ns := range namespaces.Items {
+		discovered, _, err := s.discoverManagedWorkloads(ctx, ns.Name)
+		if err != nil || len(discovered) == 0 {
+			continue
+		}
+
+		phaseByTarget := map[string]KickRequestSummary{}
+		var requestList kickv1alpha1.KickRequestList
+		if err := s.Client.List(ctx, &requestList, client.InNamespace(ns.Name)); err == nil {
+			for _, req := range requestList.Items {
+				key := req.Spec.TargetRef.Kind + "/" + req.Spec.TargetRef.Name
+				phaseByTarget[key] = KickRequestSummary{Phase: string(req.Status.Phase), GateReason: req.Status.Gate.Reason}
+			}
+		}
+
+		for _, workload := range discovered {
+			identity := workload.Namespace + "/" + workload.Kind + "/" + workload.Name
+			if _, ok := seen[identity]; ok {
+				continue
+			}
+			seen[identity] = struct{}{}
+
+			items, err := s.buildTimeline(ctx, workload.Namespace, workload.Kind, workload.Name)
+			if err != nil {
+				continue
+			}
+
+			events := make([]OverviewEvent, 0, len(items))
+			for _, item := range items {
+				event := OverviewEvent{
+					At:        item.At.UTC(),
+					Namespace: workload.Namespace,
+					Kind:      workload.Kind,
+					Name:      workload.Name,
+					Type:      item.Type,
+					Reason:    item.Reason,
+					Message:   item.Message,
+				}
+				events = append(events, event)
+				allEvents = append(allEvents, event)
+			}
+
+			summary := phaseByTarget[workload.Kind+"/"+workload.Name]
+			workloads = append(workloads, OverviewWorkload{
+				Namespace:  workload.Namespace,
+				Kind:       workload.Kind,
+				Name:       workload.Name,
+				Policy:     workload.Policy,
+				Phase:      summary.Phase,
+				GateReason: summary.GateReason,
+				Events:     events,
+			})
+		}
+	}
+
+	sort.Slice(workloads, func(i, j int) bool {
+		if workloads[i].Namespace != workloads[j].Namespace {
+			return workloads[i].Namespace < workloads[j].Namespace
+		}
+		if workloads[i].Kind != workloads[j].Kind {
+			return workloads[i].Kind < workloads[j].Kind
+		}
+		return workloads[i].Name < workloads[j].Name
+	})
+
+	sort.Slice(allEvents, func(i, j int) bool {
+		return allEvents[i].At.After(allEvents[j].At)
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(OverviewResponse{GeneratedAt: time.Now().UTC(), Workloads: workloads, Events: allEvents})
 }
 
 func (s *Service) buildTimeline(ctx context.Context, namespace, kind, name string) ([]Entry, error) {
