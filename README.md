@@ -131,7 +131,6 @@ spec:
 ## Specs and references
 
 - authoritative specifications: `ai-docs/kick-operator-specs/kick-specs/`
-- copied starter reference: `ai-docs/kick-operator-starter/`
 
 ## First checks
 
