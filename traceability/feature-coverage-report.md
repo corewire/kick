@@ -20,6 +20,7 @@
 | KICK-FEAT-016 | Pass | Pass | Pass | KICK-E2E-052 | PASS |
 | KICK-FEAT-017 | N/A | Pass | Pass | KICK-E2E-053 | PASS |
 | KICK-FEAT-018 | Pass | N/A | N/A | - | PASS |
+| KICK-FEAT-019 | Pass | N/A | N/A | - | PASS |
 
 # API Field Coverage Report
 

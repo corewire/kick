@@ -317,3 +317,21 @@ features:
       APIs.
     e2e: The checker is CI infrastructure rather than runtime operator behavior.
   e2e: []
+- id: KICK-FEAT-019
+  name: Cross-namespace timeline overview
+  spec: docs/development/timeline-ui.md
+  task: docs/development/timeline-ui.md
+  tests:
+    unit: required
+    envtest: not_applicable
+    e2e: not_applicable
+  coverage:
+    unit:
+    - internal/timeline/service_test.go
+  rationale:
+    envtest: The overview endpoint aggregates client List results and is fully exercised
+      by unit tests with a fake client; it adds no reconciler or CRD behavior.
+    e2e: The timeline UI is a read-only observability aid, not gated runtime operator
+      behavior.
+  e2e: []
+

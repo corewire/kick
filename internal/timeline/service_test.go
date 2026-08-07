@@ -333,3 +333,90 @@ func TestBuildTimelineIncludesDependencyAndRequest(t *testing.T) {
 		t.Fatalf("missing workload-restarted entry")
 	}
 }
+
+// TestHandleOverviewAggregatesAcrossNamespaces covers KICK-FEAT-019: the
+// cross-namespace timeline overview endpoint.
+func TestHandleOverviewAggregatesAcrossNamespaces(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatalf("add kube scheme: %v", err)
+	}
+	if err := kickv1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatalf("add kick scheme: %v", err)
+	}
+
+	nsA := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "team-a"}}
+	nsB := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "team-b"}}
+
+	policyA := &kickv1alpha1.KickPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "web", Namespace: "team-a"},
+		Spec: kickv1alpha1.KickPolicySpec{
+			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{Mode: kickv1alpha1.KickPolicyDiscoveryModeAuto, WorkloadSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "web"}}},
+			GitOps:    kickv1alpha1.KickPolicyGitOpsSpec{Provider: kickv1alpha1.KickPolicyProviderAuto},
+		},
+	}
+	depA := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: "web", Namespace: "team-a", Labels: map[string]string{"app": "web"}}}
+	reqA := &kickv1alpha1.KickRequest{
+		ObjectMeta: metav1.ObjectMeta{Name: "web", Namespace: "team-a", CreationTimestamp: metav1.NewTime(time.Date(2026, 8, 7, 10, 0, 0, 0, time.UTC))},
+		Spec:       kickv1alpha1.KickRequestSpec{TargetRef: kickv1alpha1.ObjectReference{APIVersion: "apps/v1", Kind: "Deployment", Name: "web"}},
+		Status:     kickv1alpha1.KickRequestStatus{Phase: kickv1alpha1.KickRequestPhaseWaitingForOwner, Gate: kickv1alpha1.GateStatus{Reason: "OwnerUnknown"}},
+	}
+
+	policyB := &kickv1alpha1.KickPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "db", Namespace: "team-b"},
+		Spec: kickv1alpha1.KickPolicySpec{
+			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{Mode: kickv1alpha1.KickPolicyDiscoveryModeAuto, WorkloadSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "db"}}},
+			GitOps:    kickv1alpha1.KickPolicyGitOpsSpec{Provider: kickv1alpha1.KickPolicyProviderAuto},
+		},
+	}
+	stsB := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: "db", Namespace: "team-b", Labels: map[string]string{"app": "db"}}}
+
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(nsA, nsB, policyA, depA, reqA, policyB, stsB).Build()
+	svc := &Service{Client: c, ObservationStore: observation.NewMemoryStore()}
+	mux := http.NewServeMux()
+	RegisterHandlers(mux, svc)
+
+	request := httptest.NewRequest(http.MethodGet, "http://localhost/timeline/overview", nil)
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", response.Code)
+	}
+
+	var overview OverviewResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &overview); err != nil {
+		t.Fatalf("decode overview: %v", err)
+	}
+
+	if len(overview.Workloads) != 2 {
+		t.Fatalf("expected 2 workloads across namespaces, got %d", len(overview.Workloads))
+	}
+	// Workloads are sorted by namespace, so team-a comes first.
+	if overview.Workloads[0].Namespace != "team-a" || overview.Workloads[0].Kind != "Deployment" || overview.Workloads[0].Name != "web" {
+		t.Fatalf("unexpected first workload: %#v", overview.Workloads[0])
+	}
+	if overview.Workloads[0].Phase != string(kickv1alpha1.KickRequestPhaseWaitingForOwner) || overview.Workloads[0].GateReason != "OwnerUnknown" {
+		t.Fatalf("expected phase/gate propagated, got %#v", overview.Workloads[0])
+	}
+	if overview.Workloads[1].Namespace != "team-b" || overview.Workloads[1].Kind != "StatefulSet" {
+		t.Fatalf("unexpected second workload: %#v", overview.Workloads[1])
+	}
+
+	foundRequestEvent := false
+	for _, event := range overview.Events {
+		if event.Namespace == "team-a" && event.Type == "KickRequestCreated" {
+			foundRequestEvent = true
+		}
+	}
+	if !foundRequestEvent {
+		t.Fatalf("expected a KickRequestCreated event for team-a in the flat event stream")
+	}
+
+	// The flat event stream is sorted newest-first.
+	for i := 1; i < len(overview.Events); i++ {
+		if overview.Events[i-1].At.Before(overview.Events[i].At) {
+			t.Fatalf("events are not sorted descending at index %d", i)
+		}
+	}
+}
+
