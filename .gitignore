@@ -1,5 +1,24 @@
+# Build output
 /bin/
 /dist/
+*.test
+__debug_bin*
+
+# Test / coverage
 cover.out
+*.out
 .envtest/
+
+# Local cluster
 .kubeconfig-kind-*
+
+# Python tooling caches
+__pycache__/
+*.py[cod]
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
