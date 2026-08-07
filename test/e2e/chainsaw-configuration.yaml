@@ -4,6 +4,13 @@ metadata:
   name: kick-e2e
 spec:
   failFast: false
+  # Pin the per-test namespace so chainsaw never generates random `chainsaw-*`
+  # namespaces. Every scenario already provisions and deletes its own
+  # `kick-e2e-*` namespace, so this shared namespace stays empty. It is
+  # pre-created by the Makefile e2e targets, meaning chainsaw treats it as
+  # pre-existing and will not create or delete it (avoiding leftover buildup
+  # and per-test delete races under parallel execution).
+  namespace: kick-e2e
   timeouts:
     apply: 30s
     assert: 60s

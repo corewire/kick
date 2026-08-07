@@ -27,6 +27,7 @@ KAMERA_VERSION ?= main
 KIND_CLUSTER_NAME ?= kick-dev
 KIND_CONTEXT ?= kind-$(KIND_CLUSTER_NAME)
 KIND_KUBECONFIG ?= $(shell pwd)/.kubeconfig-kind-kick-dev
+E2E_NAMESPACE ?= kick-e2e
 PKGS := $(shell go list ./... | grep -v '/ai-docs/' || true)
 
 .PHONY: fmt
@@ -45,12 +46,16 @@ lint: golangci-lint
 test: setup-envtest
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $(PKGS) -coverprofile cover.out
 
+.PHONY: e2e-namespace
+e2e-namespace:
+	@KUBECONFIG=$(KIND_KUBECONFIG) $(KUBECTL) --context $(KIND_CONTEXT) create namespace $(E2E_NAMESPACE) --dry-run=client -o yaml | KUBECONFIG=$(KIND_KUBECONFIG) $(KUBECTL) --context $(KIND_CONTEXT) apply -f - >/dev/null
+
 .PHONY: test-e2e
-test-e2e: chainsaw
+test-e2e: chainsaw e2e-namespace
 	KUBECONFIG=$(KIND_KUBECONFIG) $(CHAINSAW) test --config test/e2e/chainsaw-configuration.yaml --kube-context $(KIND_CONTEXT) test/e2e/scenarios
 
 .PHONY: test-e2e-core
-test-e2e-core: chainsaw
+test-e2e-core: chainsaw e2e-namespace
 	@scenario_dirs="$$(find test/e2e/scenarios -mindepth 1 -maxdepth 1 -type d | sort | grep -Ev '/KICK-E2E-(024|025|026|027|028|029|030|031|032|033|034|035|036|037|038|039|040|041|042|048|049|050|051)\b')"; \
 	if [[ -z "$$scenario_dirs" ]]; then \
 		echo "no core scenarios selected"; \
@@ -59,7 +64,7 @@ test-e2e-core: chainsaw
 	KUBECONFIG=$(KIND_KUBECONFIG) $(CHAINSAW) test --config test/e2e/chainsaw-configuration.yaml --kube-context $(KIND_CONTEXT) $$scenario_dirs
 
 .PHONY: test-e2e-argocd
-test-e2e-argocd: chainsaw
+test-e2e-argocd: chainsaw e2e-namespace
 	@scenario_dirs="$$(find test/e2e/scenarios -mindepth 1 -maxdepth 1 -type d | sort | grep -E '/KICK-E2E-(024|025|026|027|028|029|030|031|032|033|034|035|036|037|038|039|040|041|042)\b')"; \
 	if [[ -z "$$scenario_dirs" ]]; then \
 		echo "no argocd scenarios selected"; \
@@ -68,7 +73,7 @@ test-e2e-argocd: chainsaw
 	KUBECONFIG=$(KIND_KUBECONFIG) $(CHAINSAW) test --config test/e2e/chainsaw-configuration.yaml --kube-context $(KIND_CONTEXT) $$scenario_dirs
 
 .PHONY: test-e2e-recovery
-test-e2e-recovery: chainsaw
+test-e2e-recovery: chainsaw e2e-namespace
 	@scenario_dirs="$$(find test/e2e/scenarios -mindepth 1 -maxdepth 1 -type d | sort | grep -E '/KICK-E2E-(048|049|050|051)\b')"; \
 	if [[ -z "$$scenario_dirs" ]]; then \
 		echo "no recovery scenarios selected"; \
@@ -77,7 +82,7 @@ test-e2e-recovery: chainsaw
 	KUBECONFIG=$(KIND_KUBECONFIG) $(CHAINSAW) test --config test/e2e/chainsaw-configuration.yaml --kube-context $(KIND_CONTEXT) $$scenario_dirs
 
 .PHONY: test-e2e-scenario
-test-e2e-scenario: chainsaw
+test-e2e-scenario: chainsaw e2e-namespace
 	@if [[ -z "$(E2E)" ]]; then echo "E2E is required, e.g. make test-e2e-scenario E2E=KICK-E2E-032"; exit 1; fi
 	@scenario_dir="$$(find test/e2e/scenarios -mindepth 1 -maxdepth 1 -type d | grep -i '/$(E2E)\b' | head -n 1)"; \
 	if [[ -z "$$scenario_dir" ]]; then \
