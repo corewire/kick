@@ -31,7 +31,7 @@ func TestExecutePatchesOnceAndIsIdempotent(t *testing.T) {
 	now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
 	exec.Now = func() time.Time { return now }
 
-	res1, err := exec.Execute(context.Background(), types.NamespacedName{Namespace: "team-a", Name: "api"}, types.NamespacedName{Namespace: "team-a", Name: "api"})
+	res1, err := exec.Execute(context.Background(), types.NamespacedName{Namespace: "team-a", Name: "api"}, kickv1alpha1.ObjectReference{APIVersion: "apps/v1", Kind: "Deployment", Name: "api"}, types.NamespacedName{Namespace: "team-a", Name: "api"})
 	if err != nil {
 		t.Fatalf("execute first: %v", err)
 	}
@@ -39,7 +39,7 @@ func TestExecutePatchesOnceAndIsIdempotent(t *testing.T) {
 		t.Fatalf("expected first execution to patch")
 	}
 
-	res2, err := exec.Execute(context.Background(), types.NamespacedName{Namespace: "team-a", Name: "api"}, types.NamespacedName{Namespace: "team-a", Name: "api"})
+	res2, err := exec.Execute(context.Background(), types.NamespacedName{Namespace: "team-a", Name: "api"}, kickv1alpha1.ObjectReference{APIVersion: "apps/v1", Kind: "Deployment", Name: "api"}, types.NamespacedName{Namespace: "team-a", Name: "api"})
 	if err != nil {
 		t.Fatalf("execute second: %v", err)
 	}
@@ -66,9 +66,9 @@ func TestExecuteTimeoutMarksFailed(t *testing.T) {
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(&kickv1alpha1.KickRequest{}).WithObjects(req, dep).Build()
 	exec := NewRestartExecutor(c, time.Minute)
-	exec.Now = func() time.Time { return started.Add(2 * time.Minute) }
+	exec.Now = func() time.Time { return started.Time.Add(2 * time.Minute) }
 
-	res, err := exec.Execute(context.Background(), types.NamespacedName{Namespace: "team-a", Name: "api"}, types.NamespacedName{Namespace: "team-a", Name: "api"})
+	res, err := exec.Execute(context.Background(), types.NamespacedName{Namespace: "team-a", Name: "api"}, kickv1alpha1.ObjectReference{APIVersion: "apps/v1", Kind: "Deployment", Name: "api"}, types.NamespacedName{Namespace: "team-a", Name: "api"})
 	if err != nil {
 		t.Fatalf("execute: %v", err)
 	}

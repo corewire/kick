@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kick-example-014
+---
+apiVersion: kick.corewire.io/v1alpha1
+kind: KickPolicy
+metadata:
+  name: default
+  namespace: kick-example-014
+spec:
+  discovery:
+    mode: Auto
+  gitOps:
+    provider: Auto
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-014
+  namespace: kick-example-014
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app-014
+  template:
+    metadata:
+      labels:
+        app: app-014
+    spec:
+      containers:
+        - name: app
+          image: registry.k8s.io/pause:3.10
+          envFrom:
+            - secretRef:
+                name: app-secret
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secret
+  namespace: kick-example-014
+type: Opaque
+stringData:
+  token: alpha

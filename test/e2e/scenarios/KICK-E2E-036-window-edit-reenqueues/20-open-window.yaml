@@ -1,0 +1,17 @@
+apiVersion: kick.corewire.io/v1alpha1
+kind: KickPolicy
+metadata:
+  name: default
+  namespace: kick-e2e-036
+spec:
+  discovery:
+    mode: Auto
+  gitOps:
+    provider: Auto
+    schedule:
+      source: None
+      # Editing the window to an always-active allow opens the gate.
+      windows:
+        - kind: Allow
+          schedule: "* * * * *"
+          duration: "1h"

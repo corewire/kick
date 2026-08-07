@@ -2,6 +2,8 @@
 
 KICK detects workloads whose consumed Secrets or ConfigMaps changed after their latest rollout, then triggers a controlled restart when the configured GitOps provider allows it.
 
+Supported workload kinds: `Deployment`, `StatefulSet`, `DaemonSet`.
+
 This repository currently contains a **bootstrap baseline**, not a finished operator. It implements only stable, provider-neutral foundations:
 
 - Kubebuilder-compatible project layout;
@@ -49,6 +51,16 @@ make test-e2e
 make uninstall
 make tilt-down
 ```
+
+Timeline and tracing:
+
+```text
+--timeline-bind-address=:8090
+--otel-otlp-endpoint=<collector-host:4317>
+--otel-otlp-insecure=true
+```
+
+Timeline UI path: `/timeline/ui`
 
 ## Security note
 

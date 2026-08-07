@@ -1,0 +1,38 @@
+# Synced by Argo CD from the current branch of this repo.
+# The Secret is intentionally NOT managed here so tests can mutate it without
+# Argo CD self-heal reverting the change.
+apiVersion: kick.corewire.io/v1alpha1
+kind: KickPolicy
+metadata:
+  name: default
+  namespace: kick-argocd
+spec:
+  discovery:
+    mode: Auto
+  gitOps:
+    provider: ArgoCD
+    requireReconciled: true
+    schedule:
+      source: Provider
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: windowed
+  namespace: kick-argocd
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: windowed
+  template:
+    metadata:
+      labels:
+        app: windowed
+    spec:
+      containers:
+        - name: app
+          image: registry.k8s.io/pause:3.10
+          envFrom:
+            - secretRef:
+                name: app-secret

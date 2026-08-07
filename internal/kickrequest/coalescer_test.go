@@ -26,14 +26,14 @@ func TestEnsureActiveRequestCoalescesRepeatedEvents(t *testing.T) {
 	coalescer := NewCoalescer(client, RetentionConfig{})
 
 	ctx := context.Background()
-	target := types.NamespacedName{Namespace: "payments", Name: "payments-api"}
+	target := kickv1alpha1.ObjectReference{APIVersion: "apps/v1", Kind: "Deployment", Name: "payments-api"}
 	firstAt := time.Date(2026, 8, 6, 10, 0, 0, 0, time.UTC)
 	secondAt := firstAt.Add(5 * time.Minute)
 
-	if _, err := coalescer.EnsureActiveRequest(ctx, target, firstAt); err != nil {
+	if _, err := coalescer.EnsureActiveRequest(ctx, "payments", target, firstAt); err != nil {
 		t.Fatalf("first ensure: %v", err)
 	}
-	if _, err := coalescer.EnsureActiveRequest(ctx, target, secondAt); err != nil {
+	if _, err := coalescer.EnsureActiveRequest(ctx, "payments", target, secondAt); err != nil {
 		t.Fatalf("second ensure: %v", err)
 	}
 
@@ -71,7 +71,7 @@ func TestEnsureActiveRequestReopensTerminal(t *testing.T) {
 	coalescer := NewCoalescer(client, RetentionConfig{})
 
 	now := time.Date(2026, 8, 6, 10, 0, 0, 0, time.UTC)
-	if _, err := coalescer.EnsureActiveRequest(context.Background(), types.NamespacedName{Namespace: "team-a", Name: "api"}, now); err != nil {
+	if _, err := coalescer.EnsureActiveRequest(context.Background(), "team-a", kickv1alpha1.ObjectReference{APIVersion: "apps/v1", Kind: "Deployment", Name: "api"}, now); err != nil {
 		t.Fatalf("ensure: %v", err)
 	}
 
@@ -81,5 +81,31 @@ func TestEnsureActiveRequestReopensTerminal(t *testing.T) {
 	}
 	if got.Status.Phase != kickv1alpha1.KickRequestPhasePending {
 		t.Fatalf("phase = %s, want pending", got.Status.Phase)
+	}
+}
+
+func TestEnsureActiveRequestNamesStatefulSetRequest(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatalf("add kube scheme: %v", err)
+	}
+	if err := kickv1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatalf("add kick scheme: %v", err)
+	}
+
+	client := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(&kickv1alpha1.KickRequest{}).Build()
+	coalescer := NewCoalescer(client, RetentionConfig{})
+
+	_, err := coalescer.EnsureActiveRequest(context.Background(), "team-a", kickv1alpha1.ObjectReference{APIVersion: "apps/v1", Kind: "StatefulSet", Name: "db"}, time.Now().UTC())
+	if err != nil {
+		t.Fatalf("ensure: %v", err)
+	}
+
+	var got kickv1alpha1.KickRequest
+	if err := client.Get(context.Background(), types.NamespacedName{Namespace: "team-a", Name: "statefulset-db"}, &got); err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.Spec.TargetRef.Kind != "StatefulSet" {
+		t.Fatalf("target kind = %s", got.Spec.TargetRef.Kind)
 	}
 }

@@ -1,0 +1,125 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: timeline-demo
+---
+apiVersion: kick.corewire.io/v1alpha1
+kind: KickPolicy
+metadata:
+  name: timeline-demo
+  namespace: timeline-demo
+spec:
+  discovery:
+    mode: Auto
+    workloadSelector:
+      matchLabels:
+        kick-demo: "true"
+  gitOps:
+    provider: Auto
+    requireReconciled: false
+    schedule:
+      source: None
+  minInterval: 15s
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: demo-secret
+  namespace: timeline-demo
+stringData:
+  password: start
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: demo-config
+  namespace: timeline-demo
+data:
+  LOG_LEVEL: info
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-api
+  namespace: timeline-demo
+  labels:
+    app: demo-api
+    kick-demo: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo-api
+  template:
+    metadata:
+      labels:
+        app: demo-api
+        kick-demo: "true"
+    spec:
+      containers:
+      - name: app
+        image: registry.k8s.io/pause:3.10
+        envFrom:
+        - secretRef:
+            name: demo-secret
+        - configMapRef:
+            name: demo-config
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: demo-db
+  namespace: timeline-demo
+  labels:
+    app: demo-db
+    kick-demo: "true"
+spec:
+  serviceName: demo-db
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo-db
+  template:
+    metadata:
+      labels:
+        app: demo-db
+        kick-demo: "true"
+    spec:
+      containers:
+      - name: db
+        image: registry.k8s.io/pause:3.10
+        env:
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: demo-secret
+              key: password
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: demo-agent
+  namespace: timeline-demo
+  labels:
+    app: demo-agent
+    kick-demo: "true"
+spec:
+  selector:
+    matchLabels:
+      app: demo-agent
+  template:
+    metadata:
+      labels:
+        app: demo-agent
+        kick-demo: "true"
+    spec:
+      containers:
+      - name: agent
+        image: registry.k8s.io/pause:3.10
+        volumeMounts:
+        - name: cfg
+          mountPath: /etc/demo
+      volumes:
+      - name: cfg
+        configMap:
+          name: demo-config

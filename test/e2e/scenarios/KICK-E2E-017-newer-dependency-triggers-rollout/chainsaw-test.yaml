@@ -1,11 +1,36 @@
 apiVersion: chainsaw.kyverno.io/v1alpha1
 kind: Test
 metadata:
-  name: newer-dependency-triggers-rollout
+  name: kick-e2e-017-newer-dependency-triggers-rollout
 spec:
   steps:
-    - name: scaffold
+    - name: create-fixtures
+      try:
+        - apply:
+            file: resources.yaml
+    - name: assert-request-created
       try:
         - script:
             content: |
-              echo "TODO: implement KICK-E2E-017 - newer dependency triggers rollout"
+              set -eu
+              deadline=$(( $(date +%s) + 120 ))
+              while true; do
+                count=$(kubectl -n kick-e2e-017 get kickrequests --no-headers 2>/dev/null | wc -l | tr -d ' ')
+                latest=$(kubectl -n kick-e2e-017 get kickrequest app-017 -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
+                if [ "$count" = "1" ]; then
+                  break
+                fi
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "expected one request with baseline timestamp for app-017" >&2
+                  kubectl -n kick-e2e-017 get kickrequests -o yaml >&2 || true
+                  exit 1
+                fi
+                sleep 2
+              done
+    - name: cleanup
+      try:
+        - delete:
+            ref:
+              apiVersion: v1
+              kind: Namespace
+              name: kick-e2e-017

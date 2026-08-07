@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kick-e2e-008
+---
+apiVersion: kick.corewire.io/v1alpha1
+kind: KickPolicy
+metadata:
+  name: default
+  namespace: kick-e2e-008
+spec:
+  discovery:
+    mode: Auto
+  gitOps:
+    provider: Auto
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-008
+  namespace: kick-e2e-008
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app-008
+  template:
+    metadata:
+      labels:
+        app: app-008
+    spec:
+      imagePullSecrets:
+        - name: pull-creds
+      containers:
+        - name: app
+          image: registry.k8s.io/pause:3.10
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: pull-creds
+  namespace: kick-e2e-008
+type: kubernetes.io/dockerconfigjson
+stringData:
+  .dockerconfigjson: '{"auths":{"example.com":{"auth":"ZmFrZTpmYWtl"}}}'

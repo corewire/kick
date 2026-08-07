@@ -2,6 +2,7 @@ package kickrequest
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	kickv1alpha1 "github.com/corewire/kick/api/v1alpha1"
@@ -29,20 +30,16 @@ func NewCoalescer(c client.Client, retention RetentionConfig) *Coalescer {
 }
 
 // EnsureActiveRequest creates or updates one active KickRequest for a target.
-func (c *Coalescer) EnsureActiveRequest(ctx context.Context, target types.NamespacedName, latestObservedChange time.Time) (*kickv1alpha1.KickRequest, error) {
-	key := types.NamespacedName{Namespace: target.Namespace, Name: target.Name}
+func (c *Coalescer) EnsureActiveRequest(ctx context.Context, namespace string, target kickv1alpha1.ObjectReference, latestObservedChange time.Time) (*kickv1alpha1.KickRequest, error) {
+	key := types.NamespacedName{Namespace: namespace, Name: requestNameForTarget(target)}
 	var request kickv1alpha1.KickRequest
 	if err := c.Get(ctx, key, &request); err != nil {
 		if !apierrors.IsNotFound(err) {
 			return nil, err
 		}
 		request = kickv1alpha1.KickRequest{
-			ObjectMeta: metav1.ObjectMeta{Name: target.Name, Namespace: target.Namespace},
-			Spec: kickv1alpha1.KickRequestSpec{TargetRef: kickv1alpha1.ObjectReference{
-				APIVersion: "apps/v1",
-				Kind:       "Deployment",
-				Name:       target.Name,
-			}},
+			ObjectMeta: metav1.ObjectMeta{Name: key.Name, Namespace: namespace},
+			Spec:       kickv1alpha1.KickRequestSpec{TargetRef: target},
 		}
 		if err := c.Create(ctx, &request); err != nil {
 			return nil, err
@@ -89,4 +86,11 @@ func isTerminalPhase(phase kickv1alpha1.KickRequestPhase) bool {
 	default:
 		return false
 	}
+}
+
+func requestNameForTarget(target kickv1alpha1.ObjectReference) string {
+	if target.Kind == "Deployment" {
+		return target.Name
+	}
+	return strings.ToLower(target.Kind) + "-" + target.Name
 }

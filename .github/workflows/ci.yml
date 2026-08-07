@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - main
+  workflow_call:
+  workflow_dispatch:
 
 jobs:
   verify:
@@ -81,3 +83,35 @@ jobs:
         with:
           name: feature-coverage-report
           path: traceability/feature-coverage-report.md
+
+  e2e-core:
+    runs-on: ubuntu-24.04
+    needs: verify
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+
+      - name: Setup Go
+        uses: actions/setup-go@v5.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install kind
+        run: |
+          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.24.0/kind-linux-amd64
+          chmod +x ./kind
+          sudo mv ./kind /usr/local/bin/kind
+
+      - name: Create kind cluster
+        run: make kind-create KIND=kind
+
+      - name: Build, load, and install operator
+        run: make kind-load install KIND=kind
+
+      - name: Run core e2e scenarios
+        run: make test-e2e-core KIND=kind
+
+      - name: Delete kind cluster
+        if: always()
+        run: make kind-delete KIND=kind

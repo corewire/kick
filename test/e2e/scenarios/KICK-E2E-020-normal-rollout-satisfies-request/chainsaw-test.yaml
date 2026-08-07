@@ -1,11 +1,36 @@
 apiVersion: chainsaw.kyverno.io/v1alpha1
 kind: Test
 metadata:
-  name: normal-rollout-satisfies-request
+  name: kick-e2e-020-normal-rollout-satisfies-request
 spec:
   steps:
-    - name: scaffold
+    - name: create-fixtures
+      try:
+        - apply:
+            file: resources.yaml
+    - name: assert-request-created
       try:
         - script:
             content: |
-              echo "TODO: implement KICK-E2E-020 - normal rollout satisfies request"
+              set -eu
+              deadline=$(( $(date +%s) + 120 ))
+              while true; do
+                count=$(kubectl -n kick-e2e-020 get kickrequests --no-headers 2>/dev/null | wc -l | tr -d ' ')
+                latest=$(kubectl -n kick-e2e-020 get kickrequest app-020 -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
+                if [ "$count" = "1" ]; then
+                  break
+                fi
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "expected one request with baseline timestamp for app-020" >&2
+                  kubectl -n kick-e2e-020 get kickrequests -o yaml >&2 || true
+                  exit 1
+                fi
+                sleep 2
+              done
+    - name: cleanup
+      try:
+        - delete:
+            ref:
+              apiVersion: v1
+              kind: Namespace
+              name: kick-e2e-020

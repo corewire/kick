@@ -331,3 +331,17 @@ scenarios:
     status: required
     features:
       - KICK-FEAT-017
+  - id: KICK-E2E-054
+    name: StatefulSet Secret reference discovered
+    directory: test/e2e/scenarios/KICK-E2E-054-statefulset-secret-reference-discovered
+    status: required
+    features:
+      - KICK-FEAT-001
+      - KICK-FEAT-007
+  - id: KICK-E2E-055
+    name: DaemonSet Secret reference discovered
+    directory: test/e2e/scenarios/KICK-E2E-055-daemonset-secret-reference-discovered
+    status: required
+    features:
+      - KICK-FEAT-001
+      - KICK-FEAT-007

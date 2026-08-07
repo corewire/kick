@@ -41,7 +41,7 @@ type stubFreshnessEvaluator struct {
 	calls    int
 }
 
-func (s *stubFreshnessEvaluator) Evaluate(context.Context, *appsv1.Deployment, []dependency.DependencyRef, map[dependency.DependencyRef]time.Time) (freshness.FreshnessDecision, error) {
+func (s *stubFreshnessEvaluator) Evaluate(context.Context, client.Object, []dependency.DependencyRef, map[dependency.DependencyRef]time.Time) (freshness.FreshnessDecision, error) {
 	s.calls++
 	return s.decision, s.err
 }
@@ -52,7 +52,7 @@ type stubRestartExecutor struct {
 	calls  int
 }
 
-func (s *stubRestartExecutor) Execute(context.Context, types.NamespacedName, types.NamespacedName) (executor.Result, error) {
+func (s *stubRestartExecutor) Execute(context.Context, types.NamespacedName, kickv1alpha1.ObjectReference, types.NamespacedName) (executor.Result, error) {
 	s.calls++
 	return s.result, s.err
 }
@@ -68,12 +68,12 @@ type stubPolicyMatcher struct {
 	calls  int
 }
 
-func (s *stubPolicyMatcher) MatchDeployment(context.Context, *appsv1.Deployment) (policy.MatchResult, error) {
+func (s *stubPolicyMatcher) MatchWorkload(context.Context, string, map[string]string) (policy.MatchResult, error) {
 	s.calls++
 	return s.result, s.err
 }
 
-func (e *completingRestartExecutor) Execute(ctx context.Context, requestKey, _ types.NamespacedName) (executor.Result, error) {
+func (e *completingRestartExecutor) Execute(ctx context.Context, requestKey types.NamespacedName, _ kickv1alpha1.ObjectReference, _ types.NamespacedName) (executor.Result, error) {
 	e.calls++
 	var req kickv1alpha1.KickRequest
 	if err := e.client.Get(ctx, requestKey, &req); err != nil {
@@ -310,6 +310,79 @@ func TestKickRequestReconcilePolicyUnmanagedCancelsRequest(t *testing.T) {
 	}
 	if got.Status.Phase != kickv1alpha1.KickRequestPhaseFailed {
 		t.Fatalf("phase = %s, want %s", got.Status.Phase, kickv1alpha1.KickRequestPhaseFailed)
+	}
+}
+
+func TestKickRequestReconcileTerminalRequeuesBeforeRetention(t *testing.T) {
+	scheme := testScheme(t)
+	req := testKickRequest("team-a", "api")
+	req.Status.Phase = kickv1alpha1.KickRequestPhaseNoLongerRequired
+	req.Status.Conditions = []metav1.Condition{{
+		Type:               statusConditionProgressing,
+		Status:             metav1.ConditionFalse,
+		LastTransitionTime: metav1.NewTime(time.Date(2026, 8, 7, 11, 50, 0, 0, time.UTC)),
+	}}
+
+	c := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(&kickv1alpha1.KickRequest{}).WithObjects(req).Build()
+	r := &KickRequestReconciler{
+		Client:             c,
+		Scheme:             scheme,
+		GateResolver:       &stubGateResolver{},
+		ObservationStore:   observation.NewMemoryStore(),
+		FreshnessEvaluator: &stubFreshnessEvaluator{},
+		RestartExecutor:    &stubRestartExecutor{},
+		Clock:              func() time.Time { return time.Date(2026, 8, 7, 12, 0, 0, 0, time.UTC) },
+		RequestRetention:   30 * time.Minute,
+	}
+
+	result, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Namespace: "team-a", Name: "api"}})
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if result.RequeueAfter != 20*time.Minute {
+		t.Fatalf("requeue = %s, want %s", result.RequeueAfter, 20*time.Minute)
+	}
+
+	var got kickv1alpha1.KickRequest
+	if err := c.Get(context.Background(), types.NamespacedName{Namespace: "team-a", Name: "api"}, &got); err != nil {
+		t.Fatalf("terminal request should still exist: %v", err)
+	}
+}
+
+func TestKickRequestReconcileTerminalDeletesAfterRetention(t *testing.T) {
+	scheme := testScheme(t)
+	req := testKickRequest("team-a", "api")
+	req.Status.Phase = kickv1alpha1.KickRequestPhaseSucceeded
+	req.Status.Conditions = []metav1.Condition{{
+		Type:               statusConditionProgressing,
+		Status:             metav1.ConditionFalse,
+		LastTransitionTime: metav1.NewTime(time.Date(2026, 8, 7, 10, 0, 0, 0, time.UTC)),
+	}}
+
+	c := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(&kickv1alpha1.KickRequest{}).WithObjects(req).Build()
+	r := &KickRequestReconciler{
+		Client:             c,
+		Scheme:             scheme,
+		GateResolver:       &stubGateResolver{},
+		ObservationStore:   observation.NewMemoryStore(),
+		FreshnessEvaluator: &stubFreshnessEvaluator{},
+		RestartExecutor:    &stubRestartExecutor{},
+		Clock:              func() time.Time { return time.Date(2026, 8, 7, 12, 0, 0, 0, time.UTC) },
+		RequestRetention:   30 * time.Minute,
+	}
+
+	result, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Namespace: "team-a", Name: "api"}})
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if result.RequeueAfter != 0 {
+		t.Fatalf("unexpected requeue: %s", result.RequeueAfter)
+	}
+
+	var got kickv1alpha1.KickRequest
+	err = c.Get(context.Background(), types.NamespacedName{Namespace: "team-a", Name: "api"}, &got)
+	if err == nil {
+		t.Fatalf("expected request to be deleted")
 	}
 }
 

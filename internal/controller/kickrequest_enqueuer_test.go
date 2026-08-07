@@ -6,6 +6,7 @@ import (
 	"time"
 
 	kickv1alpha1 "github.com/corewire/kick/api/v1alpha1"
+	"github.com/corewire/kick/internal/dependency"
 	"github.com/corewire/kick/internal/kickrequest"
 	"github.com/corewire/kick/internal/observation"
 	"github.com/corewire/kick/internal/policy"
@@ -13,7 +14,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
@@ -23,6 +23,10 @@ type staticPolicyMatcher struct {
 }
 
 func (s staticPolicyMatcher) MatchDeployment(context.Context, *appsv1.Deployment) (policy.MatchResult, error) {
+	return s.result, nil
+}
+
+func (s staticPolicyMatcher) MatchWorkload(context.Context, string, map[string]string) (policy.MatchResult, error) {
 	return s.result, nil
 }
 
@@ -46,7 +50,7 @@ func TestKickRequestEnqueuerSkipsUnmanagedWorkload(t *testing.T) {
 		PolicyMatcher: staticPolicyMatcher{result: policy.MatchResult{Managed: false, Reason: policy.ReasonPolicyDeleted}},
 	}
 
-	if err := enq.EnqueueForConsumers(context.Background(), observation.SourceIdentity{}, []types.NamespacedName{{Namespace: "team-a", Name: "api"}}, time.Now().UTC()); err != nil {
+	if err := enq.EnqueueForConsumers(context.Background(), observation.SourceIdentity{}, []dependency.ConsumerTarget{{APIVersion: "apps/v1", Kind: "Deployment", Namespace: "team-a", Name: "api"}}, time.Now().UTC()); err != nil {
 		t.Fatalf("enqueue: %v", err)
 	}
 

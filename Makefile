@@ -13,6 +13,7 @@ CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 GOLANGCI_LINT ?= $(LOCALBIN)/golangci-lint
 CHAINSAW ?= $(LOCALBIN)/chainsaw
+KAMERA ?= $(LOCALBIN)/kamera
 KIND ?= kind
 TILT ?= tilt
 
@@ -22,6 +23,7 @@ ENVTEST_VERSION ?= release-0.24
 ENVTEST_K8S_VERSION ?= 1.36
 GOLANGCI_LINT_VERSION ?= v2.12.2
 CHAINSAW_VERSION ?= v0.2.15
+KAMERA_VERSION ?= main
 KIND_CLUSTER_NAME ?= kick-dev
 KIND_CONTEXT ?= kind-$(KIND_CLUSTER_NAME)
 KIND_KUBECONFIG ?= $(shell pwd)/.kubeconfig-kind-kick-dev
@@ -45,24 +47,44 @@ test: setup-envtest
 
 .PHONY: test-e2e
 test-e2e: chainsaw
-	$(CHAINSAW) test --config test/e2e/chainsaw-configuration.yaml --kubeconfig $(KIND_KUBECONFIG) --kube-context $(KIND_CONTEXT) test/e2e/scenarios
+	KUBECONFIG=$(KIND_KUBECONFIG) $(CHAINSAW) test --config test/e2e/chainsaw-configuration.yaml --kube-context $(KIND_CONTEXT) test/e2e/scenarios
 
 .PHONY: test-e2e-core
 test-e2e-core: chainsaw
-	$(CHAINSAW) test --config test/e2e/chainsaw-configuration.yaml --kubeconfig $(KIND_KUBECONFIG) --kube-context $(KIND_CONTEXT) --exclude-test-regex "KICK-E2E-(024|025|026|027|028|029|030|031|032|033|034|035|036|037|038|039|040|041|042|048|049|050|051)" test/e2e/scenarios
+	@scenario_dirs="$$(find test/e2e/scenarios -mindepth 1 -maxdepth 1 -type d | sort | grep -Ev '/KICK-E2E-(024|025|026|027|028|029|030|031|032|033|034|035|036|037|038|039|040|041|042|048|049|050|051)\b')"; \
+	if [[ -z "$$scenario_dirs" ]]; then \
+		echo "no core scenarios selected"; \
+		exit 1; \
+	fi; \
+	KUBECONFIG=$(KIND_KUBECONFIG) $(CHAINSAW) test --config test/e2e/chainsaw-configuration.yaml --kube-context $(KIND_CONTEXT) $$scenario_dirs
 
 .PHONY: test-e2e-argocd
 test-e2e-argocd: chainsaw
-	$(CHAINSAW) test --config test/e2e/chainsaw-configuration.yaml --kubeconfig $(KIND_KUBECONFIG) --kube-context $(KIND_CONTEXT) --include-test-regex "KICK-E2E-(024|025|026|027|028|029|030|031|032|033|034|035|036|037|038|039|040|041|042)" test/e2e/scenarios
+	@scenario_dirs="$$(find test/e2e/scenarios -mindepth 1 -maxdepth 1 -type d | sort | grep -E '/KICK-E2E-(024|025|026|027|028|029|030|031|032|033|034|035|036|037|038|039|040|041|042)\b')"; \
+	if [[ -z "$$scenario_dirs" ]]; then \
+		echo "no argocd scenarios selected"; \
+		exit 1; \
+	fi; \
+	KUBECONFIG=$(KIND_KUBECONFIG) $(CHAINSAW) test --config test/e2e/chainsaw-configuration.yaml --kube-context $(KIND_CONTEXT) $$scenario_dirs
 
 .PHONY: test-e2e-recovery
 test-e2e-recovery: chainsaw
-	$(CHAINSAW) test --config test/e2e/chainsaw-configuration.yaml --kubeconfig $(KIND_KUBECONFIG) --kube-context $(KIND_CONTEXT) --include-test-regex "KICK-E2E-(048|049|050|051)" test/e2e/scenarios
+	@scenario_dirs="$$(find test/e2e/scenarios -mindepth 1 -maxdepth 1 -type d | sort | grep -E '/KICK-E2E-(048|049|050|051)\b')"; \
+	if [[ -z "$$scenario_dirs" ]]; then \
+		echo "no recovery scenarios selected"; \
+		exit 1; \
+	fi; \
+	KUBECONFIG=$(KIND_KUBECONFIG) $(CHAINSAW) test --config test/e2e/chainsaw-configuration.yaml --kube-context $(KIND_CONTEXT) $$scenario_dirs
 
 .PHONY: test-e2e-scenario
 test-e2e-scenario: chainsaw
 	@if [[ -z "$(E2E)" ]]; then echo "E2E is required, e.g. make test-e2e-scenario E2E=KICK-E2E-032"; exit 1; fi
-	$(CHAINSAW) test --config test/e2e/chainsaw-configuration.yaml --kubeconfig $(KIND_KUBECONFIG) --kube-context $(KIND_CONTEXT) --include-test-regex "$(E2E)" test/e2e/scenarios
+	@scenario_dir="$$(find test/e2e/scenarios -mindepth 1 -maxdepth 1 -type d | grep -i '/$(E2E)\b' | head -n 1)"; \
+	if [[ -z "$$scenario_dir" ]]; then \
+		echo "no scenario directory matches E2E=$(E2E)"; \
+		exit 1; \
+	fi; \
+	KUBECONFIG=$(KIND_KUBECONFIG) $(CHAINSAW) test --config test/e2e/chainsaw-configuration.yaml --kube-context $(KIND_CONTEXT) "$$scenario_dir"
 
 .PHONY: test-e2e-render
 test-e2e-render: chainsaw
@@ -91,11 +113,11 @@ kind-load:
 
 .PHONY: tilt-up
 tilt-up:
-	KUBECONFIG=$(KIND_KUBECONFIG) $(TILT) up --k8s-context $(KIND_CONTEXT)
+	KUBECONFIG=$(KIND_KUBECONFIG) KICK_KUBECONFIG=$(KIND_KUBECONFIG) $(TILT) up --context $(KIND_CONTEXT)
 
 .PHONY: tilt-down
 tilt-down:
-	KUBECONFIG=$(KIND_KUBECONFIG) $(TILT) down --k8s-context $(KIND_CONTEXT)
+	KUBECONFIG=$(KIND_KUBECONFIG) KICK_KUBECONFIG=$(KIND_KUBECONFIG) $(TILT) down --context $(KIND_CONTEXT)
 
 .PHONY: generate
 generate: controller-gen
@@ -139,6 +161,13 @@ feature-coverage-test:
 
 .PHONY: tools
 tools: kustomize controller-gen setup-envtest golangci-lint chainsaw
+
+.PHONY: kamera
+kamera: $(KAMERA)
+
+$(KAMERA): $(LOCALBIN)
+	@echo "Downloading github.com/tgoodwin/kamera/cmd/kamera@$(KAMERA_VERSION)"
+	GOBIN=$(LOCALBIN) GOTOOLCHAIN=local go install github.com/tgoodwin/kamera/cmd/kamera@$(KAMERA_VERSION)
 
 .PHONY: verify
 verify: fmt vet lint test helm-lint helm-template docs-gen-check feature-coverage

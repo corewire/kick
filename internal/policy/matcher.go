@@ -25,9 +25,9 @@ type MatchResult struct {
 	Matches []kickv1alpha1.KickPolicy
 }
 
-// DeploymentMatcher determines whether a Deployment is managed by one policy.
-type DeploymentMatcher interface {
-	MatchDeployment(ctx context.Context, deployment *appsv1.Deployment) (MatchResult, error)
+// WorkloadMatcher determines whether a workload is managed by one policy.
+type WorkloadMatcher interface {
+	MatchWorkload(ctx context.Context, namespace string, labels map[string]string) (MatchResult, error)
 }
 
 // DeploymentPolicyMatcher selects KickPolicy resources in deployment namespace.
@@ -39,8 +39,12 @@ func (m *DeploymentPolicyMatcher) MatchDeployment(ctx context.Context, deploymen
 	if deployment == nil {
 		return MatchResult{Managed: false, Reason: ReasonNoMatchingPolicy}, nil
 	}
+	return m.MatchWorkload(ctx, deployment.Namespace, deployment.Labels)
+}
+
+func (m *DeploymentPolicyMatcher) MatchWorkload(ctx context.Context, namespace string, workloadLabels map[string]string) (MatchResult, error) {
 	var list kickv1alpha1.KickPolicyList
-	if err := m.Client.List(ctx, &list, client.InNamespace(deployment.Namespace)); err != nil {
+	if err := m.Client.List(ctx, &list, client.InNamespace(namespace)); err != nil {
 		return MatchResult{}, err
 	}
 
@@ -50,7 +54,7 @@ func (m *DeploymentPolicyMatcher) MatchDeployment(ctx context.Context, deploymen
 		if err != nil {
 			continue
 		}
-		if selector.Matches(labels.Set(deployment.Labels)) {
+		if selector.Matches(labels.Set(workloadLabels)) {
 			matches = append(matches, pol)
 		}
 	}

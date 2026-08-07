@@ -7,8 +7,8 @@ import (
 
 	"github.com/corewire/kick/internal/dependency"
 	"github.com/corewire/kick/internal/rollout"
-	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type staticInspector struct {
@@ -16,7 +16,7 @@ type staticInspector struct {
 	err   error
 }
 
-func (s staticInspector) Inspect(context.Context, *appsv1.Deployment) (rollout.RolloutState, error) {
+func (s staticInspector) Inspect(context.Context, client.Object) (rollout.RolloutState, error) {
 	return s.state, s.err
 }
 

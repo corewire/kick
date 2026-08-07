@@ -141,6 +141,39 @@ spec:
                         - Provider
                         - None
                         type: string
+                      windows:
+                        description: Windows are KICK-native execution windows evaluated
+                          without a GitOps provider.
+                        items:
+                          description: KickPolicyWindow is a KICK-native execution
+                            window evaluated without a GitOps provider.
+                          properties:
+                            duration:
+                              description: Duration is how long the window stays open
+                                from each start (e.g. "1h").
+                              pattern: ^([0-9]+(ns|us|µs|ms|s|m|h))+$
+                              type: string
+                            kind:
+                              description: KickPolicyWindowKind selects allow or deny
+                                semantics for a native window.
+                              enum:
+                              - Allow
+                              - Deny
+                              type: string
+                            schedule:
+                              description: Schedule is a standard 5-field cron expression
+                                marking each window start.
+                              type: string
+                            timeZone:
+                              description: TimeZone is the IANA zone used to evaluate
+                                the schedule (default UTC).
+                              type: string
+                          required:
+                          - duration
+                          - kind
+                          - schedule
+                          type: object
+                        type: array
                     type: object
                 required:
                 - provider

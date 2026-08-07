@@ -6,6 +6,9 @@ import (
 
 	"github.com/corewire/kick/internal/dependency"
 	"github.com/corewire/kick/internal/observation"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -17,13 +20,13 @@ import (
 
 // ConsumerRequestEnqueuer abstracts kick request creation/coalescing.
 type ConsumerRequestEnqueuer interface {
-	EnqueueForConsumers(ctx context.Context, source observation.SourceIdentity, consumers []types.NamespacedName, observedAt time.Time) error
+	EnqueueForConsumers(ctx context.Context, source observation.SourceIdentity, consumers []dependency.ConsumerTarget, observedAt time.Time) error
 }
 
 // NoopConsumerRequestEnqueuer is used until task 05 introduces kick request API wiring.
 type NoopConsumerRequestEnqueuer struct{}
 
-func (NoopConsumerRequestEnqueuer) EnqueueForConsumers(context.Context, observation.SourceIdentity, []types.NamespacedName, time.Time) error {
+func (NoopConsumerRequestEnqueuer) EnqueueForConsumers(context.Context, observation.SourceIdentity, []dependency.ConsumerTarget, time.Time) error {
 	return nil
 }
 
@@ -35,10 +38,22 @@ type SourceObservationReconciler struct {
 }
 
 func (r *SourceObservationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	ctx, span := otel.Tracer("kick.controller").Start(ctx, "source-observer.reconcile")
+	defer span.End()
+	span.SetAttributes(attribute.String("source.namespace", req.Namespace), attribute.String("source.name", req.Name))
+
 	if result, err := r.reconcileSecret(ctx, req); err != nil || result {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "secret reconcile failed")
+		}
 		return ctrl.Result{}, err
 	}
 	if result, err := r.reconcileConfigMap(ctx, req); err != nil || result {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "configmap reconcile failed")
+		}
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
@@ -58,7 +73,7 @@ func (r *SourceObservationReconciler) reconcileSecret(ctx context.Context, req c
 	if result.Kind != observation.RelevantChange && result.Kind != observation.BaselineEstablished {
 		return true, nil
 	}
-	consumers, err := dependency.LookupConsumingDeployments(ctx, r.Client, dependency.DependencyRef{
+	consumers, err := dependency.LookupConsumingWorkloads(ctx, r.Client, dependency.DependencyRef{
 		APIVersion: "v1",
 		Kind:       dependency.Secret,
 		Namespace:  secret.Namespace,
@@ -92,7 +107,7 @@ func (r *SourceObservationReconciler) reconcileConfigMap(ctx context.Context, re
 	if result.Kind != observation.RelevantChange && result.Kind != observation.BaselineEstablished {
 		return true, nil
 	}
-	consumers, err := dependency.LookupConsumingDeployments(ctx, r.Client, dependency.DependencyRef{
+	consumers, err := dependency.LookupConsumingWorkloads(ctx, r.Client, dependency.DependencyRef{
 		APIVersion: "v1",
 		Kind:       dependency.ConfigMap,
 		Namespace:  configMap.Namespace,

@@ -1,11 +1,48 @@
 apiVersion: chainsaw.kyverno.io/v1alpha1
 kind: Test
 metadata:
-  name: metadata-only-update-ignored
+  name: kick-e2e-013-metadata-only-update-ignored
 spec:
   steps:
-    - name: scaffold
+    - name: create-fixtures
+      try:
+        - apply:
+            file: resources.yaml
+    - name: assert-request-created
       try:
         - script:
             content: |
-              echo "TODO: implement KICK-E2E-013 - metadata-only update ignored"
+              set -eu
+              deadline=$(( $(date +%s) + 120 ))
+              while true; do
+                count=$(kubectl -n kick-e2e-013 get kickrequests --no-headers 2>/dev/null | wc -l | tr -d ' ')
+                phase=$(kubectl -n kick-e2e-013 get kickrequest app-013 -o jsonpath='{.status.phase}' 2>/dev/null || true)
+                reason=$(kubectl -n kick-e2e-013 get kickrequest app-013 -o jsonpath='{.status.gate.reason}' 2>/dev/null || true)
+                latest=$(kubectl -n kick-e2e-013 get kickrequest app-013 -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
+                if [ "$count" = "1" ] && [ "$phase" = "WaitingForOwner" ] && [ "$reason" = "OwnerUnknown" ]; then
+                  break
+                fi
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "expected one WaitingForOwner request for app-013" >&2
+                  kubectl -n kick-e2e-013 get kickrequests -o yaml >&2 || true
+                  exit 1
+                fi
+                sleep 2
+              done
+
+                            initial=$(kubectl -n kick-e2e-013 get kickrequest app-013 -o jsonpath='{.status.latestObservedDependencyChange}')
+                            kubectl -n kick-e2e-013 patch secret app-secret --type merge -p '{"metadata":{"labels":{"touch":"1"}}}'
+                            sleep 6
+                            updated=$(kubectl -n kick-e2e-013 get kickrequest app-013 -o jsonpath='{.status.latestObservedDependencyChange}')
+                            if [ "$updated" != "$initial" ]; then
+                              echo "metadata-only update unexpectedly changed timestamp" >&2
+                              kubectl -n kick-e2e-013 get kickrequest app-013 -o yaml >&2 || true
+                              exit 1
+                            fi
+    - name: cleanup
+      try:
+        - delete:
+            ref:
+              apiVersion: v1
+              kind: Namespace
+              name: kick-e2e-013

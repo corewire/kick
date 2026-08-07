@@ -1,11 +1,42 @@
 apiVersion: chainsaw.kyverno.io/v1alpha1
 kind: Test
 metadata:
-  name: optional-missing-secret-creation-triggers-kick
+  name: kick-e2e-010-optional-missing-secret-creation-triggers-kick
 spec:
   steps:
-    - name: scaffold
+    - name: create-fixtures
+      try:
+        - apply:
+            file: resources.yaml
+    - name: create-optional-secret
+      try:
+        - apply:
+            file: optional-secret.yaml
+    - name: assert-request-created
       try:
         - script:
             content: |
-              echo "TODO: implement KICK-E2E-010 - optional missing Secret creation triggers kick"
+              set -eu
+              deadline=$(( $(date +%s) + 120 ))
+              while true; do
+                count=$(kubectl -n kick-e2e-010 get kickrequests --no-headers 2>/dev/null | wc -l | tr -d ' ')
+                phase=$(kubectl -n kick-e2e-010 get kickrequest app-010 -o jsonpath='{.status.phase}' 2>/dev/null || true)
+                reason=$(kubectl -n kick-e2e-010 get kickrequest app-010 -o jsonpath='{.status.gate.reason}' 2>/dev/null || true)
+                latest=$(kubectl -n kick-e2e-010 get kickrequest app-010 -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
+                if [ "$count" = "1" ] && [ "$phase" = "WaitingForOwner" ] && [ "$reason" = "OwnerUnknown" ]; then
+                  break
+                fi
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "expected one WaitingForOwner request for app-010" >&2
+                  kubectl -n kick-e2e-010 get kickrequests -o yaml >&2 || true
+                  exit 1
+                fi
+                sleep 2
+              done
+    - name: cleanup
+      try:
+        - delete:
+            ref:
+              apiVersion: v1
+              kind: Namespace
+              name: kick-e2e-010

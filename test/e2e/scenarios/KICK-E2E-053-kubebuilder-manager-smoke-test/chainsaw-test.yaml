@@ -1,11 +1,37 @@
 apiVersion: chainsaw.kyverno.io/v1alpha1
 kind: Test
 metadata:
-  name: kubebuilder-manager-smoke-test
+  name: kick-e2e-053-kubebuilder-manager-smoke-test
 spec:
   steps:
-    - name: scaffold
+    - name: assert-manager-ready-and-smoke-reconcile
       try:
         - script:
             content: |
-              echo "TODO: implement KICK-E2E-053 - Kubebuilder manager smoke test"
+              set -eu
+              kubectl -n kick-system rollout status deployment/kick-controller-manager --timeout=180s
+        - apply:
+            file: resources.yaml
+        - script:
+            content: |
+              set -eu
+              deadline=$(( $(date +%s) + 120 ))
+              while true; do
+                phase=$(kubectl -n kick-e2e-053 get kickrequest app-053 -o jsonpath='{.status.phase}' 2>/dev/null || true)
+                if [ "$phase" = "WaitingForOwner" ]; then
+                  break
+                fi
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "expected smoke KickRequest reconciliation" >&2
+                  kubectl -n kick-e2e-053 get kickrequests -o yaml >&2 || true
+                  exit 1
+                fi
+                sleep 2
+              done
+    - name: cleanup
+      try:
+        - delete:
+            ref:
+              apiVersion: v1
+              kind: Namespace
+              name: kick-e2e-053

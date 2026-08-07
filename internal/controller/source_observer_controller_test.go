@@ -23,13 +23,13 @@ type captureEnqueuer struct {
 	seen  map[string]struct{}
 }
 
-func (e *captureEnqueuer) EnqueueForConsumers(_ context.Context, _ observation.SourceIdentity, consumers []types.NamespacedName, _ time.Time) error {
+func (e *captureEnqueuer) EnqueueForConsumers(_ context.Context, _ observation.SourceIdentity, consumers []dependency.ConsumerTarget, _ time.Time) error {
 	e.calls++
 	if e.seen == nil {
 		e.seen = map[string]struct{}{}
 	}
 	for _, c := range consumers {
-		e.seen[c.Namespace+"/"+c.Name] = struct{}{}
+		e.seen[c.Namespace+"/"+c.Name+"/"+c.Kind] = struct{}{}
 	}
 	return nil
 }
@@ -80,6 +80,10 @@ func TestSourceObserverRelevantAndMetadataOnlyBehavior(t *testing.T) {
 		}
 		return out
 	})
+	indexer = indexer.WithIndex(&appsv1.StatefulSet{}, dependency.SecretReferenceIndexField, func(client.Object) []string { return nil })
+	indexer = indexer.WithIndex(&appsv1.StatefulSet{}, dependency.ConfigMapReferenceIndexField, func(client.Object) []string { return nil })
+	indexer = indexer.WithIndex(&appsv1.DaemonSet{}, dependency.SecretReferenceIndexField, func(client.Object) []string { return nil })
+	indexer = indexer.WithIndex(&appsv1.DaemonSet{}, dependency.ConfigMapReferenceIndexField, func(client.Object) []string { return nil })
 	c := indexer.Build()
 
 	enqueuer := &captureEnqueuer{}

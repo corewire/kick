@@ -1,0 +1,75 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kick-example-033
+---
+apiVersion: kick.corewire.io/v1alpha1
+kind: KickPolicy
+metadata:
+  name: default
+  namespace: kick-example-033
+spec:
+  discovery:
+    mode: Auto
+  gitOps:
+    provider: ArgoCD
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-033
+  namespace: kick-example-033
+  annotations:
+    argocd.argoproj.io/tracking-id: app-033:apps/Deployment:kick-example-033/app-033
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app-033
+  template:
+    metadata:
+      labels:
+        app: app-033
+    spec:
+      containers:
+        - name: app
+          image: registry.k8s.io/pause:3.10
+          envFrom:
+            - secretRef:
+                name: app-secret
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secret
+  namespace: kick-example-033
+type: Opaque
+stringData:
+  token: alpha
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: app-033
+  namespace: argocd
+spec:
+  project: proj-033
+  destination:
+    namespace: kick-example-033
+    server: https://kubernetes.default.svc
+  source:
+    repoURL: https://example.invalid/repo.git
+    path: manifests/KICK-E2E-033-closed-allow-window-waits
+    targetRevision: HEAD
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: proj-033
+  namespace: argocd
+spec:
+  sourceRepos:
+    - '*'
+  destinations:
+    - namespace: kick-example-033
+      server: https://kubernetes.default.svc

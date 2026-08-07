@@ -35,11 +35,34 @@ type KickPolicyDiscoverySpec struct {
 	WorkloadSelector *metav1.LabelSelector   `json:"workloadSelector,omitempty"`
 }
 
+// KickPolicyWindowKind selects allow or deny semantics for a native window.
+type KickPolicyWindowKind string
+
+const (
+	KickPolicyWindowKindAllow KickPolicyWindowKind = "Allow"
+	KickPolicyWindowKindDeny  KickPolicyWindowKind = "Deny"
+)
+
+// KickPolicyWindow is a KICK-native execution window evaluated without a GitOps provider.
+type KickPolicyWindow struct {
+	// +kubebuilder:validation:Enum=Allow;Deny
+	Kind KickPolicyWindowKind `json:"kind"`
+	// Schedule is a standard 5-field cron expression marking each window start.
+	Schedule string `json:"schedule"`
+	// Duration is how long the window stays open from each start (e.g. "1h").
+	// +kubebuilder:validation:Pattern=`^([0-9]+(ns|us|µs|ms|s|m|h))+$`
+	Duration string `json:"duration"`
+	// TimeZone is the IANA zone used to evaluate the schedule (default UTC).
+	TimeZone string `json:"timeZone,omitempty"`
+}
+
 // KickPolicyScheduleSpec configures schedule source behavior.
 type KickPolicyScheduleSpec struct {
 	// +kubebuilder:default:=Provider
 	// +kubebuilder:validation:Enum=Provider;None
 	Source KickPolicyScheduleSource `json:"source,omitempty"`
+	// Windows are KICK-native execution windows evaluated without a GitOps provider.
+	Windows []KickPolicyWindow `json:"windows,omitempty"`
 }
 
 // KickPolicyGitOpsSpec configures provider gate behavior.

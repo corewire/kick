@@ -63,7 +63,7 @@ func TestRestartExecutorEnvtestIdempotentPatch(t *testing.T) {
 	now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
 	exec.Now = func() time.Time { return now }
 
-	if _, err := exec.Execute(ctx, types.NamespacedName{Namespace: "team-a", Name: "api"}, types.NamespacedName{Namespace: "team-a", Name: "api"}); err != nil {
+	if _, err := exec.Execute(ctx, types.NamespacedName{Namespace: "team-a", Name: "api"}, kickv1alpha1.ObjectReference{APIVersion: "apps/v1", Kind: "Deployment", Name: "api"}, types.NamespacedName{Namespace: "team-a", Name: "api"}); err != nil {
 		t.Fatalf("execute first: %v", err)
 	}
 	var got appsv1.Deployment
@@ -75,7 +75,7 @@ func TestRestartExecutorEnvtestIdempotentPatch(t *testing.T) {
 		t.Fatalf("expected restartedAt annotation")
 	}
 
-	if _, err := exec.Execute(ctx, types.NamespacedName{Namespace: "team-a", Name: "api"}, types.NamespacedName{Namespace: "team-a", Name: "api"}); err != nil {
+	if _, err := exec.Execute(ctx, types.NamespacedName{Namespace: "team-a", Name: "api"}, kickv1alpha1.ObjectReference{APIVersion: "apps/v1", Kind: "Deployment", Name: "api"}, types.NamespacedName{Namespace: "team-a", Name: "api"}); err != nil {
 		t.Fatalf("execute second: %v", err)
 	}
 	if err := c.Get(ctx, types.NamespacedName{Namespace: "team-a", Name: "api"}, &got); err != nil {

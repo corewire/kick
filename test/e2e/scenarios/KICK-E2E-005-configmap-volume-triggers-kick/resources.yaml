@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kick-e2e-005
+---
+apiVersion: kick.corewire.io/v1alpha1
+kind: KickPolicy
+metadata:
+  name: default
+  namespace: kick-e2e-005
+spec:
+  discovery:
+    mode: Auto
+  gitOps:
+    provider: Auto
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-005
+  namespace: kick-e2e-005
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app-005
+  template:
+    metadata:
+      labels:
+        app: app-005
+    spec:
+      containers:
+        - name: app
+          image: registry.k8s.io/pause:3.10
+          volumeMounts:
+            - name: app-config
+              mountPath: /etc/config
+      volumes:
+        - name: app-config
+          configMap:
+            name: app-config
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: kick-e2e-005
+data:
+  mode: alpha

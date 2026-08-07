@@ -143,6 +143,34 @@ resources:
     coverage:
       envtest:
       - test/envtest/kickpolicy_api_test.go
+  - path: gitOps.schedule.windows.kind
+    required: true
+    coverage:
+      e2e:
+      - KICK-E2E-033
+      - KICK-E2E-034
+      - KICK-E2E-035
+  - path: gitOps.schedule.windows.schedule
+    required: true
+    coverage:
+      e2e:
+      - KICK-E2E-033
+      - KICK-E2E-034
+      - KICK-E2E-035
+  - path: gitOps.schedule.windows.duration
+    required: true
+    coverage:
+      e2e:
+      - KICK-E2E-033
+      - KICK-E2E-034
+      - KICK-E2E-035
+  - path: gitOps.schedule.windows.timeZone
+    required: true
+    coverage:
+      e2e:
+      - KICK-E2E-033
+      - KICK-E2E-034
+      - KICK-E2E-035
   - path: minInterval
     required: true
     coverage:

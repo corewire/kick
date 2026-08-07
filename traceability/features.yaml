@@ -22,6 +22,8 @@ features:
   - KICK-E2E-006
   - KICK-E2E-007
   - KICK-E2E-010
+  - KICK-E2E-054
+  - KICK-E2E-055
 - id: KICK-FEAT-002
   name: Environment Secret and ConfigMap references
   spec: specs/02-dependency-discovery.md
@@ -124,6 +126,8 @@ features:
   - KICK-E2E-021
   - KICK-E2E-022
   - KICK-E2E-023
+  - KICK-E2E-054
+  - KICK-E2E-055
 - id: KICK-FEAT-008
   name: Provider-neutral GitOps gate
   spec: specs/05-gitops-provider-contract.md

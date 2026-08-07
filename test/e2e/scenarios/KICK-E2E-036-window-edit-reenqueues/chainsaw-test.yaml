@@ -1,11 +1,86 @@
 apiVersion: chainsaw.kyverno.io/v1alpha1
 kind: Test
 metadata:
-  name: window-edit-reenqueues
+  name: kick-e2e-036-window-edit-reenqueues
 spec:
   steps:
-    - name: scaffold
+    - name: create-resources
+      description: Deployment consuming a Secret, gated by an always-active native deny window.
       try:
-        - script:
-            content: |
-              echo "TODO: implement KICK-E2E-036 - window edit reenqueues"
+        - apply:
+            file: resources.yaml
+        - assert:
+            resource:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: app-036
+                namespace: kick-e2e-036
+              status:
+                (availableReplicas || `0`): 1
+    - name: change-secret
+      description: A relevant Secret change makes a kick necessary.
+      try:
+        - apply:
+            file: 10-change-secret.yaml
+    - name: assert-blocked-by-window
+      description: The deny window keeps the request waiting; no restart happens.
+      try:
+        - assert:
+            resource:
+              apiVersion: kick.corewire.io/v1alpha1
+              kind: KickRequest
+              metadata:
+                name: app-036
+                namespace: kick-e2e-036
+              status:
+                phase: WaitingForGate
+                gate:
+                  reason: OutsideSchedule
+        - assert:
+            resource:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: app-036
+                namespace: kick-e2e-036
+              spec:
+                template:
+                  metadata:
+                    (annotations."kubectl.kubernetes.io/restartedAt" || 'none'): none
+    - name: open-window
+      description: Editing the window to allow re-enqueues and permits the kick.
+      try:
+        - apply:
+            file: 20-open-window.yaml
+    - name: assert-restart-executed
+      description: With the window open the kick proceeds and a rollout is triggered.
+      try:
+        - assert:
+            resource:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: app-036
+                namespace: kick-e2e-036
+              spec:
+                template:
+                  metadata:
+                    (annotations."kubectl.kubernetes.io/restartedAt" != null): true
+        - assert:
+            resource:
+              apiVersion: kick.corewire.io/v1alpha1
+              kind: KickRequest
+              metadata:
+                name: app-036
+                namespace: kick-e2e-036
+              status:
+                gate:
+                  reason: Allowed
+    - name: cleanup
+      try:
+        - delete:
+            ref:
+              apiVersion: v1
+              kind: Namespace
+              name: kick-e2e-036

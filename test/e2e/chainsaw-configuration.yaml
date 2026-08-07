@@ -8,3 +8,4 @@ spec:
     apply: 30s
     assert: 60s
     cleanup: 30s
+    exec: 180s

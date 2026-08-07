@@ -1,11 +1,54 @@
 apiVersion: chainsaw.kyverno.io/v1alpha1
 kind: Test
 metadata:
-  name: changes-coalesce
+  name: kick-e2e-015-changes-coalesce
 spec:
   steps:
-    - name: scaffold
+    - name: create-fixtures
+      try:
+        - apply:
+            file: resources.yaml
+    - name: assert-request-created
       try:
         - script:
             content: |
-              echo "TODO: implement KICK-E2E-015 - changes coalesce"
+              set -eu
+              deadline=$(( $(date +%s) + 120 ))
+              while true; do
+                count=$(kubectl -n kick-e2e-015 get kickrequests --no-headers 2>/dev/null | wc -l | tr -d ' ')
+                latest=$(kubectl -n kick-e2e-015 get kickrequest app-015 -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
+                if [ "$count" = "1" ]; then
+                  break
+                fi
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "expected one request with baseline timestamp for app-015" >&2
+                  kubectl -n kick-e2e-015 get kickrequests -o yaml >&2 || true
+                  exit 1
+                fi
+                sleep 2
+              done
+
+                            first=$(kubectl -n kick-e2e-015 get kickrequest app-015 -o jsonpath='{.status.latestObservedDependencyChange}')
+                            kubectl -n kick-e2e-015 patch secret app-secret --type merge -p '{"stringData":{"token":"bravo"}}'
+                            kubectl -n kick-e2e-015 patch secret app-secret --type merge -p '{"stringData":{"token":"charlie"}}'
+                            deadline2=$(( $(date +%s) + 90 ))
+                            while true; do
+                              count=$(kubectl -n kick-e2e-015 get kickrequests --no-headers 2>/dev/null | wc -l | tr -d ' ')
+                              updated=$(kubectl -n kick-e2e-015 get kickrequest app-015 -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
+                if [ "$count" = "1" ] && [ "$updated" != "$first" ]; then
+                                break
+                              fi
+                              if [ "$(date +%s)" -ge "$deadline2" ]; then
+                                echo "expected coalesced single request after multiple changes" >&2
+                                kubectl -n kick-e2e-015 get kickrequest app-015 -o yaml >&2 || true
+                                exit 1
+                              fi
+                              sleep 2
+                            done
+    - name: cleanup
+      try:
+        - delete:
+            ref:
+              apiVersion: v1
+              kind: Namespace
+              name: kick-e2e-015

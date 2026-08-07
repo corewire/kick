@@ -1,11 +1,43 @@
 apiVersion: chainsaw.kyverno.io/v1alpha1
 kind: Test
 metadata:
-  name: observability-excludes-secret-data
+  name: kick-e2e-052-observability-excludes-secret-data
 spec:
   steps:
-    - name: scaffold
+    - name: create-fixtures
+      try:
+        - apply:
+            file: resources.yaml
+    - name: assert-request-created
       try:
         - script:
             content: |
-              echo "TODO: implement KICK-E2E-052 - observability excludes Secret data"
+              set -eu
+              deadline=$(( $(date +%s) + 120 ))
+              while true; do
+                count=$(kubectl -n kick-e2e-052 get kickrequests --no-headers 2>/dev/null | wc -l | tr -d ' ')
+                phase=$(kubectl -n kick-e2e-052 get kickrequest app-052 -o jsonpath='{.status.phase}' 2>/dev/null || true)
+                reason=$(kubectl -n kick-e2e-052 get kickrequest app-052 -o jsonpath='{.status.gate.reason}' 2>/dev/null || true)
+                latest=$(kubectl -n kick-e2e-052 get kickrequest app-052 -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
+                if [ "$count" = "1" ] && [ "$phase" = "WaitingForOwner" ] && [ "$reason" = "OwnerUnknown" ]; then
+                  break
+                fi
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "expected one WaitingForOwner request for app-052" >&2
+                  kubectl -n kick-e2e-052 get kickrequests -o yaml >&2 || true
+                  exit 1
+                fi
+                sleep 2
+              done
+
+                            if kubectl -n kick-e2e-052 get events -o yaml | grep -q 'token: alpha'; then
+                              echo "secret value leaked in events" >&2
+                              exit 1
+                            fi
+    - name: cleanup
+      try:
+        - delete:
+            ref:
+              apiVersion: v1
+              kind: Namespace
+              name: kick-e2e-052

@@ -1,0 +1,8 @@
+scenarioID: KICK-E2E-055
+name: daemonset-secret-reference-discovered
+features:
+  - KICK-FEAT-001
+  - KICK-FEAT-007
+provider: core
+class: behavior
+required: true

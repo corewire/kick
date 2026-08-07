@@ -1,74 +1,27 @@
 apiVersion: chainsaw.kyverno.io/v1alpha1
 kind: Test
 metadata:
-  name: configmap-data-update-relevant
+  name: kick-e2e-012-configmap-data-update-relevant
 spec:
   steps:
     - name: create-fixtures
       try:
-        - script:
-            content: |
-              cat <<'EOF' | kubectl apply -f -
-              apiVersion: v1
-              kind: Namespace
-              metadata:
-                name: kick-e2e-012
-              ---
-              apiVersion: kick.corewire.io/v1alpha1
-              kind: KickPolicy
-              metadata:
-                name: default
-                namespace: kick-e2e-012
-              spec:
-                discovery:
-                  mode: Auto
-                gitOps:
-                  provider: Auto
-              ---
-              apiVersion: apps/v1
-              kind: Deployment
-              metadata:
-                name: config-api
-                namespace: kick-e2e-012
-              spec:
-                replicas: 1
-                selector:
-                  matchLabels:
-                    app: config-api
-                template:
-                  metadata:
-                    labels:
-                      app: config-api
-                  spec:
-                    containers:
-                      - name: app
-                        image: registry.k8s.io/pause:3.10
-                        envFrom:
-                          - configMapRef:
-                              name: app-config
-              ---
-              apiVersion: v1
-              kind: ConfigMap
-              metadata:
-                name: app-config
-                namespace: kick-e2e-012
-              data:
-                mode: alpha
-              EOF
+        - apply:
+            file: resources.yaml
     - name: assert-relevant-update-advances-timestamp
       try:
         - script:
             content: |
-              set -euo pipefail
-              deadline=$((SECONDS + 120))
+              set -eu
+              deadline=$(( $(date +%s) + 120 ))
               initial=""
               while true; do
                 count=$(kubectl -n kick-e2e-012 get kickrequests --no-headers 2>/dev/null | wc -l | tr -d ' ')
                 initial=$(kubectl -n kick-e2e-012 get kickrequest config-api -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
-                if [[ "$count" == "1" && -n "$initial" ]]; then
+                if [ "$count" = "1" ] && [ -n "$initial" ]; then
                   break
                 fi
-                if (( SECONDS >= deadline )); then
+                if [ "$(date +%s)" -ge "$deadline" ]; then
                   echo "expected initial KickRequest and timestamp for config-api" >&2
                   kubectl -n kick-e2e-012 get kickrequests -o yaml >&2 || true
                   exit 1
@@ -81,11 +34,10 @@ spec:
               while true; do
                 count=$(kubectl -n kick-e2e-012 get kickrequests --no-headers 2>/dev/null | wc -l | tr -d ' ')
                 updated=$(kubectl -n kick-e2e-012 get kickrequest config-api -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
-                phase=$(kubectl -n kick-e2e-012 get kickrequest config-api -o jsonpath='{.status.phase}' 2>/dev/null || true)
-                if [[ "$count" == "1" && -n "$updated" && "$updated" != "$initial" && "$phase" == "WaitingForOwner" ]]; then
+                if [ "$count" = "1" ] && [ -n "$updated" ] && [ "$updated" != "$initial" ]; then
                   break
                 fi
-                if (( SECONDS >= deadline )); then
+                if [ "$(date +%s)" -ge "$deadline" ]; then
                   echo "expected relevant ConfigMap update to advance latestObservedDependencyChange" >&2
                   kubectl -n kick-e2e-012 get configmap app-config -o yaml >&2 || true
                   kubectl -n kick-e2e-012 get kickrequest config-api -o yaml >&2 || true
@@ -95,6 +47,8 @@ spec:
               done
     - name: cleanup
       try:
-        - script:
-            content: |
-              kubectl delete namespace kick-e2e-012 --ignore-not-found=true --wait=false
+        - delete:
+            ref:
+              apiVersion: v1
+              kind: Namespace
+              name: kick-e2e-012

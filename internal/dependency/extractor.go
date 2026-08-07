@@ -1,6 +1,10 @@
 package dependency
 
-import appsv1 "k8s.io/api/apps/v1"
+import (
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+)
 
 // ExtractDependencies extracts Secret and ConfigMap references exposed to
 // regular/init containers through env/envFrom and mounted/projected volumes.
@@ -9,8 +13,40 @@ func ExtractDependencies(deployment *appsv1.Deployment) []DependencyRef {
 	if deployment == nil {
 		return nil
 	}
-	namespace := deployment.Namespace
-	pod := deployment.Spec.Template.Spec
+	return extractDependenciesFromPodSpec(deployment.Namespace, deployment.Spec.Template.Spec)
+}
+
+// ExtractStatefulSetDependencies extracts references consumed by a StatefulSet.
+func ExtractStatefulSetDependencies(statefulSet *appsv1.StatefulSet) []DependencyRef {
+	if statefulSet == nil {
+		return nil
+	}
+	return extractDependenciesFromPodSpec(statefulSet.Namespace, statefulSet.Spec.Template.Spec)
+}
+
+// ExtractDaemonSetDependencies extracts references consumed by a DaemonSet.
+func ExtractDaemonSetDependencies(daemonSet *appsv1.DaemonSet) []DependencyRef {
+	if daemonSet == nil {
+		return nil
+	}
+	return extractDependenciesFromPodSpec(daemonSet.Namespace, daemonSet.Spec.Template.Spec)
+}
+
+// ExtractDependenciesForObject dispatches extraction based on workload type.
+func ExtractDependenciesForObject(obj client.Object) []DependencyRef {
+	switch workload := obj.(type) {
+	case *appsv1.Deployment:
+		return ExtractDependencies(workload)
+	case *appsv1.StatefulSet:
+		return ExtractStatefulSetDependencies(workload)
+	case *appsv1.DaemonSet:
+		return ExtractDaemonSetDependencies(workload)
+	default:
+		return nil
+	}
+}
+
+func extractDependenciesFromPodSpec(namespace string, pod corev1.PodSpec) []DependencyRef {
 	refs := make([]DependencyRef, 0)
 
 	appendContainerRefs := func(containers []coreContainer) {

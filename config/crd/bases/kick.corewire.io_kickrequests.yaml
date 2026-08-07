@@ -69,6 +69,8 @@ spec:
                     default: Deployment
                     enum:
                     - Deployment
+                    - StatefulSet
+                    - DaemonSet
                     type: string
                   name:
                     minLength: 1

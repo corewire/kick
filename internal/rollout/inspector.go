@@ -31,7 +31,7 @@ type RolloutState struct {
 
 // RolloutInspector inspects deployment rollout state using live cluster state.
 type RolloutInspector interface {
-	Inspect(ctx context.Context, deployment *appsv1.Deployment) (RolloutState, error)
+	Inspect(ctx context.Context, workload client.Object) (RolloutState, error)
 }
 
 // LiveRolloutInspector loads owned ReplicaSets and evaluates current rollout state.
@@ -39,16 +39,28 @@ type LiveRolloutInspector struct {
 	Client client.Client
 }
 
-func (i *LiveRolloutInspector) Inspect(ctx context.Context, deployment *appsv1.Deployment) (RolloutState, error) {
-	if deployment == nil {
+func (i *LiveRolloutInspector) Inspect(ctx context.Context, workload client.Object) (RolloutState, error) {
+	switch obj := workload.(type) {
+	case *appsv1.Deployment:
+		if obj == nil {
+			return RolloutState{Reason: ReasonNoMatchingReplicaSet}, nil
+		}
+		var list appsv1.ReplicaSetList
+		if err := i.Client.List(ctx, &list, client.InNamespace(obj.Namespace)); err != nil {
+			return RolloutState{}, err
+		}
+		state := InspectWithReplicaSets(obj, list.Items)
+		if state.StartedAt.IsZero() {
+			state.StartedAt = restartStartedAt(obj.Spec.Template.Annotations, obj.CreationTimestamp.Time)
+		}
+		return state, nil
+	case *appsv1.StatefulSet:
+		return inspectStatefulSet(obj), nil
+	case *appsv1.DaemonSet:
+		return inspectDaemonSet(obj), nil
+	default:
 		return RolloutState{Reason: ReasonNoMatchingReplicaSet}, nil
 	}
-
-	var list appsv1.ReplicaSetList
-	if err := i.Client.List(ctx, &list, client.InNamespace(deployment.Namespace)); err != nil {
-		return RolloutState{}, err
-	}
-	return InspectWithReplicaSets(deployment, list.Items), nil
 }
 
 // InspectWithReplicaSets is the pure algorithm used by tests and live inspector.
@@ -134,4 +146,63 @@ func progressingFailed(conditions []appsv1.DeploymentCondition) bool {
 		}
 	}
 	return false
+}
+
+func inspectStatefulSet(statefulSet *appsv1.StatefulSet) RolloutState {
+	if statefulSet == nil {
+		return RolloutState{Reason: ReasonNoMatchingReplicaSet}
+	}
+	desired := int32(1)
+	if statefulSet.Spec.Replicas != nil {
+		desired = *statefulSet.Spec.Replicas
+	}
+
+	inProgress := statefulSet.Status.ObservedGeneration < statefulSet.Generation ||
+		statefulSet.Status.UpdatedReplicas < desired ||
+		statefulSet.Status.ReadyReplicas < desired ||
+		(statefulSet.Status.CurrentRevision != "" && statefulSet.Status.UpdateRevision != "" && statefulSet.Status.CurrentRevision != statefulSet.Status.UpdateRevision)
+
+	state := RolloutState{
+		StartedAt:  restartStartedAt(statefulSet.Spec.Template.Annotations, statefulSet.CreationTimestamp.Time),
+		InProgress: inProgress,
+		Complete:   !inProgress,
+	}
+	if inProgress {
+		state.Reason = ReasonRolloutInProgress
+	}
+	return state
+}
+
+func inspectDaemonSet(daemonSet *appsv1.DaemonSet) RolloutState {
+	if daemonSet == nil {
+		return RolloutState{Reason: ReasonNoMatchingReplicaSet}
+	}
+	desired := daemonSet.Status.DesiredNumberScheduled
+	inProgress := daemonSet.Status.ObservedGeneration < daemonSet.Generation ||
+		daemonSet.Status.UpdatedNumberScheduled < desired ||
+		daemonSet.Status.NumberAvailable < desired
+
+	state := RolloutState{
+		StartedAt:  restartStartedAt(daemonSet.Spec.Template.Annotations, daemonSet.CreationTimestamp.Time),
+		InProgress: inProgress,
+		Complete:   !inProgress,
+	}
+	if inProgress {
+		state.Reason = ReasonRolloutInProgress
+	}
+	return state
+}
+
+func restartStartedAt(annotations map[string]string, fallback time.Time) time.Time {
+	if annotations != nil {
+		if raw := annotations["kubectl.kubernetes.io/restartedAt"]; raw != "" {
+			if parsed, err := time.Parse(time.RFC3339, raw); err == nil {
+				return parsed.UTC()
+			}
+		}
+	}
+	if fallback.IsZero() {
+		return time.Now().UTC()
+	}
+	return fallback.UTC()
 }

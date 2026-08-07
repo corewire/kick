@@ -133,6 +133,33 @@ func TestExtractDependenciesNilDeployment(t *testing.T) {
 	}
 }
 
+func TestExtractDependenciesForObjectStatefulSetAndDaemonSet(t *testing.T) {
+	podSpec := corev1.PodSpec{Containers: []corev1.Container{{
+		Name:  "app",
+		Image: "registry.k8s.io/pause:3.10",
+		EnvFrom: []corev1.EnvFromSource{{
+			SecretRef: &corev1.SecretEnvSource{LocalObjectReference: corev1.LocalObjectReference{Name: "shared-secret"}},
+		}},
+	}}}
+
+	statefulSet := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{Name: "db", Namespace: "team-a"},
+		Spec:       appsv1.StatefulSetSpec{Template: corev1.PodTemplateSpec{Spec: podSpec}},
+	}
+	daemonSet := &appsv1.DaemonSet{
+		ObjectMeta: metav1.ObjectMeta{Name: "agent", Namespace: "team-a"},
+		Spec:       appsv1.DaemonSetSpec{Template: corev1.PodTemplateSpec{Spec: podSpec}},
+	}
+
+	want := []DependencyRef{{APIVersion: coreAPIVersion, Kind: Secret, Namespace: "team-a", Name: "shared-secret"}}
+	if got := ExtractDependenciesForObject(statefulSet); !slices.Equal(got, want) {
+		t.Fatalf("statefulset refs mismatch\n got: %#v\nwant: %#v", got, want)
+	}
+	if got := ExtractDependenciesForObject(daemonSet); !slices.Equal(got, want) {
+		t.Fatalf("daemonset refs mismatch\n got: %#v\nwant: %#v", got, want)
+	}
+}
+
 func ptrBool(v bool) *bool {
 	return &v
 }

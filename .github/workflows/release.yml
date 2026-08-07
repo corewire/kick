@@ -12,7 +12,11 @@ permissions:
   id-token: write
 
 jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
   container:
+    needs: ci
     runs-on: ubuntu-24.04
     outputs:
       image: ${{ steps.meta.outputs.tags }}
@@ -63,6 +67,7 @@ jobs:
           cosign sign --yes "${first_tag}@${{ steps.build.outputs.digest }}"
 
   artifacts:
+    needs: ci
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout

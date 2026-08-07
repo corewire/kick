@@ -25,6 +25,6 @@ k8s_yaml(kustomize('config/default'))
 
 k8s_resource(
     'kick-controller-manager',
-    port_forwards=['8080:8080', '8081:8081'],
     resource_deps=['preflight'],
+    port_forwards=['8090:8090'],
 )

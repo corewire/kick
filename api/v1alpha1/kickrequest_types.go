@@ -24,7 +24,7 @@ type ObjectReference struct {
 	// +kubebuilder:default:=apps/v1
 	APIVersion string `json:"apiVersion"`
 	// +kubebuilder:default:=Deployment
-	// +kubebuilder:validation:Enum=Deployment
+	// +kubebuilder:validation:Enum=Deployment;StatefulSet;DaemonSet
 	Kind string `json:"kind"`
 	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`

@@ -6,7 +6,7 @@ import (
 
 	"github.com/corewire/kick/internal/dependency"
 	"github.com/corewire/kick/internal/rollout"
-	appsv1 "k8s.io/api/apps/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // FreshnessDecision is the provider-independent stale/fresh result.
@@ -24,11 +24,11 @@ type Evaluator struct {
 
 func (e *Evaluator) Evaluate(
 	ctx context.Context,
-	deployment *appsv1.Deployment,
+	workload client.Object,
 	currentDependencies []dependency.DependencyRef,
 	latestRelevantChanges map[dependency.DependencyRef]time.Time,
 ) (FreshnessDecision, error) {
-	state, err := e.Inspector.Inspect(ctx, deployment)
+	state, err := e.Inspector.Inspect(ctx, workload)
 	if err != nil {
 		return FreshnessDecision{}, err
 	}

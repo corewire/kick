@@ -68,12 +68,23 @@ func TestKickRequestDefaultsAndValidationEnvtest(t *testing.T) {
 	if got.Spec.TargetRef.APIVersion != "apps/v1" || got.Spec.TargetRef.Kind != "Deployment" || got.Spec.TargetRef.Name != "api" {
 		t.Fatalf("unexpected persisted targetRef: %#v", got.Spec.TargetRef)
 	}
+	statefulSet := &kickv1alpha1.KickRequest{
+		ObjectMeta: metav1.ObjectMeta{Name: "db", Namespace: "team-a"},
+		Spec: kickv1alpha1.KickRequestSpec{TargetRef: kickv1alpha1.ObjectReference{
+			APIVersion: "apps/v1",
+			Kind:       "StatefulSet",
+			Name:       "db",
+		}},
+	}
+	if err := c.Create(ctx, statefulSet); err != nil {
+		t.Fatalf("create valid statefulset kickrequest: %v", err)
+	}
 
 	invalid := &kickv1alpha1.KickRequest{
 		ObjectMeta: metav1.ObjectMeta{Name: "bad", Namespace: "team-a"},
 		Spec: kickv1alpha1.KickRequestSpec{TargetRef: kickv1alpha1.ObjectReference{
 			APIVersion: "apps/v1",
-			Kind:       "StatefulSet",
+			Kind:       "Job",
 			Name:       "bad",
 		}},
 	}
@@ -115,7 +126,7 @@ func TestKickRequestConflictRetryEnvtest(t *testing.T) {
 	wrapped := &conflictOnceClient{Client: realClient}
 	coalescer := kickrequest.NewCoalescer(wrapped, kickrequest.RetentionConfig{})
 	at := time.Date(2026, 8, 6, 11, 0, 0, 0, time.UTC)
-	if _, err := coalescer.EnsureActiveRequest(ctx, types.NamespacedName{Namespace: "team-b", Name: "api"}, at); err != nil {
+	if _, err := coalescer.EnsureActiveRequest(ctx, "team-b", kickv1alpha1.ObjectReference{APIVersion: "apps/v1", Kind: "Deployment", Name: "api"}, at); err != nil {
 		t.Fatalf("ensure with conflict retry: %v", err)
 	}
 	if !wrapped.injected {
