@@ -149,12 +149,12 @@ func TestHandleDAGBuildsPolicyWorkloadDependencyGraph(t *testing.T) {
 	hasManageEdge := false
 	hasDependsEdge := false
 	for _, node := range dag.Nodes {
-		switch {
-		case node.ID == "policy:policy-api":
+		switch node.ID {
+		case "policy:policy-api":
 			hasPolicyNode = true
-		case node.ID == "workload:Deployment:api":
+		case "workload:Deployment:api":
 			hasWorkloadNode = true
-		case node.ID == "source:Secret:api-secret":
+		case "source:Secret:api-secret":
 			hasSecretNode = true
 		}
 	}

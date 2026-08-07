@@ -431,11 +431,11 @@ func terminalPhaseTransitionTime(request *kickv1alpha1.KickRequest) time.Time {
 				if cond.LastTransitionTime.IsZero() {
 					break
 				}
-				return cond.LastTransitionTime.Time.UTC()
+				return cond.LastTransitionTime.UTC()
 			}
 		}
 		if !request.CreationTimestamp.IsZero() {
-			return request.CreationTimestamp.Time.UTC()
+			return request.CreationTimestamp.UTC()
 		}
 	}
 	return time.Now().UTC()

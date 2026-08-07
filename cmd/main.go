@@ -112,10 +112,13 @@ func main() {
 		if err := mgr.Add(manager.RunnableFunc(func(ctx context.Context) error {
 			mux := http.NewServeMux()
 			timeline.RegisterHandlers(mux, svc)
-			srv := &http.Server{Addr: timelineAddr, Handler: mux}
+			srv := &http.Server{Addr: timelineAddr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+			shutdownBase := context.Background()
 			go func() {
 				<-ctx.Done()
-				_ = srv.Shutdown(context.Background())
+				shutdownCtx, cancel := context.WithTimeout(shutdownBase, 10*time.Second)
+				defer cancel()
+				_ = srv.Shutdown(shutdownCtx)
 			}()
 			if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				return err

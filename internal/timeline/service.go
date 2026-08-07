@@ -306,57 +306,14 @@ func (s *Service) handleOverview(w http.ResponseWriter, r *http.Request) {
 	seen := map[string]struct{}{}
 
 	for _, ns := range namespaces.Items {
-		discovered, _, err := s.discoverManagedWorkloads(ctx, ns.Name)
-		if err != nil || len(discovered) == 0 {
-			continue
-		}
-
-		phaseByTarget := map[string]KickRequestSummary{}
-		var requestList kickv1alpha1.KickRequestList
-		if err := s.Client.List(ctx, &requestList, client.InNamespace(ns.Name)); err == nil {
-			for _, req := range requestList.Items {
-				key := req.Spec.TargetRef.Kind + "/" + req.Spec.TargetRef.Name
-				phaseByTarget[key] = KickRequestSummary{Phase: string(req.Status.Phase), GateReason: req.Status.Gate.Reason}
-			}
-		}
-
-		for _, workload := range discovered {
+		for _, workload := range s.overviewForNamespace(ctx, ns.Name) {
 			identity := workload.Namespace + "/" + workload.Kind + "/" + workload.Name
 			if _, ok := seen[identity]; ok {
 				continue
 			}
 			seen[identity] = struct{}{}
-
-			items, err := s.buildTimeline(ctx, workload.Namespace, workload.Kind, workload.Name)
-			if err != nil {
-				continue
-			}
-
-			events := make([]OverviewEvent, 0, len(items))
-			for _, item := range items {
-				event := OverviewEvent{
-					At:        item.At.UTC(),
-					Namespace: workload.Namespace,
-					Kind:      workload.Kind,
-					Name:      workload.Name,
-					Type:      item.Type,
-					Reason:    item.Reason,
-					Message:   item.Message,
-				}
-				events = append(events, event)
-				allEvents = append(allEvents, event)
-			}
-
-			summary := phaseByTarget[workload.Kind+"/"+workload.Name]
-			workloads = append(workloads, OverviewWorkload{
-				Namespace:  workload.Namespace,
-				Kind:       workload.Kind,
-				Name:       workload.Name,
-				Policy:     workload.Policy,
-				Phase:      summary.Phase,
-				GateReason: summary.GateReason,
-				Events:     events,
-			})
+			workloads = append(workloads, workload)
+			allEvents = append(allEvents, workload.Events...)
 		}
 	}
 
@@ -376,6 +333,67 @@ func (s *Service) handleOverview(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(OverviewResponse{GeneratedAt: time.Now().UTC(), Workloads: workloads, Events: allEvents})
+}
+
+// overviewForNamespace returns the managed workloads in a namespace, each with
+// its timeline events and current KickRequest phase. Namespaces without any
+// managed workloads yield an empty slice.
+func (s *Service) overviewForNamespace(ctx context.Context, namespace string) []OverviewWorkload {
+	discovered, _, err := s.discoverManagedWorkloads(ctx, namespace)
+	if err != nil || len(discovered) == 0 {
+		return nil
+	}
+
+	phaseByTarget := s.requestPhaseMap(ctx, namespace)
+
+	workloads := make([]OverviewWorkload, 0, len(discovered))
+	for _, workload := range discovered {
+		items, err := s.buildTimeline(ctx, workload.Namespace, workload.Kind, workload.Name)
+		if err != nil {
+			continue
+		}
+		summary := phaseByTarget[workload.Kind+"/"+workload.Name]
+		workloads = append(workloads, OverviewWorkload{
+			Namespace:  workload.Namespace,
+			Kind:       workload.Kind,
+			Name:       workload.Name,
+			Policy:     workload.Policy,
+			Phase:      summary.Phase,
+			GateReason: summary.GateReason,
+			Events:     overviewEvents(workload, items),
+		})
+	}
+	return workloads
+}
+
+// requestPhaseMap indexes the current KickRequest phase by "Kind/Name" target.
+func (s *Service) requestPhaseMap(ctx context.Context, namespace string) map[string]KickRequestSummary {
+	phaseByTarget := map[string]KickRequestSummary{}
+	var requestList kickv1alpha1.KickRequestList
+	if err := s.Client.List(ctx, &requestList, client.InNamespace(namespace)); err != nil {
+		return phaseByTarget
+	}
+	for _, req := range requestList.Items {
+		key := req.Spec.TargetRef.Kind + "/" + req.Spec.TargetRef.Name
+		phaseByTarget[key] = KickRequestSummary{Phase: string(req.Status.Phase), GateReason: req.Status.Gate.Reason}
+	}
+	return phaseByTarget
+}
+
+func overviewEvents(workload DiscoveredWorkload, items []Entry) []OverviewEvent {
+	events := make([]OverviewEvent, 0, len(items))
+	for _, item := range items {
+		events = append(events, OverviewEvent{
+			At:        item.At.UTC(),
+			Namespace: workload.Namespace,
+			Kind:      workload.Kind,
+			Name:      workload.Name,
+			Type:      item.Type,
+			Reason:    item.Reason,
+			Message:   item.Message,
+		})
+	}
+	return events
 }
 
 func (s *Service) buildTimeline(ctx context.Context, namespace, kind, name string) ([]Entry, error) {
@@ -464,7 +482,7 @@ func relatedKickRequests(ctx context.Context, c client.Client, namespace, kind, 
 			continue
 		}
 		requestNames[req.Name] = struct{}{}
-		items = append(items, Entry{At: req.CreationTimestamp.Time.UTC(), Type: "KickRequestCreated", Object: fmt.Sprintf("KickRequest/%s/%s", req.Namespace, req.Name), Message: "kick request created"})
+		items = append(items, Entry{At: req.CreationTimestamp.UTC(), Type: "KickRequestCreated", Object: fmt.Sprintf("KickRequest/%s/%s", req.Namespace, req.Name), Message: "kick request created"})
 		if req.Status.Phase != "" {
 			items = append(items, Entry{At: phaseTransitionTime(req.Status, req.CreationTimestamp), Type: "KickRequestPhase", Object: fmt.Sprintf("KickRequest/%s/%s", req.Namespace, req.Name), Reason: req.Status.Gate.Reason, Message: string(req.Status.Phase)})
 		}
@@ -495,24 +513,24 @@ func relatedEvents(ctx context.Context, c client.Client, namespace, kind, name s
 
 func eventTime(event corev1.Event) time.Time {
 	if !event.EventTime.IsZero() {
-		return event.EventTime.Time.UTC()
+		return event.EventTime.UTC()
 	}
 	if !event.LastTimestamp.IsZero() {
-		return event.LastTimestamp.Time.UTC()
+		return event.LastTimestamp.UTC()
 	}
 	if !event.FirstTimestamp.IsZero() {
-		return event.FirstTimestamp.Time.UTC()
+		return event.FirstTimestamp.UTC()
 	}
-	return event.CreationTimestamp.Time.UTC()
+	return event.CreationTimestamp.UTC()
 }
 
 func phaseTransitionTime(status kickv1alpha1.KickRequestStatus, created metav1.Time) time.Time {
 	for _, cond := range status.Conditions {
 		if cond.Type == "Progressing" && !cond.LastTransitionTime.IsZero() {
-			return cond.LastTransitionTime.Time.UTC()
+			return cond.LastTransitionTime.UTC()
 		}
 	}
-	return created.Time.UTC()
+	return created.UTC()
 }
 
 func sourceKind(kind dependency.Kind) observation.SourceKind {

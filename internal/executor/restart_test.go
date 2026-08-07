@@ -66,7 +66,7 @@ func TestExecuteTimeoutMarksFailed(t *testing.T) {
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(&kickv1alpha1.KickRequest{}).WithObjects(req, dep).Build()
 	exec := NewRestartExecutor(c, time.Minute)
-	exec.Now = func() time.Time { return started.Time.Add(2 * time.Minute) }
+	exec.Now = func() time.Time { return started.Add(2 * time.Minute) }
 
 	res, err := exec.Execute(context.Background(), types.NamespacedName{Namespace: "team-a", Name: "api"}, kickv1alpha1.ObjectReference{APIVersion: "apps/v1", Kind: "Deployment", Name: "api"}, types.NamespacedName{Namespace: "team-a", Name: "api"})
 	if err != nil {

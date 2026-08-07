@@ -1,0 +1,29 @@
+version: "2"
+# Dedicated security + complexity pass, invoked via `make static-check`.
+# Kept separate from `.golangci.yml` (correctness lint) so each gate stays focused.
+run:
+  timeout: 5m
+linters:
+  enable:
+    - gosec # security problems (hardcoded creds, weak crypto, unchecked errors on writes, etc.)
+    - gocyclo # cyclomatic complexity per function
+    - gocognit # cognitive complexity per function
+    - nestif # deeply nested if statements
+  settings:
+    gocyclo:
+      min-complexity: 15
+    gocognit:
+      min-complexity: 20
+    nestif:
+      min-complexity: 5
+  exclusions:
+    paths:
+      - ai-docs
+    rules:
+      # Test code is intentionally long/branchy and uses fixtures that trip gosec.
+      - path: _test\.go
+        linters:
+          - gosec
+          - gocyclo
+          - gocognit
+          - nestif

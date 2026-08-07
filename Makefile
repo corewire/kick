@@ -42,6 +42,10 @@ vet:
 lint: golangci-lint
 	$(GOLANGCI_LINT) run
 
+.PHONY: static-check
+static-check: golangci-lint
+	$(GOLANGCI_LINT) run --config .golangci.static.yml
+
 .PHONY: test
 test: setup-envtest
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $(PKGS) -coverprofile cover.out

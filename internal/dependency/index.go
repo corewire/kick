@@ -9,6 +9,7 @@ import (
 )
 
 const (
+	// #nosec G101 -- these are field-index keys, not credentials.
 	SecretReferenceIndexField    = "kick.corewire.io/secretReferences"
 	ConfigMapReferenceIndexField = "kick.corewire.io/configMapReferences"
 )
