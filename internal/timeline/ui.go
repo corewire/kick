@@ -76,12 +76,25 @@ const timelineHTML = `<!doctype html>
     .card-head { padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--panel); font-weight: 700; font-size: 12px; display: flex; justify-content: space-between; align-items: center; }
     .card-head .count { color: var(--muted); font-weight: 500; }
 
+    /* Timeline controls + ruler */
+    .tl-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--surface); }
+    .tl-controls .grp { display: flex; align-items: center; gap: 5px; }
+    .tl-controls label { font-size: 11px; color: var(--muted); }
+    .tl-controls input[type=datetime-local] { border: 1px solid var(--line); border-radius: 6px; padding: 4px 7px; font-size: 11px; font-family: inherit; color: var(--ink); }
+    .tl-controls .preset, .tl-controls .reset { border: 1px solid var(--line); background: #eef3f7; color: #204b70; border-radius: 999px; padding: 3px 9px; font-size: 11px; font-weight: 600; cursor: pointer; font-family: inherit; }
+    .tl-controls .preset:hover, .tl-controls .reset:hover { background: #dfeaf4; }
+    .tl-controls .spacer { flex: 1; }
+    .tl-controls .hint { font-size: 10px; color: #aab3b4; }
+
+    .ruler { display: grid; grid-template-columns: 198px 1fr; align-items: stretch; height: 34px; border-bottom: 1px solid var(--line); background: var(--panel); }
+    .ruler .rlabel { display: flex; align-items: center; padding: 0 8px 0 12px; font-size: 11px; color: var(--muted); font-weight: 700; letter-spacing: 0.03em; }
+    .rtrack { position: relative; margin-right: 12px; cursor: crosshair; user-select: none; overflow: hidden; }
+    .rtrack .tick { position: absolute; top: 0; bottom: 0; border-left: 1px dashed #d7dcdc; }
+    .rtrack .tick span { position: absolute; top: 3px; left: 3px; font-size: 10px; color: var(--muted); white-space: nowrap; }
+    .brush { position: absolute; top: 0; bottom: 0; background: rgba(29, 113, 184, 0.16); border-left: 1px solid var(--blue); border-right: 1px solid var(--blue); pointer-events: none; }
+
     /* Timeline swimlanes */
-    .axis { display: flex; justify-content: space-between; padding: 6px 12px 6px 210px; font-size: 10px; color: var(--muted); border-bottom: 1px solid var(--line); background: var(--panel); position: relative; }
-    .axis span { transform: translateX(-50%); white-space: nowrap; }
-    .axis span:first-child { transform: none; }
-    .axis span:last-child { transform: translateX(-100%); }
-    .lanes { max-height: calc(100vh - 220px); overflow: auto; }
+    .lanes { max-height: calc(100vh - 260px); overflow: auto; }
     .ns-group { border-bottom: 1px solid var(--line); }
     .ns-head { position: sticky; top: 0; background: #eef3f7; color: #204b70; font-weight: 700; font-size: 11px; padding: 4px 12px; letter-spacing: 0.03em; z-index: 5; border-bottom: 1px solid #dbe6f0; }
     .lane { display: grid; grid-template-columns: 198px 1fr; align-items: center; height: var(--lane-h); border-bottom: 1px solid #f1f3f3; cursor: pointer; }
@@ -137,7 +150,23 @@ const timelineHTML = `<!doctype html>
     <div class="content">
       <div class="card">
         <div class="card-head"><span>Timeline</span><span class="count" id="tlCount"></span></div>
-        <div class="axis" id="axis"></div>
+        <div class="tl-controls">
+          <div class="grp"><label for="from">from</label><input type="datetime-local" id="from" step="1" /></div>
+          <div class="grp"><label for="to">to</label><input type="datetime-local" id="to" step="1" /></div>
+          <div class="grp">
+            <button class="preset" data-range="900000">15m</button>
+            <button class="preset" data-range="3600000">1h</button>
+            <button class="preset" data-range="21600000">6h</button>
+            <button class="preset" data-range="86400000">24h</button>
+            <button class="reset" id="resetZoom">All</button>
+          </div>
+          <span class="spacer"></span>
+          <span class="hint">drag on the ruler to zoom</span>
+        </div>
+        <div class="ruler">
+          <div class="rlabel">time</div>
+          <div class="rtrack" id="ruler"></div>
+        </div>
         <div class="lanes" id="lanes"></div>
       </div>
       <div class="card">
@@ -152,7 +181,7 @@ var COLORS = {
   blue: '#1d71b8', orange: '#f9b233', green: '#2e9e5b',
   red: '#d64545', amber: '#e6a010', teal: '#2b9c9c', gray: '#8a9698'
 };
-var state = { workloads: [], events: [], min: 0, max: 0, filter: '', selected: '' };
+var state = { workloads: [], events: [], min: 0, max: 0, viewMin: 0, viewMax: 0, zoomed: false, filter: '', selected: '' };
 
 function esc(t) {
   return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -184,8 +213,8 @@ function eventStyle(ev) {
 }
 
 function pct(ts) {
-  if (state.max <= state.min) return 50;
-  return ((ts - state.min) / (state.max - state.min)) * 100;
+  if (state.viewMax <= state.viewMin) return 50;
+  return ((ts - state.viewMin) / (state.viewMax - state.viewMin)) * 100;
 }
 
 function fmtClock(d) {
@@ -250,17 +279,79 @@ function renderLegend() {
   });
 }
 
-function renderAxis() {
-  var axis = document.getElementById('axis');
-  axis.innerHTML = '';
-  if (!state.events.length) return;
-  var ticks = 5;
+function toLocalInput(ts) {
+  var d = new Date(ts);
+  function p(n) { return (n < 10 ? '0' : '') + n; }
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+}
+
+function syncPickers() {
+  var from = document.getElementById('from');
+  var to = document.getElementById('to');
+  if (document.activeElement !== from) from.value = toLocalInput(state.viewMin);
+  if (document.activeElement !== to) to.value = toLocalInput(state.viewMax);
+}
+
+function applyPickers() {
+  var f = new Date(document.getElementById('from').value).getTime();
+  var t = new Date(document.getElementById('to').value).getTime();
+  if (isNaN(f) || isNaN(t) || t <= f) return;
+  state.viewMin = f; state.viewMax = t; state.zoomed = true;
+  renderRuler(); renderLanes(); renderLog();
+}
+
+function setView(min, max) {
+  state.viewMin = min; state.viewMax = max; state.zoomed = true;
+  renderRuler(); renderLanes(); renderLog();
+}
+
+function renderRuler() {
+  var ruler = document.getElementById('ruler');
+  ruler.innerHTML = '';
+  if (state.viewMax <= state.viewMin) return;
+  var ticks = 6;
   for (var i = 0; i < ticks; i++) {
-    var ts = state.min + ((state.max - state.min) * i) / (ticks - 1);
-    var s = document.createElement('span');
-    s.textContent = fmtClock(new Date(ts));
-    axis.appendChild(s);
+    var ts = state.viewMin + ((state.viewMax - state.viewMin) * i) / (ticks - 1);
+    var tick = document.createElement('div'); tick.className = 'tick';
+    tick.style.left = ((i / (ticks - 1)) * 100) + '%';
+    var lbl = document.createElement('span');
+    lbl.textContent = fmtClock(new Date(ts));
+    tick.appendChild(lbl);
+    ruler.appendChild(tick);
   }
+  syncPickers();
+}
+
+// setupBrush wires click-drag on the ruler to select a time window (zoom).
+function setupBrush() {
+  var ruler = document.getElementById('ruler');
+  var startX = 0, box = null, rect = null, dragging = false;
+  ruler.addEventListener('mousedown', function(e) {
+    rect = ruler.getBoundingClientRect();
+    startX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+    dragging = true;
+    box = document.createElement('div'); box.className = 'brush';
+    box.style.left = startX + 'px'; box.style.width = '0px';
+    ruler.appendChild(box);
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', function(e) {
+    if (!dragging) return;
+    var curX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+    box.style.left = Math.min(startX, curX) + 'px';
+    box.style.width = Math.abs(curX - startX) + 'px';
+  });
+  document.addEventListener('mouseup', function(e) {
+    if (!dragging) return;
+    dragging = false;
+    var curX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+    var x0 = Math.min(startX, curX), x1 = Math.max(startX, curX);
+    if (box && box.parentNode) box.parentNode.removeChild(box);
+    box = null;
+    if (x1 - x0 < 4) return;
+    var span = state.viewMax - state.viewMin;
+    setView(state.viewMin + (x0 / rect.width) * span, state.viewMin + (x1 / rect.width) * span);
+  });
 }
 
 function laneSegments(events) {
@@ -270,9 +361,12 @@ function laneSegments(events) {
   var segs = [];
   for (var i = 0; i < phases.length; i++) {
     var start = new Date(phases[i].at).getTime();
-    var end = i + 1 < phases.length ? new Date(phases[i + 1].at).getTime() : state.max;
-    if (end <= start) end = start + (state.max - state.min) * 0.01;
-    segs.push({ left: pct(start), width: Math.max(0.6, pct(end) - pct(start)), color: phaseColor(phases[i].message) });
+    var end = i + 1 < phases.length ? new Date(phases[i + 1].at).getTime() : state.viewMax;
+    if (end <= start) end = start + (state.viewMax - state.viewMin) * 0.01;
+    var left = pct(start), right = pct(end);
+    if (right < 0 || left > 100) continue;
+    left = Math.max(0, left); right = Math.min(100, right);
+    segs.push({ left: left, width: Math.max(0.6, right - left), color: phaseColor(phases[i].message) });
   }
   return segs;
 }
@@ -322,9 +416,11 @@ function renderLanes() {
       track.appendChild(seg);
     });
     w.events.forEach(function(ev) {
+      var ts = new Date(ev.at).getTime();
+      if (ts < state.viewMin || ts > state.viewMax) return;
       var st = eventStyle(ev);
       var mk = document.createElement('div'); mk.className = 'mk' + (st.square ? ' sq' : '');
-      mk.style.left = pct(new Date(ev.at).getTime()) + '%';
+      mk.style.left = pct(ts) + '%';
       mk.style.background = st.color;
       mk.addEventListener('mousemove', function(e) { showTip(tipFor(ev), e.clientX, e.clientY); });
       mk.addEventListener('mouseleave', hideTip);
@@ -351,6 +447,8 @@ function renderLog() {
   var body = document.getElementById('logBody');
   body.innerHTML = '';
   var evs = state.events.filter(function(e) {
+    var ts = new Date(e.at).getTime();
+    if (ts < state.viewMin || ts > state.viewMax) return false;
     if (state.selected && laneKey(e) !== state.selected) return false;
     if (state.filter) {
       var f = state.filter.toLowerCase();
@@ -382,17 +480,21 @@ function renderLog() {
 
 function computeBounds() {
   var times = state.events.map(function(e) { return new Date(e.at).getTime(); });
-  if (!times.length) { state.min = Date.now() - 3600000; state.max = Date.now(); return; }
-  state.min = Math.min.apply(null, times);
-  state.max = Math.max.apply(null, times);
-  if (state.max === state.min) { state.min -= 300000; state.max += 300000; }
-  else { var pad = (state.max - state.min) * 0.04; state.min -= pad; state.max += pad; }
+  if (!times.length) {
+    state.min = Date.now() - 3600000; state.max = Date.now();
+  } else {
+    state.min = Math.min.apply(null, times);
+    state.max = Math.max.apply(null, times);
+    if (state.max === state.min) { state.min -= 300000; state.max += 300000; }
+    else { var pad = (state.max - state.min) * 0.04; state.min -= pad; state.max += pad; }
+  }
+  if (!state.zoomed) { state.viewMin = state.min; state.viewMax = state.max; }
 }
 
 function renderAll() {
   computeBounds();
   renderLegend();
-  renderAxis();
+  renderRuler();
   renderLanes();
   renderLog();
 }
@@ -421,12 +523,24 @@ document.getElementById('search').addEventListener('input', function(e) {
   state.filter = e.target.value.trim();
   renderLanes(); renderLog();
 });
+document.getElementById('from').addEventListener('change', applyPickers);
+document.getElementById('to').addEventListener('change', applyPickers);
+document.getElementById('resetZoom').addEventListener('click', function() {
+  state.zoomed = false; computeBounds(); renderRuler(); renderLanes(); renderLog();
+});
+Array.prototype.forEach.call(document.querySelectorAll('.preset'), function(btn) {
+  btn.addEventListener('click', function() {
+    var span = Number(btn.getAttribute('data-range'));
+    setView(state.max - span, state.max);
+  });
+});
 var timer = null;
 document.getElementById('auto').addEventListener('change', function(e) {
   if (e.target.checked) { timer = setInterval(load, 8000); } else { clearInterval(timer); timer = null; }
 });
 window.addEventListener('scroll', hideTip, true);
 
+setupBrush();
 load();
 </script>
 </body>
