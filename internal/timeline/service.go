@@ -569,6 +569,41 @@ func parseRestartedAt(annotations map[string]string) *time.Time {
 	return &copy
 }
 
+// workloadRef is a kind-tagged handle to a namespaced workload object.
+type workloadRef struct {
+	kind string
+	name string
+	obj  client.Object
+}
+
+// listWorkloads returns every Deployment, StatefulSet, and DaemonSet in a namespace.
+func (s *Service) listWorkloads(ctx context.Context, namespace string) ([]workloadRef, error) {
+	var deployments appsv1.DeploymentList
+	if err := s.Client.List(ctx, &deployments, client.InNamespace(namespace)); err != nil {
+		return nil, err
+	}
+	var statefulSets appsv1.StatefulSetList
+	if err := s.Client.List(ctx, &statefulSets, client.InNamespace(namespace)); err != nil {
+		return nil, err
+	}
+	var daemonSets appsv1.DaemonSetList
+	if err := s.Client.List(ctx, &daemonSets, client.InNamespace(namespace)); err != nil {
+		return nil, err
+	}
+
+	refs := make([]workloadRef, 0, len(deployments.Items)+len(statefulSets.Items)+len(daemonSets.Items))
+	for i := range deployments.Items {
+		refs = append(refs, workloadRef{kind: "Deployment", name: deployments.Items[i].Name, obj: deployments.Items[i].DeepCopy()})
+	}
+	for i := range statefulSets.Items {
+		refs = append(refs, workloadRef{kind: "StatefulSet", name: statefulSets.Items[i].Name, obj: statefulSets.Items[i].DeepCopy()})
+	}
+	for i := range daemonSets.Items {
+		refs = append(refs, workloadRef{kind: "DaemonSet", name: daemonSets.Items[i].Name, obj: daemonSets.Items[i].DeepCopy()})
+	}
+	return refs, nil
+}
+
 func (s *Service) discoverManagedWorkloads(ctx context.Context, namespace string) ([]DiscoveredWorkload, []string, error) {
 	var policyList kickv1alpha1.KickPolicyList
 	if err := s.Client.List(ctx, &policyList, client.InNamespace(namespace)); err != nil {
@@ -585,16 +620,8 @@ func (s *Service) discoverManagedWorkloads(ctx context.Context, namespace string
 		return []DiscoveredWorkload{}, policies, nil
 	}
 
-	var deployments appsv1.DeploymentList
-	if err := s.Client.List(ctx, &deployments, client.InNamespace(namespace)); err != nil {
-		return nil, nil, err
-	}
-	var statefulSets appsv1.StatefulSetList
-	if err := s.Client.List(ctx, &statefulSets, client.InNamespace(namespace)); err != nil {
-		return nil, nil, err
-	}
-	var daemonSets appsv1.DaemonSetList
-	if err := s.Client.List(ctx, &daemonSets, client.InNamespace(namespace)); err != nil {
+	workloads, err := s.listWorkloads(ctx, namespace)
+	if err != nil {
 		return nil, nil, err
 	}
 
@@ -604,20 +631,9 @@ func (s *Service) discoverManagedWorkloads(ctx context.Context, namespace string
 		if err != nil {
 			continue
 		}
-
-		for _, deployment := range deployments.Items {
-			if selector.Matches(labels.Set(deployment.Labels)) {
-				items = append(items, DiscoveredWorkload{Namespace: deployment.Namespace, Kind: "Deployment", Name: deployment.Name, Policy: policy.Name})
-			}
-		}
-		for _, statefulSet := range statefulSets.Items {
-			if selector.Matches(labels.Set(statefulSet.Labels)) {
-				items = append(items, DiscoveredWorkload{Namespace: statefulSet.Namespace, Kind: "StatefulSet", Name: statefulSet.Name, Policy: policy.Name})
-			}
-		}
-		for _, daemonSet := range daemonSets.Items {
-			if selector.Matches(labels.Set(daemonSet.Labels)) {
-				items = append(items, DiscoveredWorkload{Namespace: daemonSet.Namespace, Kind: "DaemonSet", Name: daemonSet.Name, Policy: policy.Name})
+		for _, workload := range workloads {
+			if selector.Matches(labels.Set(workload.obj.GetLabels())) {
+				items = append(items, DiscoveredWorkload{Namespace: namespace, Kind: workload.kind, Name: workload.name, Policy: policy.Name})
 			}
 		}
 	}
@@ -642,91 +658,79 @@ func selectorForWorkloadSelector(selector *metav1.LabelSelector) (labels.Selecto
 	return metav1.LabelSelectorAsSelector(selector)
 }
 
+// dagBuilder accumulates unique nodes and edges for the namespace DAG.
+type dagBuilder struct {
+	nodes    []DAGNode
+	edges    []DAGEdge
+	nodeSeen map[string]struct{}
+	edgeSeen map[string]struct{}
+}
+
+func newDAGBuilder() *dagBuilder {
+	return &dagBuilder{nodeSeen: map[string]struct{}{}, edgeSeen: map[string]struct{}{}}
+}
+
+func (b *dagBuilder) addNode(id, kind, label string) {
+	if _, found := b.nodeSeen[id]; found {
+		return
+	}
+	b.nodeSeen[id] = struct{}{}
+	b.nodes = append(b.nodes, DAGNode{ID: id, Kind: kind, Label: label})
+}
+
+func (b *dagBuilder) addEdge(from, to, edgeType string) {
+	key := from + "->" + to + ":" + edgeType
+	if _, found := b.edgeSeen[key]; found {
+		return
+	}
+	b.edgeSeen[key] = struct{}{}
+	b.edges = append(b.edges, DAGEdge{From: from, To: to, Type: edgeType})
+}
+
+// addPolicy links a KickPolicy to the workloads it selects and their dependency sources.
+func (b *dagBuilder) addPolicy(policy kickv1alpha1.KickPolicy, workloads []workloadRef) {
+	selector, err := selectorForWorkloadSelector(policy.Spec.Discovery.WorkloadSelector)
+	if err != nil {
+		return
+	}
+
+	policyID := "policy:" + policy.Name
+	b.addNode(policyID, "KickPolicy", policy.Name)
+
+	for _, workload := range workloads {
+		if !selector.Matches(labels.Set(workload.obj.GetLabels())) {
+			continue
+		}
+		workloadID := "workload:" + workload.kind + ":" + workload.name
+		b.addNode(workloadID, workload.kind, workload.kind+"/"+workload.name)
+		b.addEdge(policyID, workloadID, "manages")
+
+		for _, dep := range dependency.ExtractDependenciesForObject(workload.obj) {
+			sourceID := "source:" + string(dep.Kind) + ":" + dep.Name
+			b.addNode(sourceID, string(dep.Kind), string(dep.Kind)+"/"+dep.Name)
+			b.addEdge(workloadID, sourceID, "dependsOn")
+		}
+	}
+}
+
 func (s *Service) buildDAG(ctx context.Context, namespace string) (DAGResponse, error) {
 	var policyList kickv1alpha1.KickPolicyList
 	if err := s.Client.List(ctx, &policyList, client.InNamespace(namespace)); err != nil {
 		return DAGResponse{}, err
 	}
 
-	var deployments appsv1.DeploymentList
-	if err := s.Client.List(ctx, &deployments, client.InNamespace(namespace)); err != nil {
-		return DAGResponse{}, err
-	}
-	var statefulSets appsv1.StatefulSetList
-	if err := s.Client.List(ctx, &statefulSets, client.InNamespace(namespace)); err != nil {
-		return DAGResponse{}, err
-	}
-	var daemonSets appsv1.DaemonSetList
-	if err := s.Client.List(ctx, &daemonSets, client.InNamespace(namespace)); err != nil {
+	workloads, err := s.listWorkloads(ctx, namespace)
+	if err != nil {
 		return DAGResponse{}, err
 	}
 
-	nodes := make([]DAGNode, 0)
-	edges := make([]DAGEdge, 0)
-	nodeSeen := map[string]struct{}{}
-	edgeSeen := map[string]struct{}{}
-
-	addNode := func(id, kind, label string) {
-		if _, found := nodeSeen[id]; found {
-			return
-		}
-		nodeSeen[id] = struct{}{}
-		nodes = append(nodes, DAGNode{ID: id, Kind: kind, Label: label})
-	}
-	addEdge := func(from, to, edgeType string) {
-		key := from + "->" + to + ":" + edgeType
-		if _, found := edgeSeen[key]; found {
-			return
-		}
-		edgeSeen[key] = struct{}{}
-		edges = append(edges, DAGEdge{From: from, To: to, Type: edgeType})
-	}
-
-	type workloadRef struct {
-		kind string
-		name string
-		obj  client.Object
-	}
-	allWorkloads := make([]workloadRef, 0, len(deployments.Items)+len(statefulSets.Items)+len(daemonSets.Items))
-	for i := range deployments.Items {
-		dep := deployments.Items[i]
-		allWorkloads = append(allWorkloads, workloadRef{kind: "Deployment", name: dep.Name, obj: dep.DeepCopy()})
-	}
-	for i := range statefulSets.Items {
-		sts := statefulSets.Items[i]
-		allWorkloads = append(allWorkloads, workloadRef{kind: "StatefulSet", name: sts.Name, obj: sts.DeepCopy()})
-	}
-	for i := range daemonSets.Items {
-		ds := daemonSets.Items[i]
-		allWorkloads = append(allWorkloads, workloadRef{kind: "DaemonSet", name: ds.Name, obj: ds.DeepCopy()})
-	}
-
+	builder := newDAGBuilder()
 	for _, policy := range policyList.Items {
-		selector, err := selectorForWorkloadSelector(policy.Spec.Discovery.WorkloadSelector)
-		if err != nil {
-			continue
-		}
-
-		policyID := "policy:" + policy.Name
-		addNode(policyID, "KickPolicy", policy.Name)
-
-		for _, workload := range allWorkloads {
-			if !selector.Matches(labels.Set(workload.obj.GetLabels())) {
-				continue
-			}
-
-			workloadID := "workload:" + workload.kind + ":" + workload.name
-			addNode(workloadID, workload.kind, workload.kind+"/"+workload.name)
-			addEdge(policyID, workloadID, "manages")
-
-			for _, dep := range dependency.ExtractDependenciesForObject(workload.obj) {
-				sourceID := "source:" + string(dep.Kind) + ":" + dep.Name
-				addNode(sourceID, string(dep.Kind), string(dep.Kind)+"/"+dep.Name)
-				addEdge(workloadID, sourceID, "dependsOn")
-			}
-		}
+		builder.addPolicy(policy, workloads)
 	}
 
+	nodes := builder.nodes
+	edges := builder.edges
 	sort.Slice(nodes, func(i, j int) bool {
 		if nodes[i].Kind != nodes[j].Kind {
 			return nodes[i].Kind < nodes[j].Kind

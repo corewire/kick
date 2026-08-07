@@ -48,58 +48,60 @@ func ExtractDependenciesForObject(obj client.Object) []DependencyRef {
 
 func extractDependenciesFromPodSpec(namespace string, pod corev1.PodSpec) []DependencyRef {
 	refs := make([]DependencyRef, 0)
+	refs = append(refs, containerRefs(namespace, pod.Containers)...)
+	refs = append(refs, containerRefs(namespace, pod.InitContainers)...)
+	refs = append(refs, volumeRefs(namespace, pod.Volumes)...)
+	return Normalize(refs)
+}
 
-	appendContainerRefs := func(containers []coreContainer) {
-		for _, c := range containers {
-			for _, source := range c.envFrom {
-				if source.secret != "" {
-					refs = append(refs, DependencyRef{APIVersion: coreAPIVersion, Kind: Secret, Namespace: namespace, Name: source.secret})
-				}
-				if source.configMap != "" {
-					refs = append(refs, DependencyRef{APIVersion: coreAPIVersion, Kind: ConfigMap, Namespace: namespace, Name: source.configMap})
-				}
-			}
-			for _, source := range c.env {
-				if source.secret != "" {
-					refs = append(refs, DependencyRef{APIVersion: coreAPIVersion, Kind: Secret, Namespace: namespace, Name: source.secret})
-				}
-				if source.configMap != "" {
-					refs = append(refs, DependencyRef{APIVersion: coreAPIVersion, Kind: ConfigMap, Namespace: namespace, Name: source.configMap})
-				}
-			}
+// appendNamed appends a dependency ref unless the referenced name is empty.
+func appendNamed(refs []DependencyRef, namespace string, kind Kind, name string) []DependencyRef {
+	if name == "" {
+		return refs
+	}
+	return append(refs, DependencyRef{APIVersion: coreAPIVersion, Kind: kind, Namespace: namespace, Name: name})
+}
+
+// containerRefs collects Secret/ConfigMap refs exposed through env and envFrom.
+func containerRefs(namespace string, containers []corev1.Container) []DependencyRef {
+	refs := make([]DependencyRef, 0)
+	for _, container := range containers {
+		adapted := adaptContainer(container)
+		for _, source := range adapted.envFrom {
+			refs = appendNamed(refs, namespace, Secret, source.secret)
+			refs = appendNamed(refs, namespace, ConfigMap, source.configMap)
+		}
+		for _, source := range adapted.env {
+			refs = appendNamed(refs, namespace, Secret, source.secret)
+			refs = appendNamed(refs, namespace, ConfigMap, source.configMap)
 		}
 	}
+	return refs
+}
 
-	regular := make([]coreContainer, 0, len(pod.Containers))
-	for _, c := range pod.Containers {
-		regular = append(regular, adaptContainer(c))
-	}
-	init := make([]coreContainer, 0, len(pod.InitContainers))
-	for _, c := range pod.InitContainers {
-		init = append(init, adaptContainer(c))
-	}
-	appendContainerRefs(regular)
-	appendContainerRefs(init)
-
-	for _, volume := range pod.Volumes {
+// volumeRefs collects Secret/ConfigMap refs from mounted and projected volumes.
+func volumeRefs(namespace string, volumes []corev1.Volume) []DependencyRef {
+	refs := make([]DependencyRef, 0)
+	for _, volume := range volumes {
 		if volume.Secret != nil {
-			refs = append(refs, DependencyRef{APIVersion: coreAPIVersion, Kind: Secret, Namespace: namespace, Name: volume.Secret.SecretName})
+			refs = appendNamed(refs, namespace, Secret, volume.Secret.SecretName)
 		}
 		if volume.ConfigMap != nil {
-			refs = append(refs, DependencyRef{APIVersion: coreAPIVersion, Kind: ConfigMap, Namespace: namespace, Name: volume.ConfigMap.Name})
+			refs = appendNamed(refs, namespace, ConfigMap, volume.ConfigMap.Name)
 		}
-		if volume.Projected != nil {
-			for _, source := range volume.Projected.Sources {
-				if source.Secret != nil {
-					refs = append(refs, DependencyRef{APIVersion: coreAPIVersion, Kind: Secret, Namespace: namespace, Name: source.Secret.Name})
-				}
-				if source.ConfigMap != nil {
-					refs = append(refs, DependencyRef{APIVersion: coreAPIVersion, Kind: ConfigMap, Namespace: namespace, Name: source.ConfigMap.Name})
-				}
+		if volume.Projected == nil {
+			continue
+		}
+		for _, source := range volume.Projected.Sources {
+			if source.Secret != nil {
+				refs = appendNamed(refs, namespace, Secret, source.Secret.Name)
+			}
+			if source.ConfigMap != nil {
+				refs = appendNamed(refs, namespace, ConfigMap, source.ConfigMap.Name)
 			}
 		}
 	}
-	return Normalize(refs)
+	return refs
 }
 
 // FromDeployment is a compatibility wrapper retained for existing callers.

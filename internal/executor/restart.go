@@ -9,6 +9,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -59,32 +60,46 @@ func (e *RestartExecutor) Execute(ctx context.Context, requestKey types.Namespac
 		return Result{}, err
 	}
 
-	if request.Status.Phase == kickv1alpha1.KickRequestPhaseSucceeded ||
-		request.Status.Phase == kickv1alpha1.KickRequestPhaseNoLongerRequired ||
-		request.Status.Phase == kickv1alpha1.KickRequestPhaseFailed {
+	if isTerminalPhase(request.Status.Phase) {
 		return Result{}, nil
 	}
 
 	if request.Status.Phase == kickv1alpha1.KickRequestPhaseExecuting && request.Status.CurrentRollout.StartedAt != nil {
-		if rolloutComplete(workload) {
-			if err := e.updateRequestStatus(ctx, requestKey, func(status *kickv1alpha1.KickRequestStatus) {
-				status.Phase = kickv1alpha1.KickRequestPhaseSucceeded
-			}); err != nil {
-				return Result{}, err
-			}
-			return Result{Complete: true}, nil
-		}
-		if e.Timeout > 0 && e.Now().UTC().After(request.Status.CurrentRollout.StartedAt.Add(e.Timeout)) {
-			if err := e.updateRequestStatus(ctx, requestKey, func(status *kickv1alpha1.KickRequestStatus) {
-				status.Phase = kickv1alpha1.KickRequestPhaseFailed
-			}); err != nil {
-				return Result{}, err
-			}
-			return Result{Failed: true, Reason: "RolloutTimeout"}, nil
-		}
-		return Result{}, nil
+		return e.progressRollout(ctx, requestKey, workload, request)
 	}
 
+	return e.startRollout(ctx, requestKey, workload, span)
+}
+
+func isTerminalPhase(phase kickv1alpha1.KickRequestPhase) bool {
+	return phase == kickv1alpha1.KickRequestPhaseSucceeded ||
+		phase == kickv1alpha1.KickRequestPhaseNoLongerRequired ||
+		phase == kickv1alpha1.KickRequestPhaseFailed
+}
+
+// progressRollout advances an in-flight rollout to Succeeded or Failed.
+func (e *RestartExecutor) progressRollout(ctx context.Context, requestKey types.NamespacedName, workload client.Object, request kickv1alpha1.KickRequest) (Result, error) {
+	if rolloutComplete(workload) {
+		if err := e.updateRequestStatus(ctx, requestKey, func(status *kickv1alpha1.KickRequestStatus) {
+			status.Phase = kickv1alpha1.KickRequestPhaseSucceeded
+		}); err != nil {
+			return Result{}, err
+		}
+		return Result{Complete: true}, nil
+	}
+	if e.Timeout > 0 && e.Now().UTC().After(request.Status.CurrentRollout.StartedAt.Add(e.Timeout)) {
+		if err := e.updateRequestStatus(ctx, requestKey, func(status *kickv1alpha1.KickRequestStatus) {
+			status.Phase = kickv1alpha1.KickRequestPhaseFailed
+		}); err != nil {
+			return Result{}, err
+		}
+		return Result{Failed: true, Reason: "RolloutTimeout"}, nil
+	}
+	return Result{}, nil
+}
+
+// startRollout marks the request Executing and patches the workload to restart it.
+func (e *RestartExecutor) startRollout(ctx context.Context, requestKey types.NamespacedName, workload client.Object, span trace.Span) (Result, error) {
 	now := e.Now().UTC()
 	if err := e.updateRequestStatus(ctx, requestKey, func(status *kickv1alpha1.KickRequestStatus) {
 		status.Phase = kickv1alpha1.KickRequestPhaseExecuting

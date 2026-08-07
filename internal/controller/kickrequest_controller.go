@@ -115,7 +115,7 @@ func (r *KickRequestReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	defer span.End()
 	span.SetAttributes(attribute.String("kick.request.namespace", req.Namespace), attribute.String("kick.request.name", req.Name))
 
-	if r.GateResolver == nil || r.ObservationStore == nil || r.FreshnessEvaluator == nil || r.RestartExecutor == nil {
+	if !r.dependenciesConfigured() {
 		observeControllerError("kickrequest", "MissingDependency")
 		span.RecordError(fmt.Errorf("missing dependency"))
 		span.SetStatus(codes.Error, "missing dependency")
@@ -137,90 +137,25 @@ func (r *KickRequestReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 
 	if !supportedTargetRef(request.Spec.TargetRef) {
-		if err := r.updateRequestStatus(ctx, req.NamespacedName, func(status *kickv1alpha1.KickRequestStatus) {
-			setPhase(status, kickv1alpha1.KickRequestPhaseFailed, "InvalidTarget", "unsupported or empty targetRef")
-		}); err != nil {
-			observeControllerError("kickrequest", "UpdateStatus")
-			return ctrl.Result{}, err
-		}
-		r.recordTransition(&request, kickv1alpha1.KickRequestPhaseFailed, "InvalidTarget", "unsupported or empty targetRef", "")
-		return ctrl.Result{}, nil
+		return r.failInvalidTarget(ctx, req, &request)
 	}
 
 	targetKey := types.NamespacedName{Namespace: req.Namespace, Name: request.Spec.TargetRef.Name}
-	workload, err := loadTargetWorkload(ctx, r.Client, request.Spec.TargetRef, targetKey)
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			if statusErr := r.updateRequestStatus(ctx, req.NamespacedName, func(status *kickv1alpha1.KickRequestStatus) {
-				setPhase(status, kickv1alpha1.KickRequestPhaseFailed, "TargetNotFound", "target workload no longer exists")
-			}); statusErr != nil {
-				observeControllerError("kickrequest", "UpdateStatus")
-				return ctrl.Result{}, statusErr
-			}
-			r.recordTransition(&request, kickv1alpha1.KickRequestPhaseFailed, "TargetNotFound", "target workload no longer exists", "")
-			return ctrl.Result{}, nil
-		}
-		observeControllerError("kickrequest", "GetWorkload")
-		return ctrl.Result{}, err
+	workload, result, done, err := r.loadWorkloadOrFail(ctx, req, &request, targetKey)
+	if done || err != nil {
+		return result, err
 	}
 
-	var matchedPolicy *kickv1alpha1.KickPolicy
-	if r.PolicyMatcher != nil {
-		match, err := r.PolicyMatcher.MatchWorkload(ctx, workload.GetNamespace(), workloadLabels(workload))
-		if err != nil {
-			observeControllerError("kickrequest", "PolicyMatch")
-			return ctrl.Result{}, err
-		}
-		if !match.Managed {
-			reason := match.Reason
-			if reason == policy.ReasonNoMatchingPolicy || reason == policy.ReasonPolicyDeleted {
-				reason = policy.ReasonPolicyDeleted
-			}
-			if err := r.updateRequestStatus(ctx, req.NamespacedName, func(status *kickv1alpha1.KickRequestStatus) {
-				setPhase(status, kickv1alpha1.KickRequestPhaseFailed, reason, "kickrequest canceled due to policy scope")
-			}); err != nil {
-				observeControllerError("kickrequest", "UpdateStatus")
-				return ctrl.Result{}, err
-			}
-			r.recordTransition(&request, kickv1alpha1.KickRequestPhaseFailed, reason, "kickrequest canceled due to policy scope", "")
-			return ctrl.Result{}, nil
-		}
-		matchedPolicy = match.Policy
+	matchedPolicy, result, done, err := r.resolveMatchedPolicy(ctx, req, &request, workload)
+	if done || err != nil {
+		return result, err
 	}
 
 	now := r.now().UTC()
 
-	// KICK-native windows gate the kick without a GitOps provider or owner.
-	if nativeWindows := policyNativeWindows(matchedPolicy); len(nativeWindows) > 0 {
-		decision, evalErr := schedule.Evaluate(now, nativeWindows)
-		if evalErr != nil {
-			if err := r.updateRequestStatus(ctx, req.NamespacedName, func(status *kickv1alpha1.KickRequestStatus) {
-				setPhase(status, kickv1alpha1.KickRequestPhaseWaitingForGate, string(gitops.GateConfigurationError), evalErr.Error())
-			}); err != nil {
-				observeControllerError("kickrequest", "UpdateStatus")
-				return ctrl.Result{}, err
-			}
-			r.recordTransition(&request, kickv1alpha1.KickRequestPhaseWaitingForGate, string(gitops.GateConfigurationError), evalErr.Error(), "")
-			return ctrl.Result{RequeueAfter: r.requeueInterval()}, nil
-		}
-		if !decision.Allowed {
-			if err := r.updateRequestStatus(ctx, req.NamespacedName, func(status *kickv1alpha1.KickRequestStatus) {
-				status.Gate = kickv1alpha1.GateStatus{Reason: string(gitops.GateOutsideSchedule), Message: "blocked by KickPolicy window"}
-				setPhase(status, kickv1alpha1.KickRequestPhaseWaitingForGate, string(gitops.GateOutsideSchedule), "blocked by KickPolicy window")
-			}); err != nil {
-				observeControllerError("kickrequest", "UpdateStatus")
-				return ctrl.Result{}, err
-			}
-			r.recordTransition(&request, kickv1alpha1.KickRequestPhaseWaitingForGate, string(gitops.GateOutsideSchedule), "blocked by KickPolicy window", "")
-			requeue := r.requeueInterval()
-			if decision.RequeueAt != nil {
-				if d := decision.RequeueAt.Sub(now); d > 0 {
-					requeue = d
-				}
-			}
-			return ctrl.Result{RequeueAfter: requeue}, nil
-		}
-		return r.evaluateFreshnessAndExecute(ctx, req, &request, workload, targetKey, kickv1alpha1.GitOpsOwnerStatus{}, gitops.GateDecision{Allowed: true, Reconciled: true, Reason: gitops.GateAllowed, Message: "allowed by KickPolicy window"})
+	result, done, err = r.evaluateNativeWindows(ctx, req, &request, workload, targetKey, matchedPolicy, now)
+	if done || err != nil {
+		return result, err
 	}
 
 	ownerStatus, gateDecision, err := r.GateResolver.ResolveOwnerAndGate(ctx, workload, now)
@@ -230,20 +165,137 @@ func (r *KickRequestReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 
 	if !gitops.MayExecute(gateDecision) {
-		phase := phaseForClosedGate(gateDecision.Reason)
-		if err := r.updateRequestStatus(ctx, req.NamespacedName, func(status *kickv1alpha1.KickRequestStatus) {
-			status.Owner = ownerStatus
-			status.Gate = gateToStatus(gateDecision)
-			setPhase(status, phase, string(gateDecision.Reason), gateDecision.Message)
-		}); err != nil {
-			observeControllerError("kickrequest", "UpdateStatus")
-			return ctrl.Result{}, err
-		}
-		r.recordTransition(&request, phase, string(gateDecision.Reason), gateDecision.Message, ownerStatus.Provider)
-		return requeueForGate(gateDecision, now, r.requeueInterval()), nil
+		return r.handleClosedGate(ctx, req, &request, ownerStatus, gateDecision, now)
 	}
 
 	return r.evaluateFreshnessAndExecute(ctx, req, &request, workload, targetKey, ownerStatus, gateDecision)
+}
+
+// dependenciesConfigured reports whether all injected collaborators are set.
+func (r *KickRequestReconciler) dependenciesConfigured() bool {
+	return r.GateResolver != nil && r.ObservationStore != nil && r.FreshnessEvaluator != nil && r.RestartExecutor != nil
+}
+
+// failInvalidTarget terminates a request whose targetRef is unsupported or empty.
+func (r *KickRequestReconciler) failInvalidTarget(ctx context.Context, req ctrl.Request, request *kickv1alpha1.KickRequest) (ctrl.Result, error) {
+	if err := r.updateRequestStatus(ctx, req.NamespacedName, func(status *kickv1alpha1.KickRequestStatus) {
+		setPhase(status, kickv1alpha1.KickRequestPhaseFailed, "InvalidTarget", "unsupported or empty targetRef")
+	}); err != nil {
+		observeControllerError("kickrequest", "UpdateStatus")
+		return ctrl.Result{}, err
+	}
+	r.recordTransition(request, kickv1alpha1.KickRequestPhaseFailed, "InvalidTarget", "unsupported or empty targetRef", "")
+	return ctrl.Result{}, nil
+}
+
+// handleClosedGate records a blocked gate decision and schedules the next check.
+func (r *KickRequestReconciler) handleClosedGate(ctx context.Context, req ctrl.Request, request *kickv1alpha1.KickRequest, ownerStatus kickv1alpha1.GitOpsOwnerStatus, gateDecision gitops.GateDecision, now time.Time) (ctrl.Result, error) {
+	phase := phaseForClosedGate(gateDecision.Reason)
+	if err := r.updateRequestStatus(ctx, req.NamespacedName, func(status *kickv1alpha1.KickRequestStatus) {
+		status.Owner = ownerStatus
+		status.Gate = gateToStatus(gateDecision)
+		setPhase(status, phase, string(gateDecision.Reason), gateDecision.Message)
+	}); err != nil {
+		observeControllerError("kickrequest", "UpdateStatus")
+		return ctrl.Result{}, err
+	}
+	r.recordTransition(request, phase, string(gateDecision.Reason), gateDecision.Message, ownerStatus.Provider)
+	return requeueForGate(gateDecision, now, r.requeueInterval()), nil
+}
+
+// loadWorkloadOrFail fetches the target workload. The boolean return is true
+// when the request was terminated (target missing) and the caller should return
+// the accompanying result.
+func (r *KickRequestReconciler) loadWorkloadOrFail(ctx context.Context, req ctrl.Request, request *kickv1alpha1.KickRequest, targetKey types.NamespacedName) (client.Object, ctrl.Result, bool, error) {
+	workload, err := loadTargetWorkload(ctx, r.Client, request.Spec.TargetRef, targetKey)
+	if err == nil {
+		return workload, ctrl.Result{}, false, nil
+	}
+	if !apierrors.IsNotFound(err) {
+		observeControllerError("kickrequest", "GetWorkload")
+		return nil, ctrl.Result{}, true, err
+	}
+	if statusErr := r.updateRequestStatus(ctx, req.NamespacedName, func(status *kickv1alpha1.KickRequestStatus) {
+		setPhase(status, kickv1alpha1.KickRequestPhaseFailed, "TargetNotFound", "target workload no longer exists")
+	}); statusErr != nil {
+		observeControllerError("kickrequest", "UpdateStatus")
+		return nil, ctrl.Result{}, true, statusErr
+	}
+	r.recordTransition(request, kickv1alpha1.KickRequestPhaseFailed, "TargetNotFound", "target workload no longer exists", "")
+	return nil, ctrl.Result{}, true, nil
+}
+
+// resolveMatchedPolicy resolves the KickPolicy managing the workload. The
+// boolean return is true when the request was terminated (unmanaged scope) and
+// the caller should return the accompanying result.
+func (r *KickRequestReconciler) resolveMatchedPolicy(ctx context.Context, req ctrl.Request, request *kickv1alpha1.KickRequest, workload client.Object) (*kickv1alpha1.KickPolicy, ctrl.Result, bool, error) {
+	if r.PolicyMatcher == nil {
+		return nil, ctrl.Result{}, false, nil
+	}
+	match, err := r.PolicyMatcher.MatchWorkload(ctx, workload.GetNamespace(), workloadLabels(workload))
+	if err != nil {
+		observeControllerError("kickrequest", "PolicyMatch")
+		return nil, ctrl.Result{}, true, err
+	}
+	if match.Managed {
+		return match.Policy, ctrl.Result{}, false, nil
+	}
+
+	reason := match.Reason
+	if reason == policy.ReasonNoMatchingPolicy || reason == policy.ReasonPolicyDeleted {
+		reason = policy.ReasonPolicyDeleted
+	}
+	if err := r.updateRequestStatus(ctx, req.NamespacedName, func(status *kickv1alpha1.KickRequestStatus) {
+		setPhase(status, kickv1alpha1.KickRequestPhaseFailed, reason, "kickrequest canceled due to policy scope")
+	}); err != nil {
+		observeControllerError("kickrequest", "UpdateStatus")
+		return nil, ctrl.Result{}, true, err
+	}
+	r.recordTransition(request, kickv1alpha1.KickRequestPhaseFailed, reason, "kickrequest canceled due to policy scope", "")
+	return nil, ctrl.Result{}, true, nil
+}
+
+// evaluateNativeWindows gates the kick on KICK-native windows (no GitOps owner).
+// The boolean return is true when a native window produced a terminal decision
+// and the caller should return the accompanying result.
+func (r *KickRequestReconciler) evaluateNativeWindows(ctx context.Context, req ctrl.Request, request *kickv1alpha1.KickRequest, workload client.Object, targetKey types.NamespacedName, matchedPolicy *kickv1alpha1.KickPolicy, now time.Time) (ctrl.Result, bool, error) {
+	nativeWindows := policyNativeWindows(matchedPolicy)
+	if len(nativeWindows) == 0 {
+		return ctrl.Result{}, false, nil
+	}
+
+	decision, evalErr := schedule.Evaluate(now, nativeWindows)
+	if evalErr != nil {
+		if err := r.updateRequestStatus(ctx, req.NamespacedName, func(status *kickv1alpha1.KickRequestStatus) {
+			setPhase(status, kickv1alpha1.KickRequestPhaseWaitingForGate, string(gitops.GateConfigurationError), evalErr.Error())
+		}); err != nil {
+			observeControllerError("kickrequest", "UpdateStatus")
+			return ctrl.Result{}, true, err
+		}
+		r.recordTransition(request, kickv1alpha1.KickRequestPhaseWaitingForGate, string(gitops.GateConfigurationError), evalErr.Error(), "")
+		return ctrl.Result{RequeueAfter: r.requeueInterval()}, true, nil
+	}
+
+	if !decision.Allowed {
+		if err := r.updateRequestStatus(ctx, req.NamespacedName, func(status *kickv1alpha1.KickRequestStatus) {
+			status.Gate = kickv1alpha1.GateStatus{Reason: string(gitops.GateOutsideSchedule), Message: "blocked by KickPolicy window"}
+			setPhase(status, kickv1alpha1.KickRequestPhaseWaitingForGate, string(gitops.GateOutsideSchedule), "blocked by KickPolicy window")
+		}); err != nil {
+			observeControllerError("kickrequest", "UpdateStatus")
+			return ctrl.Result{}, true, err
+		}
+		r.recordTransition(request, kickv1alpha1.KickRequestPhaseWaitingForGate, string(gitops.GateOutsideSchedule), "blocked by KickPolicy window", "")
+		requeue := r.requeueInterval()
+		if decision.RequeueAt != nil {
+			if d := decision.RequeueAt.Sub(now); d > 0 {
+				requeue = d
+			}
+		}
+		return ctrl.Result{RequeueAfter: requeue}, true, nil
+	}
+
+	res, err := r.evaluateFreshnessAndExecute(ctx, req, request, workload, targetKey, kickv1alpha1.GitOpsOwnerStatus{}, gitops.GateDecision{Allowed: true, Reconciled: true, Reason: gitops.GateAllowed, Message: "allowed by KickPolicy window"})
+	return res, true, err
 }
 
 func (r *KickRequestReconciler) evaluateFreshnessAndExecute(
@@ -268,50 +320,17 @@ func (r *KickRequestReconciler) evaluateFreshnessAndExecute(
 		return ctrl.Result{}, err
 	}
 
-	if freshnessDecision.BlockingReason != "" && !freshnessDecision.RestartRequired {
-		if err := r.updateRequestStatus(ctx, req.NamespacedName, func(status *kickv1alpha1.KickRequestStatus) {
-			status.Owner = ownerStatus
-			status.Gate = gateToStatus(gateDecision)
-			status.CurrentRollout = rolloutToStatus(freshnessDecision)
-			status.LatestObservedDependencyChange = toMetav1TimePtr(freshnessDecision.LatestChange)
-			setPhase(status, kickv1alpha1.KickRequestPhaseWaitingForRollout, freshnessDecision.BlockingReason, "workload rollout is still in progress")
-		}); err != nil {
-			observeControllerError("kickrequest", "UpdateStatus")
-			return ctrl.Result{}, err
-		}
-		r.recordTransition(request, kickv1alpha1.KickRequestPhaseWaitingForRollout, freshnessDecision.BlockingReason, "workload rollout is still in progress", ownerStatus.Provider)
-		return ctrl.Result{RequeueAfter: r.requeueInterval()}, nil
-	}
-
-	if !freshnessDecision.RestartRequired {
-		if err := r.updateRequestStatus(ctx, req.NamespacedName, func(status *kickv1alpha1.KickRequestStatus) {
-			status.Owner = ownerStatus
-			status.Gate = gateToStatus(gateDecision)
-			status.CurrentRollout = rolloutToStatus(freshnessDecision)
-			status.LatestObservedDependencyChange = toMetav1TimePtr(freshnessDecision.LatestChange)
-			setPhase(status, kickv1alpha1.KickRequestPhaseNoLongerRequired, "Fresh", "live workload is already fresh")
-		}); err != nil {
-			observeControllerError("kickrequest", "UpdateStatus")
-			return ctrl.Result{}, err
-		}
-		r.recordTransition(request, kickv1alpha1.KickRequestPhaseNoLongerRequired, "Fresh", "live workload is already fresh", ownerStatus.Provider)
-		return ctrl.Result{}, nil
+	if res, done, err := r.handleFreshnessGate(ctx, req, request, ownerStatus, gateDecision, freshnessDecision); done || err != nil {
+		return res, err
 	}
 
 	// Transition to Executing once. The executor owns CurrentRollout.StartedAt
 	// (the time KICK issues the restart); pre-seeding it from the existing
 	// ReplicaSet would make the executor treat the restart as already issued.
 	if request.Status.Phase != kickv1alpha1.KickRequestPhaseExecuting {
-		if err := r.updateRequestStatus(ctx, req.NamespacedName, func(status *kickv1alpha1.KickRequestStatus) {
-			status.Owner = ownerStatus
-			status.Gate = gateToStatus(gateDecision)
-			status.LatestObservedDependencyChange = toMetav1TimePtr(freshnessDecision.LatestChange)
-			setPhase(status, kickv1alpha1.KickRequestPhaseExecuting, "RestartRequired", "restart required after live freshness check")
-		}); err != nil {
-			observeControllerError("kickrequest", "UpdateStatus")
+		if err := r.markExecuting(ctx, req, request, ownerStatus, gateDecision, freshnessDecision); err != nil {
 			return ctrl.Result{}, err
 		}
-		r.recordTransition(request, kickv1alpha1.KickRequestPhaseExecuting, "RestartRequired", "restart required after live freshness check", ownerStatus.Provider)
 	}
 
 	result, err := r.RestartExecutor.Execute(ctx, req.NamespacedName, request.Spec.TargetRef, targetKey)
@@ -323,6 +342,64 @@ func (r *KickRequestReconciler) evaluateFreshnessAndExecute(
 		return ctrl.Result{}, err
 	}
 
+	return r.finalizeRestart(ctx, req, request, ownerStatus, result)
+}
+
+// handleFreshnessGate records the terminal outcomes that require no restart
+// (rollout still in progress, or already fresh). The boolean return is true
+// when it produced a result the caller should return.
+func (r *KickRequestReconciler) handleFreshnessGate(ctx context.Context, req ctrl.Request, request *kickv1alpha1.KickRequest, ownerStatus kickv1alpha1.GitOpsOwnerStatus, gateDecision gitops.GateDecision, freshnessDecision freshness.FreshnessDecision) (ctrl.Result, bool, error) {
+	if freshnessDecision.BlockingReason != "" && !freshnessDecision.RestartRequired {
+		if err := r.updateRequestStatus(ctx, req.NamespacedName, func(status *kickv1alpha1.KickRequestStatus) {
+			status.Owner = ownerStatus
+			status.Gate = gateToStatus(gateDecision)
+			status.CurrentRollout = rolloutToStatus(freshnessDecision)
+			status.LatestObservedDependencyChange = toMetav1TimePtr(freshnessDecision.LatestChange)
+			setPhase(status, kickv1alpha1.KickRequestPhaseWaitingForRollout, freshnessDecision.BlockingReason, "workload rollout is still in progress")
+		}); err != nil {
+			observeControllerError("kickrequest", "UpdateStatus")
+			return ctrl.Result{}, true, err
+		}
+		r.recordTransition(request, kickv1alpha1.KickRequestPhaseWaitingForRollout, freshnessDecision.BlockingReason, "workload rollout is still in progress", ownerStatus.Provider)
+		return ctrl.Result{RequeueAfter: r.requeueInterval()}, true, nil
+	}
+
+	if !freshnessDecision.RestartRequired {
+		if err := r.updateRequestStatus(ctx, req.NamespacedName, func(status *kickv1alpha1.KickRequestStatus) {
+			status.Owner = ownerStatus
+			status.Gate = gateToStatus(gateDecision)
+			status.CurrentRollout = rolloutToStatus(freshnessDecision)
+			status.LatestObservedDependencyChange = toMetav1TimePtr(freshnessDecision.LatestChange)
+			setPhase(status, kickv1alpha1.KickRequestPhaseNoLongerRequired, "Fresh", "live workload is already fresh")
+		}); err != nil {
+			observeControllerError("kickrequest", "UpdateStatus")
+			return ctrl.Result{}, true, err
+		}
+		r.recordTransition(request, kickv1alpha1.KickRequestPhaseNoLongerRequired, "Fresh", "live workload is already fresh", ownerStatus.Provider)
+		return ctrl.Result{}, true, nil
+	}
+
+	return ctrl.Result{}, false, nil
+}
+
+// markExecuting transitions the request to Executing before issuing the restart.
+func (r *KickRequestReconciler) markExecuting(ctx context.Context, req ctrl.Request, request *kickv1alpha1.KickRequest, ownerStatus kickv1alpha1.GitOpsOwnerStatus, gateDecision gitops.GateDecision, freshnessDecision freshness.FreshnessDecision) error {
+	if err := r.updateRequestStatus(ctx, req.NamespacedName, func(status *kickv1alpha1.KickRequestStatus) {
+		status.Owner = ownerStatus
+		status.Gate = gateToStatus(gateDecision)
+		status.LatestObservedDependencyChange = toMetav1TimePtr(freshnessDecision.LatestChange)
+		setPhase(status, kickv1alpha1.KickRequestPhaseExecuting, "RestartRequired", "restart required after live freshness check")
+	}); err != nil {
+		observeControllerError("kickrequest", "UpdateStatus")
+		return err
+	}
+	r.recordTransition(request, kickv1alpha1.KickRequestPhaseExecuting, "RestartRequired", "restart required after live freshness check", ownerStatus.Provider)
+	return nil
+}
+
+// finalizeRestart re-reads the request after execution and maps the terminal
+// rollout phase to metrics, transitions, and the next requeue.
+func (r *KickRequestReconciler) finalizeRestart(ctx context.Context, req ctrl.Request, request *kickv1alpha1.KickRequest, ownerStatus kickv1alpha1.GitOpsOwnerStatus, result executor.Result) (ctrl.Result, error) {
 	var updated kickv1alpha1.KickRequest
 	if err := r.Get(ctx, req.NamespacedName, &updated); err != nil {
 		if !apierrors.IsNotFound(err) {
@@ -341,7 +418,6 @@ func (r *KickRequestReconciler) evaluateFreshnessAndExecute(
 	if isTerminalPhase(updated.Status.Phase) || result.Complete || result.Failed {
 		return ctrl.Result{}, nil
 	}
-
 	return ctrl.Result{RequeueAfter: r.requeueInterval()}, nil
 }
 

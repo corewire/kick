@@ -71,28 +71,38 @@ func matchesWindow(ctx appWindowContext, window map[string]interface{}) bool {
 	nsMatches := listMatches(ctx.DestinationNS, listValue(window, "namespaces"))
 	clusterMatches := listMatchesAny([]string{ctx.DestinationName, ctx.DestinationServer}, listValue(window, "clusters"))
 
-	useAnd := boolValue(window, "useAndOperator")
-	if useAnd {
-		active := []bool{}
-		if hasSelector(window, "applications") {
-			active = append(active, appMatches)
-		}
-		if hasSelector(window, "namespaces") {
-			active = append(active, nsMatches)
-		}
-		if hasSelector(window, "clusters") {
-			active = append(active, clusterMatches)
-		}
-		if len(active) == 0 {
+	if boolValue(window, "useAndOperator") {
+		return matchesAllSelectors(window, appMatches, nsMatches, clusterMatches)
+	}
+	return matchesAnySelector(window, appMatches, nsMatches, clusterMatches)
+}
+
+// matchesAllSelectors requires every configured selector (applications,
+// namespaces, clusters) to match. A window with no selectors matches nothing.
+func matchesAllSelectors(window map[string]interface{}, appMatches, nsMatches, clusterMatches bool) bool {
+	active := []bool{}
+	if hasSelector(window, "applications") {
+		active = append(active, appMatches)
+	}
+	if hasSelector(window, "namespaces") {
+		active = append(active, nsMatches)
+	}
+	if hasSelector(window, "clusters") {
+		active = append(active, clusterMatches)
+	}
+	if len(active) == 0 {
+		return false
+	}
+	for _, ok := range active {
+		if !ok {
 			return false
 		}
-		for _, ok := range active {
-			if !ok {
-				return false
-			}
-		}
-		return true
 	}
+	return true
+}
+
+// matchesAnySelector matches when any configured selector matches.
+func matchesAnySelector(window map[string]interface{}, appMatches, nsMatches, clusterMatches bool) bool {
 	if hasSelector(window, "applications") && appMatches {
 		return true
 	}
