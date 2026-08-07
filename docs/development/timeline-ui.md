@@ -6,9 +6,20 @@ KICK now exposes a timeline API and browser UI for workload restart investigatio
 
 - Root: `/` (redirects to `/timeline/ui`)
 - UI: `/timeline/ui`
+- Overview API: `/timeline/overview` (all managed workloads and their events across every namespace)
 - API: `/timeline?namespace=<ns>&kind=<Deployment|StatefulSet|DaemonSet>&name=<workload>`
 - Discovery API: `/timeline/discovery?namespace=<ns>[&policy=<policy-name>][&kind=<Deployment|StatefulSet|DaemonSet|All>][&name=<substring>]`
 - DAG API: `/timeline/dag?namespace=<ns>`
+
+## Cross-namespace overview
+
+The UI opens on a compact, all-namespace overview that answers "what happened, when" at a glance:
+
+- one swimlane per managed workload, grouped by namespace, with a color-coded state band over time;
+- color-coded event markers (dependency change, restart, request, waiting/blocked, failure, k8s event) with hover details;
+- a chronological event log alongside the lanes;
+- a dedicated ruler row with a time picker (from/to), quick presets, and drag-to-zoom (draw a box on the ruler);
+- a text filter to narrow lanes and the log by namespace or workload.
 
 ## Policy-driven discovery and filtering
 

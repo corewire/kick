@@ -60,7 +60,7 @@ Timeline and tracing:
 --otel-otlp-insecure=true
 ```
 
-Timeline UI path: `/timeline/ui`
+Timeline UI path: `/timeline/ui` — opens a compact cross-namespace overview (state-over-time swimlanes, color-coded event log, and a drag-to-zoom time ruler with a from/to picker).
 
 ## Security note
 

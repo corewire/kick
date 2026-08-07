@@ -15,11 +15,11 @@ kubectl --kubeconfig .kubeconfig-kind-kick-dev --context kind-kick-dev apply -f 
 Then open:
 - http://localhost:8090/timeline/ui
 
-In the UI:
-1. Set namespace to `timeline-demo`.
-2. Click `Refresh Discovery`.
-3. Confirm DAG nodes/edges appear for policy -> workload -> dependencies.
-4. Click a discovered workload card to load its timeline.
+In the UI (opens on the cross-namespace overview):
+1. Find the `timeline-demo` namespace group and its workload lanes.
+2. Hover event markers for details; read the event log for "what happened when".
+3. Drag a box on the time ruler to zoom, or set the from/to picker to focus a window.
+4. Type `timeline-demo` in the filter to isolate the demo workloads.
 
 ## Trigger relevant change
 
@@ -27,7 +27,7 @@ In the UI:
 kubectl --kubeconfig .kubeconfig-kind-kick-dev --context kind-kick-dev apply -f examples/timeline-ui/10-patch-secret.yaml
 ```
 
-Refresh the selected workload timeline. You should see dependency-relevant-change entries and, when applicable, kickrequest and rollout entries.
+Click `Refresh` (or enable `auto`). You should see a dependency-relevant-change marker and, when applicable, kickrequest and rollout events on the `timeline-demo` lanes.
 
 ## Cleanup
 
