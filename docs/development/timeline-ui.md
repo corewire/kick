@@ -2,6 +2,8 @@
 
 KICK now exposes a timeline API and browser UI for workload restart investigations.
 
+> **⚠ Experimental — do not expose.** The timeline UI and API are an unauthenticated, read-only debug aid intended for local development (localhost / `kubectl port-forward`) only. They expose namespace, workload, policy, and event metadata with no authn/authz. Never expose `--timeline-bind-address` through an Ingress, LoadBalancer, or any untrusted network.
+
 ## Endpoints
 
 - Root: `/` (redirects to `/timeline/ui`)

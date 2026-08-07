@@ -1,5 +1,7 @@
 # Timeline UI demo example
 
+> **⚠ Experimental:** the timeline UI is an unauthenticated debug aid — localhost / port-forward only, never behind an Ingress.
+
 This example is a small namespace that exists only to demo timeline discovery, DAG rendering, and per-workload timeline events in the UI.
 
 Files:

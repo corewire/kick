@@ -64,6 +64,7 @@ const timelineHTML = `<!doctype html>
     }
     .tools button:hover { background: #195f9c; }
     .status { padding: 6px 16px; color: var(--muted); font-size: 12px; background: var(--panel); border-bottom: 1px solid var(--line); }
+    .warnbar { background: #7a1f1f; color: #ffe3e3; font-size: 12px; font-weight: 700; padding: 7px 16px; text-align: center; letter-spacing: 0.02em; border-bottom: 1px solid #601616; }
     .legend { display: flex; flex-wrap: wrap; gap: 12px; padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
     .legend .item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
     .legend .dot { width: 10px; height: 10px; border-radius: 50%; }
@@ -145,6 +146,7 @@ const timelineHTML = `<!doctype html>
         <button id="refresh">Refresh</button>
       </div>
     </div>
+    <div class="warnbar">⚠ Experimental &amp; unauthenticated debug UI — do NOT expose via Ingress or to untrusted networks. Localhost / port-forward use only.</div>
     <div id="status" class="status">loading&hellip;</div>
     <div class="legend" id="legend"></div>
     <div class="content">
