@@ -345,3 +345,9 @@ scenarios:
     features:
       - KICK-FEAT-001
       - KICK-FEAT-007
+  - id: KICK-E2E-056
+    name: dependency selector scopes triggers
+    directory: test/e2e/scenarios/KICK-E2E-056-dependency-selector-scopes-triggers
+    status: required
+    features:
+      - KICK-FEAT-020

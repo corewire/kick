@@ -20,7 +20,7 @@ type KickRequestEnqueuer struct {
 	PolicyMatcher policy.WorkloadMatcher
 }
 
-func (e *KickRequestEnqueuer) EnqueueForConsumers(ctx context.Context, _ observation.SourceIdentity, consumers []dependency.ConsumerTarget, observedAt time.Time) error {
+func (e *KickRequestEnqueuer) EnqueueForConsumers(ctx context.Context, _ observation.SourceIdentity, sourceLabels map[string]string, consumers []dependency.ConsumerTarget, observedAt time.Time) error {
 	for _, consumer := range consumers {
 		targetRef := kickv1alpha1.ObjectReference{APIVersion: consumer.APIVersion, Kind: consumer.Kind, Name: consumer.Name}
 		if !supportedTargetRef(targetRef) {
@@ -38,6 +38,14 @@ func (e *KickRequestEnqueuer) EnqueueForConsumers(ctx context.Context, _ observa
 				return err
 			}
 			if !match.Managed {
+				continue
+			}
+			// The changed dependency must be in the policy's trigger scope.
+			ok, err := dependencySelectorMatches(match.Policy, sourceLabels)
+			if err != nil {
+				return err
+			}
+			if !ok {
 				continue
 			}
 		}

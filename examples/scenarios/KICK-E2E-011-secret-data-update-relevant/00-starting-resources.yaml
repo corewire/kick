@@ -9,8 +9,7 @@ metadata:
   name: default
   namespace: kick-example-011
 spec:
-  discovery:
-    mode: Auto
+  discovery: {}
   gitOps:
     provider: Auto
 ---

@@ -1,0 +1,49 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: kick-e2e-056-dependency-selector-scopes-triggers
+spec:
+  steps:
+    - name: create-fixtures
+      try:
+        - apply:
+            file: resources.yaml
+    - name: change-both-secrets
+      try:
+        - script:
+            content: |
+              set -eu
+              kubectl -n kick-e2e-056 patch secret watched-secret --type merge -p '{"stringData":{"token":"bravo"}}'
+              kubectl -n kick-e2e-056 patch secret ignored-secret --type merge -p '{"stringData":{"token":"bravo"}}'
+    - name: assert-only-watched-triggers
+      try:
+        - script:
+            content: |
+              set -eu
+              deadline=$(( $(date +%s) + 120 ))
+              while true; do
+                watched=$(kubectl -n kick-e2e-056 get kickrequest app-watched --no-headers 2>/dev/null | wc -l | tr -d ' ')
+                if [ "$watched" = "1" ]; then
+                  break
+                fi
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "expected a kickrequest for app-watched (in-scope dependency changed)" >&2
+                  kubectl -n kick-e2e-056 get kickrequests -o yaml >&2 || true
+                  exit 1
+                fi
+                sleep 2
+              done
+              # The out-of-scope dependency must never produce a request for its consumer.
+              ignored=$(kubectl -n kick-e2e-056 get kickrequest app-ignored --no-headers 2>/dev/null | wc -l | tr -d ' ')
+              if [ "$ignored" != "0" ]; then
+                echo "did not expect a kickrequest for app-ignored (dependency out of selector scope)" >&2
+                kubectl -n kick-e2e-056 get kickrequests -o yaml >&2 || true
+                exit 1
+              fi
+    - name: cleanup
+      try:
+        - delete:
+            ref:
+              apiVersion: v1
+              kind: Namespace
+              name: kick-e2e-056

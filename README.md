@@ -1,18 +1,52 @@
 # KICK operator
 
-KICK restarts your workloads when the config they depend on changes — but only when it is safe to do so.
+KICK restarts your workloads when the config they depend on changes.
 
-When a Secret or ConfigMap that a workload consumes (via `env`, `envFrom`, or a mounted volume) changes after the workload's last rollout, KICK asks your GitOps tool "are you in sync, and is a deploy window open?". If yes, it triggers a rolling restart using the standard `kubectl.kubernetes.io/restartedAt` annotation. It never uses privileged host access and never fights your GitOps controller.
+When a Secret or ConfigMap that a workload consumes (via `env`, `envFrom`, or a mounted volume) changes after the workload's last rollout, KICK triggers a rolling restart using the standard `kubectl.kubernetes.io/restartedAt` annotation. It never uses privileged host access. By default it restarts on its own; point it at a GitOps tool (Argo CD) if you want restarts gated on sync state and deploy windows.
 
 Supported workloads: `Deployment`, `StatefulSet`, `DaemonSet`.
 
-![How KICK works](docs/concept.drawio.svg)
+![How KICK works](docs/images/how-kick-works.drawio.svg)
 
-> The diagram is an editable draw.io file — open [docs/concept.drawio.svg](docs/concept.drawio.svg) in [diagrams.net](https://app.diagrams.net) to change it.
+> The diagrams are editable draw.io files under [docs/images/](docs/images/) — open any `*.drawio.svg` in [diagrams.net](https://app.diagrams.net) to change it. See [docs/concepts/overview.md](docs/concepts/overview.md) for the full picture.
 
-## Example
+## Try it
 
-Tell KICK which workloads to watch with a `KickPolicy`:
+**1. A Deployment that reads a Secret**
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: web-secret
+  namespace: shop
+type: Opaque
+stringData:
+  API_TOKEN: alpha
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: shop
+  labels: { app: web }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: web }
+  template:
+    metadata:
+      labels: { app: web }
+    spec:
+      containers:
+      - name: app
+        image: nginx
+        envFrom:
+        - secretRef:
+            name: web-secret      # the dependency KICK will watch
+```
+
+**2. A KickPolicy that watches it**
 
 ```yaml
 apiVersion: kick.corewire.io/v1alpha1
@@ -22,55 +56,74 @@ metadata:
   namespace: shop
 spec:
   discovery:
-    mode: Auto
     workloadSelector:
       matchLabels:
-        app: web          # watch every workload with this label
-  gitOps:
-    provider: Auto        # auto-detect Argo CD or Flux ownership
-  minInterval: 30s
+        app: web                  # watch the Deployment labelled app=web
 ```
 
-A matching workload just consumes config normally — no annotations required:
+No GitOps tool, no annotations — that's the whole setup. KICK auto-discovers the
+Secrets and ConfigMaps each matched workload uses.
 
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: web
-  namespace: shop
-  labels: { app: web }
-spec:
-  template:
-    spec:
-      containers:
-      - name: app
-        image: nginx
-        envFrom:
-        - secretRef:
-            name: web-secret   # change this Secret's data -> KICK restarts web
-```
-
-Change `web-secret`'s data and, once your GitOps owner is in sync and any deploy window is open, KICK restarts `web`. Inspect the decision:
+**3. Change the Secret**
 
 ```bash
-kubectl -n shop get kickrequests
+kubectl -n shop patch secret web-secret --type merge \
+  -p '{"stringData":{"API_TOKEN":"bravo"}}'
 ```
 
-Prefer KICK-native windows over a GitOps provider? Add them to the policy (an overlapping `Deny` always beats `Allow`):
+**4. Watch KICK restart the Deployment**
+
+```bash
+kubectl -n shop get kickrequests            # a KickRequest appears for web
+kubectl -n shop rollout status deploy/web   # a fresh rollout starts
+```
+
+A dependency changed, so KICK rolled the Deployment. That's it.
+
+## Go further
+
+**Watch everything automatically.** Drop the selector and KICK watches every
+`Deployment`, `StatefulSet`, and `DaemonSet` in scope, auto-discovering each
+one's Secrets and ConfigMaps:
 
 ```yaml
-  gitOps:
-    provider: Auto
-    schedule:
-      windows:
-      - kind: Allow
-        schedule: "0 2 * * *"   # 02:00 every day
-        duration: 1h
-      - kind: Deny
-        schedule: "0 2 * * 6"   # ...except Saturday 02:00
-        duration: 1h
+spec:
+  discovery: {}                   # no selector = watch every workload
 ```
+
+**Restart only on specific config changes.** Add a `dependencySelector` and a
+workload restarts only when a Secret/ConfigMap it consumes *and* matches the
+selector changes — other config changes are ignored:
+
+```yaml
+spec:
+  discovery:
+    dependencySelector:
+      matchLabels:
+        kick-scope: watched       # only these Secrets/ConfigMaps trigger restarts
+```
+
+**Respect your Argo CD sync windows.** Already on Argo CD? Point KICK at it and
+restarts only happen when the Application is in sync and a sync window is open:
+
+```yaml
+spec:
+  discovery:
+    workloadSelector:
+      matchLabels:
+        app: web
+  gitOps:
+    provider: Auto                # detect Argo CD (or Flux) ownership + windows
+```
+
+**Want a maintenance window without GitOps?** Add KICK-native windows — see
+[docs/reference/kickpolicy.md](docs/reference/kickpolicy.md).
+
+## Learn more
+
+- [How KICK works](docs/concepts/overview.md) — the full picture, with diagrams
+- [KickPolicy reference](docs/reference/kickpolicy.md) — every field
+- [Dependency discovery](docs/concepts/dependency-discovery.md) · [Freshness](docs/concepts/freshness.md) · [GitOps gates](docs/concepts/gitops-gates.md)
 
 > **Status:** bootstrap baseline — stable, provider-neutral foundations (API, dependency extraction, controller/Argo CD boundaries, traceability). Some Kubernetes-timestamp and Argo CD ownership/window details remain explicit research tasks; do not replace them with assumptions.
 

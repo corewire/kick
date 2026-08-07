@@ -48,7 +48,6 @@ func TestKickPolicyValidationEnvtest(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "default", Namespace: "payments"},
 		Spec: kickv1alpha1.KickPolicySpec{
 			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{
-				Mode:             kickv1alpha1.KickPolicyDiscoveryModeAuto,
 				WorkloadSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "payments-api"}},
 			},
 			GitOps:      kickv1alpha1.KickPolicyGitOpsSpec{Provider: kickv1alpha1.KickPolicyProviderAuto},
@@ -61,9 +60,6 @@ func TestKickPolicyValidationEnvtest(t *testing.T) {
 	var persisted kickv1alpha1.KickPolicy
 	if err := c.Get(ctx, client.ObjectKeyFromObject(valid), &persisted); err != nil {
 		t.Fatalf("get valid kickpolicy: %v", err)
-	}
-	if persisted.Spec.Discovery.Mode != kickv1alpha1.KickPolicyDiscoveryModeAuto {
-		t.Fatalf("unexpected discovery mode: %s", persisted.Spec.Discovery.Mode)
 	}
 	if persisted.Spec.Discovery.WorkloadSelector == nil || persisted.Spec.Discovery.WorkloadSelector.MatchLabels["app"] != "payments-api" {
 		t.Fatalf("unexpected workloadSelector: %#v", persisted.Spec.Discovery.WorkloadSelector)
@@ -81,29 +77,61 @@ func TestKickPolicyValidationEnvtest(t *testing.T) {
 		t.Fatalf("unexpected minInterval: %s", persisted.Spec.MinInterval)
 	}
 
-	invalidMissing := &kickv1alpha1.KickPolicy{
-		ObjectMeta: metav1.ObjectMeta{Name: "missing", Namespace: "payments"},
-		Spec:       kickv1alpha1.KickPolicySpec{},
-	}
-	if err := c.Create(ctx, invalidMissing); err == nil {
-		t.Fatalf("expected missing required fields to fail validation")
-	}
-
-	invalidMode := &kickv1alpha1.KickPolicy{
-		ObjectMeta: metav1.ObjectMeta{Name: "badmode", Namespace: "payments"},
+	// A policy without a gitOps block is accepted; provider defaults to None.
+	noGitOps := &kickv1alpha1.KickPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "no-gitops", Namespace: "payments"},
 		Spec: kickv1alpha1.KickPolicySpec{
-			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{Mode: "Full"},
-			GitOps:    kickv1alpha1.KickPolicyGitOpsSpec{Provider: kickv1alpha1.KickPolicyProviderAuto},
+			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{
+				WorkloadSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "x"}},
+			},
 		},
 	}
-	if err := c.Create(ctx, invalidMode); err == nil {
-		t.Fatalf("expected invalid discovery mode to fail validation")
+	if err := c.Create(ctx, noGitOps); err != nil {
+		t.Fatalf("expected gitOps-less kickpolicy to be accepted: %v", err)
+	}
+	var persistedNoGitOps kickv1alpha1.KickPolicy
+	if err := c.Get(ctx, client.ObjectKeyFromObject(noGitOps), &persistedNoGitOps); err != nil {
+		t.Fatalf("get gitOps-less kickpolicy: %v", err)
+	}
+	if persistedNoGitOps.Spec.GitOps.Provider != kickv1alpha1.KickPolicyProviderNone {
+		t.Fatalf("provider default not applied: %q", persistedNoGitOps.Spec.GitOps.Provider)
+	}
+
+	// A dependencySelector is accepted and round-trips.
+	withDepSelector := &kickv1alpha1.KickPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "dep-selector", Namespace: "payments"},
+		Spec: kickv1alpha1.KickPolicySpec{
+			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{
+				DependencySelector: &metav1.LabelSelector{MatchLabels: map[string]string{"kick.corewire.io/watch": "true"}},
+			},
+		},
+	}
+	if err := c.Create(ctx, withDepSelector); err != nil {
+		t.Fatalf("expected dependencySelector kickpolicy to be accepted: %v", err)
+	}
+	var persistedDep kickv1alpha1.KickPolicy
+	if err := c.Get(ctx, client.ObjectKeyFromObject(withDepSelector), &persistedDep); err != nil {
+		t.Fatalf("get dependencySelector kickpolicy: %v", err)
+	}
+	if persistedDep.Spec.Discovery.DependencySelector == nil ||
+		persistedDep.Spec.Discovery.DependencySelector.MatchLabels["kick.corewire.io/watch"] != "true" {
+		t.Fatalf("dependencySelector not persisted: %#v", persistedDep.Spec.Discovery.DependencySelector)
+	}
+
+	// A minimal policy (empty spec) is now valid: discovery defaults to Auto,
+	// no selector = watch all workloads, and no gitOps = restart immediately.
+	minimal := &kickv1alpha1.KickPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "minimal", Namespace: "payments"},
+		Spec:       kickv1alpha1.KickPolicySpec{},
+	}
+	if err := c.Create(ctx, minimal); err != nil {
+		t.Fatalf("expected minimal kickpolicy to be accepted: %v", err)
 	}
 
 	invalidProvider := &kickv1alpha1.KickPolicy{
 		ObjectMeta: metav1.ObjectMeta{Name: "badprovider", Namespace: "payments"},
 		Spec: kickv1alpha1.KickPolicySpec{
-			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{Mode: kickv1alpha1.KickPolicyDiscoveryModeAuto},
+			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{},
 			GitOps:    kickv1alpha1.KickPolicyGitOpsSpec{Provider: "Unknown"},
 		},
 	}
@@ -114,7 +142,7 @@ func TestKickPolicyValidationEnvtest(t *testing.T) {
 	invalidInterval := &kickv1alpha1.KickPolicy{
 		ObjectMeta: metav1.ObjectMeta{Name: "badinterval", Namespace: "payments"},
 		Spec: kickv1alpha1.KickPolicySpec{
-			Discovery:   kickv1alpha1.KickPolicyDiscoverySpec{Mode: kickv1alpha1.KickPolicyDiscoveryModeAuto},
+			Discovery:   kickv1alpha1.KickPolicyDiscoverySpec{},
 			GitOps:      kickv1alpha1.KickPolicyGitOpsSpec{Provider: kickv1alpha1.KickPolicyProviderAuto},
 			MinInterval: "-5s",
 		},
@@ -155,7 +183,7 @@ func TestKickPolicyStatusRoundTripEnvtest(t *testing.T) {
 	policy := &kickv1alpha1.KickPolicy{
 		ObjectMeta: metav1.ObjectMeta{Name: "default", Namespace: "team-status"},
 		Spec: kickv1alpha1.KickPolicySpec{
-			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{Mode: kickv1alpha1.KickPolicyDiscoveryModeAuto},
+			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{},
 			GitOps:    kickv1alpha1.KickPolicyGitOpsSpec{Provider: kickv1alpha1.KickPolicyProviderAuto},
 		},
 	}

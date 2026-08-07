@@ -4,17 +4,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// KickPolicyDiscoveryMode configures dependency/workload discovery behavior.
-type KickPolicyDiscoveryMode string
-
-const (
-	KickPolicyDiscoveryModeAuto KickPolicyDiscoveryMode = "Auto"
-)
-
 // KickPolicyProvider configures GitOps ownership resolution behavior.
 type KickPolicyProvider string
 
 const (
+	KickPolicyProviderNone   KickPolicyProvider = "None"
 	KickPolicyProviderAuto   KickPolicyProvider = "Auto"
 	KickPolicyProviderArgoCD KickPolicyProvider = "ArgoCD"
 	KickPolicyProviderFlux   KickPolicyProvider = "Flux"
@@ -28,11 +22,18 @@ const (
 	KickPolicyScheduleSourceNone     KickPolicyScheduleSource = "None"
 )
 
-// KickPolicyDiscoverySpec controls workload and dependency discovery.
+// KickPolicyDiscoverySpec controls which workloads a policy manages and which of
+// their dependency changes trigger a restart. Both selectors are optional; an
+// empty or omitted selector matches everything on its axis.
 type KickPolicyDiscoverySpec struct {
-	// +kubebuilder:validation:Enum=Auto
-	Mode             KickPolicyDiscoveryMode `json:"mode"`
-	WorkloadSelector *metav1.LabelSelector   `json:"workloadSelector,omitempty"`
+	// WorkloadSelector limits which workloads this policy manages (the actors that
+	// may be restarted). Omit to manage all supported workloads in the namespace.
+	// +optional
+	WorkloadSelector *metav1.LabelSelector `json:"workloadSelector,omitempty"`
+	// DependencySelector limits which consumed Secret/ConfigMap changes trigger a
+	// restart. Omit to treat every discovered dependency as a trigger.
+	// +optional
+	DependencySelector *metav1.LabelSelector `json:"dependencySelector,omitempty"`
 }
 
 // KickPolicyWindowKind selects allow or deny semantics for a native window.
@@ -67,8 +68,11 @@ type KickPolicyScheduleSpec struct {
 
 // KickPolicyGitOpsSpec configures provider gate behavior.
 type KickPolicyGitOpsSpec struct {
-	// +kubebuilder:validation:Enum=Auto;ArgoCD;Flux
-	Provider KickPolicyProvider `json:"provider"`
+	// Provider selects the GitOps gate. "None" (the default) restarts without
+	// consulting any GitOps tool, gated only by any native schedule windows.
+	// +kubebuilder:default:=None
+	// +kubebuilder:validation:Enum=None;Auto;ArgoCD;Flux
+	Provider KickPolicyProvider `json:"provider,omitempty"`
 	// +kubebuilder:default:=true
 	RequireReconciled *bool                  `json:"requireReconciled,omitempty"`
 	Schedule          KickPolicyScheduleSpec `json:"schedule,omitempty"`
@@ -77,7 +81,8 @@ type KickPolicyGitOpsSpec struct {
 // KickPolicySpec configures workload scope and kick behavior.
 type KickPolicySpec struct {
 	Discovery KickPolicyDiscoverySpec `json:"discovery"`
-	GitOps    KickPolicyGitOpsSpec    `json:"gitOps"`
+	// +optional
+	GitOps KickPolicyGitOpsSpec `json:"gitOps,omitempty"`
 	// +kubebuilder:default:="30s"
 	// +kubebuilder:validation:Pattern=`^$|^([0-9]+(ns|us|µs|ms|s|m|h))+$`
 	MinInterval string `json:"minInterval,omitempty"`

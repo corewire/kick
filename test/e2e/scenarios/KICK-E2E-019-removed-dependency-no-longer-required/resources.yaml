@@ -9,8 +9,7 @@ metadata:
   name: default
   namespace: kick-e2e-019
 spec:
-  discovery:
-    mode: Auto
+  discovery: {}
   gitOps:
     provider: Auto
     schedule:

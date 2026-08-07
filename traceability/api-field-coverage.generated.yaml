@@ -4,8 +4,8 @@ resources:
   file: api/v1alpha1/kickpolicy_types.go
   generated: true
   fields:
-  - path: discovery.mode
   - path: discovery.workloadSelector
+  - path: discovery.dependencySelector
   - path: gitOps.provider
   - path: gitOps.requireReconciled
   - path: gitOps.schedule.source

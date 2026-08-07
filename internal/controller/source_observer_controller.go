@@ -20,13 +20,13 @@ import (
 
 // ConsumerRequestEnqueuer abstracts kick request creation/coalescing.
 type ConsumerRequestEnqueuer interface {
-	EnqueueForConsumers(ctx context.Context, source observation.SourceIdentity, consumers []dependency.ConsumerTarget, observedAt time.Time) error
+	EnqueueForConsumers(ctx context.Context, source observation.SourceIdentity, sourceLabels map[string]string, consumers []dependency.ConsumerTarget, observedAt time.Time) error
 }
 
 // NoopConsumerRequestEnqueuer is used until task 05 introduces kick request API wiring.
 type NoopConsumerRequestEnqueuer struct{}
 
-func (NoopConsumerRequestEnqueuer) EnqueueForConsumers(context.Context, observation.SourceIdentity, []dependency.ConsumerTarget, time.Time) error {
+func (NoopConsumerRequestEnqueuer) EnqueueForConsumers(context.Context, observation.SourceIdentity, map[string]string, []dependency.ConsumerTarget, time.Time) error {
 	return nil
 }
 
@@ -88,9 +88,9 @@ func (r *SourceObservationReconciler) reconcileSecret(ctx context.Context, req c
 	if result.Kind == observation.BaselineEstablished {
 		// Baseline events are only actionable when consumers already reference a
 		// previously missing optional source.
-		return true, r.Enqueuer.EnqueueForConsumers(ctx, result.Identity, consumers, observedAt)
+		return true, r.Enqueuer.EnqueueForConsumers(ctx, result.Identity, secret.GetLabels(), consumers, observedAt)
 	}
-	return true, r.Enqueuer.EnqueueForConsumers(ctx, result.Identity, consumers, observedAt)
+	return true, r.Enqueuer.EnqueueForConsumers(ctx, result.Identity, secret.GetLabels(), consumers, observedAt)
 }
 
 func (r *SourceObservationReconciler) reconcileConfigMap(ctx context.Context, req ctrl.Request) (bool, error) {
@@ -122,9 +122,9 @@ func (r *SourceObservationReconciler) reconcileConfigMap(ctx context.Context, re
 	if result.Kind == observation.BaselineEstablished {
 		// Baseline events are only actionable when consumers already reference a
 		// previously missing optional source.
-		return true, r.Enqueuer.EnqueueForConsumers(ctx, result.Identity, consumers, observedAt)
+		return true, r.Enqueuer.EnqueueForConsumers(ctx, result.Identity, configMap.GetLabels(), consumers, observedAt)
 	}
-	return true, r.Enqueuer.EnqueueForConsumers(ctx, result.Identity, consumers, observedAt)
+	return true, r.Enqueuer.EnqueueForConsumers(ctx, result.Identity, configMap.GetLabels(), consumers, observedAt)
 }
 
 func (r *SourceObservationReconciler) SetupWithManager(mgr ctrl.Manager) error {

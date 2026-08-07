@@ -1,0 +1,80 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kick-e2e-056
+---
+apiVersion: kick.corewire.io/v1alpha1
+kind: KickPolicy
+metadata:
+  name: default
+  namespace: kick-e2e-056
+spec:
+  discovery:
+    # Only Secret/ConfigMap changes carrying this label trigger a restart.
+    dependencySelector:
+      matchLabels:
+        kick-scope: watched
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: watched-secret
+  namespace: kick-e2e-056
+  labels:
+    kick-scope: watched
+type: Opaque
+stringData:
+  token: alpha
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ignored-secret
+  namespace: kick-e2e-056
+type: Opaque
+stringData:
+  token: alpha
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-watched
+  namespace: kick-e2e-056
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app-watched
+  template:
+    metadata:
+      labels:
+        app: app-watched
+    spec:
+      containers:
+        - name: app
+          image: registry.k8s.io/pause:3.10
+          envFrom:
+            - secretRef:
+                name: watched-secret
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-ignored
+  namespace: kick-e2e-056
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app-ignored
+  template:
+    metadata:
+      labels:
+        app: app-ignored
+    spec:
+      containers:
+        - name: app
+          image: registry.k8s.io/pause:3.10
+          envFrom:
+            - secretRef:
+                name: ignored-secret

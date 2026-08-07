@@ -334,4 +334,20 @@ features:
     e2e: The timeline UI is a read-only observability aid, not gated runtime operator
       behavior.
   e2e: []
+- id: KICK-FEAT-020
+  name: Dependency selector scopes restart triggers
+  spec: specs/22-kickpolicy.md
+  task: specs/22-kickpolicy.md
+  tests:
+    unit: required
+    envtest: required
+    e2e: required
+  coverage:
+    unit:
+    - internal/controller/kickrequest_controller_test.go
+    - internal/controller/kickrequest_enqueuer_test.go
+    envtest:
+    - test/envtest/kickpolicy_api_test.go
+  e2e:
+  - KICK-E2E-056
 

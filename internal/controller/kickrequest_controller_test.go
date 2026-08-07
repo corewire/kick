@@ -270,6 +270,85 @@ func TestKickRequestReconcileRecoversExecutingRequest(t *testing.T) {
 	}
 }
 
+func TestScopeDependenciesFiltersByDependencySelector(t *testing.T) {
+	scheme := testScheme(t)
+	inSecret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "in", Namespace: "team-a", Labels: map[string]string{"rotate": "true"}}}
+	outSecret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "out", Namespace: "team-a"}}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(inSecret, outSecret).Build()
+	r := &KickRequestReconciler{Client: c}
+
+	deps := []dependency.DependencyRef{
+		{APIVersion: "v1", Kind: dependency.Secret, Namespace: "team-a", Name: "in"},
+		{APIVersion: "v1", Kind: dependency.Secret, Namespace: "team-a", Name: "out"},
+	}
+
+	pol := &kickv1alpha1.KickPolicy{Spec: kickv1alpha1.KickPolicySpec{Discovery: kickv1alpha1.KickPolicyDiscoverySpec{
+		DependencySelector: &metav1.LabelSelector{MatchLabels: map[string]string{"rotate": "true"}},
+	}}}
+	got, err := r.scopeDependencies(context.Background(), pol, deps)
+	if err != nil {
+		t.Fatalf("scopeDependencies: %v", err)
+	}
+	if len(got) != 1 || got[0].Name != "in" {
+		t.Fatalf("expected only the in-scope secret, got %#v", got)
+	}
+
+	// No selector keeps every dependency without extra reads.
+	all, err := r.scopeDependencies(context.Background(), &kickv1alpha1.KickPolicy{}, deps)
+	if err != nil {
+		t.Fatalf("scopeDependencies (no selector): %v", err)
+	}
+	if len(all) != 2 {
+		t.Fatalf("expected all dependencies without a selector, got %d", len(all))
+	}
+}
+
+func TestKickRequestReconcileNoProviderRestartsWithoutGate(t *testing.T) {
+	scheme := testScheme(t)
+	dep := testDeployment("team-a", "api")
+	req := testKickRequest("team-a", "api")
+
+	c := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(&kickv1alpha1.KickRequest{}).WithObjects(dep, req).Build()
+	policyObj := &kickv1alpha1.KickPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "default", Namespace: "team-a"},
+		Spec:       kickv1alpha1.KickPolicySpec{GitOps: kickv1alpha1.KickPolicyGitOpsSpec{Provider: kickv1alpha1.KickPolicyProviderNone}},
+	}
+	matcher := &stubPolicyMatcher{result: policy.MatchResult{Managed: true, Policy: policyObj}}
+	gate := &stubGateResolver{decision: gitops.GateDecision{Allowed: true, Reconciled: true, Reason: gitops.GateAllowed}}
+	fresh := &stubFreshnessEvaluator{decision: freshness.FreshnessDecision{RestartRequired: true}}
+	exec := &stubRestartExecutor{}
+
+	r := &KickRequestReconciler{
+		Client:             c,
+		Scheme:             scheme,
+		PolicyMatcher:      matcher,
+		GateResolver:       gate,
+		ObservationStore:   observation.NewMemoryStore(),
+		FreshnessEvaluator: fresh,
+		RestartExecutor:    exec,
+		Clock:              func() time.Time { return time.Now().UTC() },
+		RequeueInterval:    30 * time.Second,
+	}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Namespace: "team-a", Name: "api"}}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if gate.calls != 0 {
+		t.Fatalf("gate resolver must not run without a GitOps provider")
+	}
+	if exec.calls != 1 {
+		t.Fatalf("executor calls = %d, want 1", exec.calls)
+	}
+
+	var got kickv1alpha1.KickRequest
+	if err := c.Get(context.Background(), types.NamespacedName{Namespace: "team-a", Name: "api"}, &got); err != nil {
+		t.Fatalf("get request: %v", err)
+	}
+	if got.Status.Phase != kickv1alpha1.KickRequestPhaseExecuting {
+		t.Fatalf("phase = %s, want %s", got.Status.Phase, kickv1alpha1.KickRequestPhaseExecuting)
+	}
+}
+
 func TestKickRequestReconcilePolicyUnmanagedCancelsRequest(t *testing.T) {
 	scheme := testScheme(t)
 	dep := testDeployment("team-a", "api")

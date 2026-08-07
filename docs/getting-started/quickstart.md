@@ -1,12 +1,14 @@
-# Quickstart (Kind + Argo CD)
+# Quickstart (Kind)
 
-This quickstart validates the end-to-end KICK flow:
+This validates the end-to-end KICK flow with no GitOps tool required:
 
-1. create cluster and install KICK;
-2. apply a Deployment with Secret/ConfigMap dependencies;
-3. create a KickPolicy;
-4. update a dependency;
-5. observe KickRequest lifecycle.
+1. create the cluster and install KICK;
+2. apply a Deployment that reads a Secret, plus a KickPolicy;
+3. change the Secret;
+4. watch KICK restart the Deployment.
+
+> All commands pass explicit `--kubeconfig .kubeconfig-kind-kick-dev` and
+> `--context kind-kick-dev`, per this repo's rules.
 
 ## 1) Cluster and KICK
 
@@ -16,7 +18,68 @@ make kind-load
 make install
 ```
 
-## 2) Install Argo CD
+## 2) Apply a workload and a policy
+
+```bash
+kubectl --kubeconfig .kubeconfig-kind-kick-dev --context kind-kick-dev apply -f - <<'EOF'
+apiVersion: v1
+kind: Namespace
+metadata: { name: shop }
+---
+apiVersion: v1
+kind: Secret
+metadata: { name: web-secret, namespace: shop }
+type: Opaque
+stringData: { API_TOKEN: alpha }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: web, namespace: shop, labels: { app: web } }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: web } }
+  template:
+    metadata: { labels: { app: web } }
+    spec:
+      containers:
+      - name: app
+        image: nginx
+        envFrom:
+        - secretRef: { name: web-secret }
+---
+apiVersion: kick.corewire.io/v1alpha1
+kind: KickPolicy
+metadata: { name: web, namespace: shop }
+spec:
+  discovery:
+    workloadSelector:
+      matchLabels: { app: web }
+EOF
+```
+
+## 3) Change the Secret
+
+```bash
+kubectl --kubeconfig .kubeconfig-kind-kick-dev --context kind-kick-dev -n shop \
+  patch secret web-secret --type merge -p '{"stringData":{"API_TOKEN":"bravo"}}'
+```
+
+## 4) Observe request and rollout
+
+```bash
+kubectl --kubeconfig .kubeconfig-kind-kick-dev --context kind-kick-dev -n shop get kickrequests -w
+kubectl --kubeconfig .kubeconfig-kind-kick-dev --context kind-kick-dev -n shop rollout status deploy/web --timeout=5m
+```
+
+Success signal:
+
+- a KickRequest appears and reaches `Succeeded` or `NoLongerRequired`;
+- the Deployment starts a fresh rollout.
+
+## Optional: gate on Argo CD
+
+To make restarts respect Argo CD ownership and sync windows, install Argo CD and
+set `spec.gitOps.provider: Auto` on the policy:
 
 ```bash
 kubectl --kubeconfig .kubeconfig-kind-kick-dev --context kind-kick-dev create namespace argocd
@@ -24,36 +87,5 @@ kubectl --kubeconfig .kubeconfig-kind-kick-dev --context kind-kick-dev apply -n 
 kubectl --kubeconfig .kubeconfig-kind-kick-dev --context kind-kick-dev -n argocd rollout status deploy/argocd-server --timeout=5m
 ```
 
-## 3) Apply example workload and policy
-
-Use examples from [examples/argocd-autodiscovery.md](../../examples/argocd-autodiscovery.md).
-
-Apply:
-
-- Secret and ConfigMap used by the Deployment;
-- Deployment with Argo CD tracking annotation;
-- KickPolicy selecting the workload.
-
-## 4) Trigger dependency change
-
-Patch a referenced Secret or ConfigMap data field.
-
-```bash
-kubectl --kubeconfig .kubeconfig-kind-kick-dev --context kind-kick-dev -n payments patch secret payments-database --type merge -p '{"stringData":{"password":"rotated"}}'
-```
-
-## 5) Observe request and rollout
-
-```bash
-kubectl --kubeconfig .kubeconfig-kind-kick-dev --context kind-kick-dev -n payments get kickrequests -w
-kubectl --kubeconfig .kubeconfig-kind-kick-dev --context kind-kick-dev -n payments describe kickrequest <name>
-kubectl --kubeconfig .kubeconfig-kind-kick-dev --context kind-kick-dev -n payments rollout status deploy/payments-api --timeout=5m
-```
-
-Success signal:
-
-- KickRequest reaches `Succeeded` or `NoLongerRequired`.
-
-Failure signal:
-
-- KickRequest reaches `Failed` or remains blocked in a waiting phase.
+See [examples/argocd-autodiscovery.md](../../examples/argocd-autodiscovery.md) for
+a full Argo CD-tracked workload and policy.

@@ -32,7 +32,7 @@ func TestMatchDeploymentSingleMatch(t *testing.T) {
 	policy := &kickv1alpha1.KickPolicy{
 		ObjectMeta: metav1.ObjectMeta{Name: "default", Namespace: "payments"},
 		Spec: kickv1alpha1.KickPolicySpec{
-			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{Mode: kickv1alpha1.KickPolicyDiscoveryModeAuto},
+			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{},
 			GitOps:    kickv1alpha1.KickPolicyGitOpsSpec{Provider: kickv1alpha1.KickPolicyProviderAuto},
 		},
 	}
@@ -56,7 +56,6 @@ func TestMatchDeploymentSelectorMatchAndConflict(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "p1", Namespace: "payments"},
 		Spec: kickv1alpha1.KickPolicySpec{
 			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{
-				Mode:             kickv1alpha1.KickPolicyDiscoveryModeAuto,
 				WorkloadSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"tier": "prod"}},
 			},
 			GitOps: kickv1alpha1.KickPolicyGitOpsSpec{Provider: kickv1alpha1.KickPolicyProviderAuto},
@@ -84,7 +83,6 @@ func TestMatchDeploymentSelectorExcludes(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "default", Namespace: "payments"},
 		Spec: kickv1alpha1.KickPolicySpec{
 			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{
-				Mode:             kickv1alpha1.KickPolicyDiscoveryModeAuto,
 				WorkloadSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"enabled": "true"}},
 			},
 			GitOps: kickv1alpha1.KickPolicyGitOpsSpec{Provider: kickv1alpha1.KickPolicyProviderAuto},

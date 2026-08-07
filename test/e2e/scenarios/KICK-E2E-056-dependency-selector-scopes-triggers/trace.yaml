@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-056
+name: dependency-selector-scopes-triggers
+features:
+  - KICK-FEAT-020
+provider: core
+class: behavior
+required: true

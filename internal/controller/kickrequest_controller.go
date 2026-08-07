@@ -24,6 +24,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -158,6 +159,14 @@ func (r *KickRequestReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return result, err
 	}
 
+	// No GitOps provider configured: KICK gates on its own. With no native
+	// windows above, a stale dependency restarts immediately.
+	if !policyGitOpsGated(matchedPolicy) {
+		return r.evaluateFreshnessAndExecute(ctx, req, &request, workload, targetKey, matchedPolicy,
+			kickv1alpha1.GitOpsOwnerStatus{},
+			gitops.GateDecision{Allowed: true, Reconciled: true, Reason: gitops.GateAllowed, Message: "no GitOps provider configured"})
+	}
+
 	ownerStatus, gateDecision, err := r.GateResolver.ResolveOwnerAndGate(ctx, workload, now)
 	if err != nil {
 		observeControllerError("kickrequest", "ResolveOwnerAndGate")
@@ -168,7 +177,7 @@ func (r *KickRequestReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return r.handleClosedGate(ctx, req, &request, ownerStatus, gateDecision, now)
 	}
 
-	return r.evaluateFreshnessAndExecute(ctx, req, &request, workload, targetKey, ownerStatus, gateDecision)
+	return r.evaluateFreshnessAndExecute(ctx, req, &request, workload, targetKey, matchedPolicy, ownerStatus, gateDecision)
 }
 
 // dependenciesConfigured reports whether all injected collaborators are set.
@@ -294,7 +303,7 @@ func (r *KickRequestReconciler) evaluateNativeWindows(ctx context.Context, req c
 		return ctrl.Result{RequeueAfter: requeue}, true, nil
 	}
 
-	res, err := r.evaluateFreshnessAndExecute(ctx, req, request, workload, targetKey, kickv1alpha1.GitOpsOwnerStatus{}, gitops.GateDecision{Allowed: true, Reconciled: true, Reason: gitops.GateAllowed, Message: "allowed by KickPolicy window"})
+	res, err := r.evaluateFreshnessAndExecute(ctx, req, request, workload, targetKey, matchedPolicy, kickv1alpha1.GitOpsOwnerStatus{}, gitops.GateDecision{Allowed: true, Reconciled: true, Reason: gitops.GateAllowed, Message: "allowed by KickPolicy window"})
 	return res, true, err
 }
 
@@ -304,10 +313,16 @@ func (r *KickRequestReconciler) evaluateFreshnessAndExecute(
 	request *kickv1alpha1.KickRequest,
 	workload client.Object,
 	targetKey types.NamespacedName,
+	matchedPolicy *kickv1alpha1.KickPolicy,
 	ownerStatus kickv1alpha1.GitOpsOwnerStatus,
 	gateDecision gitops.GateDecision,
 ) (ctrl.Result, error) {
 	deps := dependency.ExtractDependenciesForObject(workload)
+	deps, err := r.scopeDependencies(ctx, matchedPolicy, deps)
+	if err != nil {
+		observeControllerError("kickrequest", "ScopeDependencies")
+		return ctrl.Result{}, err
+	}
 	latestChanges, err := r.latestRelevantChanges(ctx, deps)
 	if err != nil {
 		observeControllerError("kickrequest", "LatestRelevantChanges")
@@ -439,6 +454,90 @@ func policyNativeWindows(pol *kickv1alpha1.KickPolicy) []schedule.Window {
 		})
 	}
 	return out
+}
+
+// policyGitOpsGated reports whether restart decisions defer to a GitOps
+// provider. An unset or "None" provider means KICK gates on its own.
+func policyGitOpsGated(pol *kickv1alpha1.KickPolicy) bool {
+	if pol == nil {
+		return true
+	}
+	switch pol.Spec.GitOps.Provider {
+	case "", kickv1alpha1.KickPolicyProviderNone:
+		return false
+	default:
+		return true
+	}
+}
+
+// dependencySelectorMatches reports whether a changed dependency (identified by
+// its labels) is in the policy's trigger scope. A nil policy or empty selector
+// matches every dependency.
+func dependencySelectorMatches(pol *kickv1alpha1.KickPolicy, depLabels map[string]string) (bool, error) {
+	if pol == nil || pol.Spec.Discovery.DependencySelector == nil {
+		return true, nil
+	}
+	selector, err := metav1.LabelSelectorAsSelector(pol.Spec.Discovery.DependencySelector)
+	if err != nil {
+		return false, err
+	}
+	if selector.Empty() {
+		return true, nil
+	}
+	return selector.Matches(labels.Set(depLabels)), nil
+}
+
+// scopeDependencies filters a workload's dependencies to those matching the
+// policy's dependencySelector, so both the trigger and freshness evaluation
+// ignore out-of-scope Secrets/ConfigMaps. A nil/empty selector returns deps
+// unchanged without extra reads.
+func (r *KickRequestReconciler) scopeDependencies(ctx context.Context, pol *kickv1alpha1.KickPolicy, deps []dependency.DependencyRef) ([]dependency.DependencyRef, error) {
+	if pol == nil || pol.Spec.Discovery.DependencySelector == nil {
+		return deps, nil
+	}
+	selector, err := metav1.LabelSelectorAsSelector(pol.Spec.Discovery.DependencySelector)
+	if err != nil {
+		return nil, err
+	}
+	if selector.Empty() {
+		return deps, nil
+	}
+	out := make([]dependency.DependencyRef, 0, len(deps))
+	for _, dep := range deps {
+		depLabels, found, err := dependencyLabels(ctx, r.Client, dep)
+		if err != nil {
+			return nil, err
+		}
+		if !found {
+			continue
+		}
+		if selector.Matches(labels.Set(depLabels)) {
+			out = append(out, dep)
+		}
+	}
+	return out, nil
+}
+
+// dependencyLabels fetches the labels of a Secret or ConfigMap dependency.
+// found is false when the object no longer exists.
+func dependencyLabels(ctx context.Context, c client.Client, dep dependency.DependencyRef) (map[string]string, bool, error) {
+	key := client.ObjectKey{Namespace: dep.Namespace, Name: dep.Name}
+	switch dep.Kind {
+	case dependency.Secret:
+		var secret corev1.Secret
+		if err := c.Get(ctx, key, &secret); err != nil {
+			return nil, false, client.IgnoreNotFound(err)
+		}
+		return secret.GetLabels(), true, nil
+	case dependency.ConfigMap:
+		var configMap corev1.ConfigMap
+		if err := c.Get(ctx, key, &configMap); err != nil {
+			return nil, false, client.IgnoreNotFound(err)
+		}
+		return configMap.GetLabels(), true, nil
+	default:
+		return nil, false, nil
+	}
 }
 
 func (r *KickRequestReconciler) SetupWithManager(mgr ctrl.Manager) error {

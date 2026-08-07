@@ -9,8 +9,7 @@ metadata:
   name: timeline-demo
   namespace: timeline-demo
 spec:
-  discovery:
-    mode: Auto
+  discovery: {}
     workloadSelector:
       matchLabels:
         kick-demo: "true"

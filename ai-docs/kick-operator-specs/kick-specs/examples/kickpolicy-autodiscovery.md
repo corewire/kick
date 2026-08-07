@@ -10,7 +10,6 @@ metadata:
   namespace: payments
 spec:
   discovery:
-    mode: Auto
     workloadSelector:
       matchLabels:
         kick.corewire.io/enabled: "true"

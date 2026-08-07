@@ -9,8 +9,7 @@ metadata:
   name: default
   namespace: kick-example-039
 spec:
-  discovery:
-    mode: Auto
+  discovery: {}
   gitOps:
     provider: ArgoCD
 ---

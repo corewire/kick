@@ -92,8 +92,7 @@ items:
     resourceVersion: "3142"
     uid: 8e2eac71-b17d-417b-a8a8-55b81a7f6f5d
   spec:
-    discovery:
-      mode: Auto
+    discovery: {}
     gitOps:
       provider: Auto
       requireReconciled: true

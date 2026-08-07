@@ -24,32 +24,17 @@ kind: KickPolicy
 metadata:
   name: default
   namespace: payments
-spec:
-  discovery:
-    mode: Auto
-  gitOps:
-    provider: Auto
-```
-This policy enables KICK for all supported workloads in the `payments` namespace.
-
-The following fields are required:
-
-```yaml
-spec:
-  discovery:
-    mode: Auto
-  gitOps:
-    provider: Auto
-```
-An empty specification is invalid:
-
-```yaml
 spec: {}
 ```
-The explicit fields make the two fundamental policy decisions visible:
+An empty spec is valid. It enables KICK for all supported workloads in the
+`payments` namespace, treats every discovered dependency as a trigger, and
+restarts immediately when one changes (no GitOps gate).
 
-- how dependencies are discovered;
-- how GitOps ownership is resolved.
+Every field is optional. Narrow scope or add gating as needed:
+
+- `discovery.workloadSelector` — which workloads are managed;
+- `discovery.dependencySelector` — which dependency changes trigger a restart;
+- `gitOps.provider` — defer the restart decision to a GitOps tool.
 
 ---
 
@@ -63,7 +48,6 @@ metadata:
   namespace: payments
 spec:
   discovery:
-    mode: Auto
     workloadSelector:
       matchLabels:
         kick.corewire.io/enabled: "true"
@@ -89,11 +73,11 @@ metadata:
   namespace: string
 spec:
   discovery:
-    mode: Auto
     workloadSelector: {}
+    dependencySelector: {}
 
   gitOps:
-    provider: Auto
+    provider: None
     requireReconciled: true
     schedule:
       source: Provider
@@ -130,50 +114,28 @@ The `discovery` section defines how KICK discovers workloads and their dependenc
 ```yaml
 spec:
   discovery:
-    mode: Auto
     workloadSelector: {}
+    dependencySelector: {}
 ```
 
 ---
 
-## `spec.discovery.mode`
-Type:
-
-```text
-string
-```
-Required:
-
-```text
-Yes
-```
-Supported values in `v1alpha1`:
-
-```text
-Auto
-```
-Example:
-
-```yaml
-spec:
-  discovery:
-    mode: Auto
-```
-
-### `Auto`
-KICK automatically discovers:
+## Discovery is always automatic
+KICK always discovers, without any manual list:
 
 1. supported workloads selected by the policy;
 2. Secrets and ConfigMaps referenced by those workloads;
 3. reverse relationships from each dependency to its consuming workloads.
-No source or target names need to be declared manually.
 
-Future versions may add additional values such as:
+There is no discovery `mode` field. Two optional selectors scope the policy; an
+empty or omitted selector matches everything on its axis:
 
-```text
-Explicit
-```
-Such values must not be added until a concrete use case and complete behavior specification exist.
+- `workloadSelector` — which workloads are managed (the actors that may restart);
+- `dependencySelector` — which consumed Secret/ConfigMap changes trigger a restart.
+
+A workload restarts when it consumes a changed dependency, the workload is in
+`workloadSelector` scope, and the changed dependency is in `dependencySelector`
+scope.
 
 ---
 
@@ -256,7 +218,6 @@ Example:
 ```yaml
 spec:
   discovery:
-    mode: Auto
     workloadSelector:
       matchLabels:
         kick.corewire.io/enabled: "true"
@@ -266,7 +227,6 @@ Example using expressions:
 ```yaml
 spec:
   discovery:
-    mode: Auto
     workloadSelector:
       matchExpressions:
         - key: environment
@@ -286,15 +246,53 @@ The selector must be reevaluated when:
 
 ---
 
+## `spec.discovery.dependencySelector`
+Type:
+
+```text
+metav1.LabelSelector
+```
+Required:
+
+```text
+No
+```
+Default:
+
+```text
+{}
+```
+An empty selector treats every discovered dependency as a trigger. When set, only
+Secret/ConfigMap changes whose object labels match count as triggers.
+
+`dependencySelector` also scopes freshness: a dependency outside the selector
+never marks a workload stale, so out-of-scope changes neither create a kick nor
+keep one alive.
+
+Example — only rotate on Secrets labelled for KICK:
+
+```yaml
+spec:
+  discovery:
+    dependencySelector:
+      matchLabels:
+        kick.corewire.io/watch: "true"
+```
+
+---
+
 # `spec.gitOps`
 
 ## Purpose
-The `gitOps` section defines how KICK discovers and evaluates the GitOps system managing a workload.
+The `gitOps` section defines whether and how KICK gates a restart on a GitOps
+system. The whole section is optional; when omitted, `provider` defaults to
+`None` and KICK gates only on its own (native windows if any, otherwise it
+restarts as soon as a dependency is stale).
 
 ```yaml
 spec:
   gitOps:
-    provider: Auto
+    provider: None
     requireReconciled: true
     schedule:
       source: Provider
@@ -311,15 +309,29 @@ string
 Required:
 
 ```text
-Yes
+No
+```
+Default:
+
+```text
+None
 ```
 Supported values:
 
 ```text
+None
 Auto
 ArgoCD
 Flux
 ```
+
+---
+
+## `None`
+KICK does not consult any GitOps system. The restart is gated only by KICK-native
+schedule windows (if configured); with no windows a stale dependency restarts
+immediately. This is the default, so a policy without a `gitOps` block works
+standalone — no Argo CD or Flux required.
 
 ---
 
@@ -760,7 +772,6 @@ Possible reasons:
 Accepted
 InvalidConfiguration
 InvalidSelector
-UnsupportedDiscoveryMode
 UnsupportedProvider
 ```
 
@@ -794,50 +805,42 @@ ProviderConfigurationMissing
 # Validation
 The CRD must reject:
 
-- missing `spec.discovery`;
-- missing `spec.discovery.mode`;
-- unsupported discovery modes;
-- missing `spec.gitOps`;
-- missing `spec.gitOps.provider`;
 - unsupported provider values;
 - unsupported schedule sources;
 - invalid label selectors;
 - negative `minInterval` values.
-Valid minimal configuration:
 
-```yaml
-spec:
-  discovery:
-    mode: Auto
-  gitOps:
-    provider: Auto
-```
-Invalid configurations:
+`discovery` and `gitOps` are optional; an omitted `gitOps` defaults `provider` to
+`None`.
+
+Valid minimal configuration:
 
 ```yaml
 spec: {}
 ```
+Also valid — scope by workload and/or dependency, and optionally gate on a provider:
 
 ```yaml
 spec:
   discovery:
-    mode: Auto
+    workloadSelector:
+      matchLabels:
+        app: web
+    dependencySelector:
+      matchLabels:
+        kick.corewire.io/watch: "true"
+  gitOps:
+    provider: Auto
 ```
+Invalid configuration — an unsupported provider value:
 
 ```yaml
 spec:
   gitOps:
-    provider: Auto
+    provider: Full
 ```
-
-```yaml
-spec:
-  discovery:
-    mode: Full
-  gitOps:
-    provider: Auto
-```
-`Full` is invalid unless explicitly added as a supported value in a future API version.
+`Full` is not a supported provider; supported values are `None`, `Auto`,
+`ArgoCD`, and `Flux`.
 
 ---
 
@@ -883,19 +886,19 @@ KICK-FEAT-POLICY
 ```
 Required cases:
 
-1. missing `discovery` is rejected;
-2. missing `discovery.mode` is rejected;
-3. `discovery.mode: Auto` is accepted;
-4. unsupported discovery mode is rejected;
-5. missing `gitOps` is rejected;
-6. missing `gitOps.provider` is rejected;
-7. `provider: Auto` is accepted;
-8. `provider: ArgoCD` is accepted;
-9. `provider: Flux` is accepted;
-10. unsupported provider is rejected;
-11. default workload selector matches all workloads;
-12. configured selector matches eligible workloads;
-13. configured selector excludes non-matching workloads;
+1. an empty spec is accepted (discovery and gitOps are optional);
+2. missing `gitOps` defaults `provider` to `None`;
+3. `provider: None` is accepted;
+4. `provider: Auto` is accepted;
+5. `provider: ArgoCD` is accepted;
+6. `provider: Flux` is accepted;
+7. unsupported provider is rejected;
+8. default workload selector matches all workloads;
+9. configured workload selector matches eligible workloads;
+10. configured workload selector excludes non-matching workloads;
+11. an empty `dependencySelector` treats every dependency as a trigger;
+12. a configured `dependencySelector` restarts only consumers of matching dependencies;
+13. a change to an out-of-scope dependency does not create a kick;
 14. a policy cannot select a workload in another namespace;
 15. `requireReconciled` defaults to true;
 16. schedule source defaults to `Provider`;
@@ -918,7 +921,8 @@ Required cases:
 A namespace without a `KickPolicy` is ignored.
 
 ## `KICK-E2E-POLICY-002`
-A policy with `discovery.mode: Auto` and `gitOps.provider: Auto` enables matching workloads.
+A policy with an empty spec enables all matching workloads and restarts them on a
+dependency change without a GitOps provider.
 
 ## `KICK-E2E-POLICY-003`
 An empty workload selector manages all supported workloads in the namespace.
@@ -930,7 +934,7 @@ A workload selector restricts management to matching workloads.
 The policy does not affect another namespace.
 
 ## `KICK-E2E-POLICY-006`
-Missing required policy fields are rejected by the API server.
+Unsupported field values (e.g. an unknown provider) are rejected by the API server.
 
 ## `KICK-E2E-POLICY-007`
 Two policies matching the same workload block the workload.
@@ -973,13 +977,13 @@ Policy status reports matched and conflicting workloads.
 # Acceptance criteria
 The `KickPolicy` feature is complete when:
 
-- `discovery.mode` is required;
-- `gitOps.provider` is required;
-- the minimal valid policy explicitly uses `Auto` for both fields;
+- `discovery` and `gitOps` are optional; an empty spec is valid;
+- `gitOps.provider` defaults to `None`, gating on KICK's own logic;
 - namespaces without a policy are ignored;
 - automatic dependency discovery works for selected workloads;
 - `imagePullSecrets` are excluded;
-- workload selectors correctly limit scope;
+- `workloadSelector` correctly limits which workloads are managed;
+- `dependencySelector` correctly limits which dependency changes trigger a restart;
 - cross-namespace workload selection is impossible;
 - exactly one policy controls each managed workload;
 - overlapping policies block rather than merge behavior;

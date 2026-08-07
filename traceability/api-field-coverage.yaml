@@ -116,16 +116,19 @@ resources:
 - type: KickPolicySpec
   file: api/v1alpha1/kickpolicy_types.go
   fields:
-  - path: discovery.mode
-    required: true
-    coverage:
-      envtest:
-      - test/envtest/kickpolicy_api_test.go
   - path: discovery.workloadSelector
     required: true
     coverage:
       unit:
       - internal/policy/matcher_test.go
+      envtest:
+      - test/envtest/kickpolicy_api_test.go
+  - path: discovery.dependencySelector
+    required: true
+    coverage:
+      unit:
+      - internal/controller/kickrequest_controller_test.go
+      - internal/controller/kickrequest_enqueuer_test.go
       envtest:
       - test/envtest/kickpolicy_api_test.go
   - path: gitOps.provider

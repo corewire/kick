@@ -31,7 +31,6 @@ func TestHandleDiscoveryListsAndFiltersPolicyMatchedWorkloads(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "policy-api", Namespace: "team-a"},
 		Spec: kickv1alpha1.KickPolicySpec{
 			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{
-				Mode:             kickv1alpha1.KickPolicyDiscoveryModeAuto,
 				WorkloadSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
 			},
 			GitOps: kickv1alpha1.KickPolicyGitOpsSpec{Provider: kickv1alpha1.KickPolicyProviderAuto},
@@ -40,7 +39,7 @@ func TestHandleDiscoveryListsAndFiltersPolicyMatchedWorkloads(t *testing.T) {
 	policyAll := &kickv1alpha1.KickPolicy{
 		ObjectMeta: metav1.ObjectMeta{Name: "policy-all", Namespace: "team-a"},
 		Spec: kickv1alpha1.KickPolicySpec{
-			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{Mode: kickv1alpha1.KickPolicyDiscoveryModeAuto},
+			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{},
 			GitOps:    kickv1alpha1.KickPolicyGitOpsSpec{Provider: kickv1alpha1.KickPolicyProviderAuto},
 		},
 	}
@@ -101,7 +100,7 @@ func TestHandleDAGBuildsPolicyWorkloadDependencyGraph(t *testing.T) {
 	policy := &kickv1alpha1.KickPolicy{
 		ObjectMeta: metav1.ObjectMeta{Name: "policy-api", Namespace: "team-a"},
 		Spec: kickv1alpha1.KickPolicySpec{
-			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{Mode: kickv1alpha1.KickPolicyDiscoveryModeAuto},
+			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{},
 			GitOps:    kickv1alpha1.KickPolicyGitOpsSpec{Provider: kickv1alpha1.KickPolicyProviderAuto},
 		},
 	}
@@ -187,14 +186,14 @@ func TestHandleNamespacesAndResources(t *testing.T) {
 	policyA := &kickv1alpha1.KickPolicy{
 		ObjectMeta: metav1.ObjectMeta{Name: "policy-a", Namespace: "team-a"},
 		Spec: kickv1alpha1.KickPolicySpec{
-			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{Mode: kickv1alpha1.KickPolicyDiscoveryModeAuto},
+			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{},
 			GitOps:    kickv1alpha1.KickPolicyGitOpsSpec{Provider: kickv1alpha1.KickPolicyProviderAuto},
 		},
 	}
 	policyB := &kickv1alpha1.KickPolicy{
 		ObjectMeta: metav1.ObjectMeta{Name: "policy-b", Namespace: "team-b"},
 		Spec: kickv1alpha1.KickPolicySpec{
-			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{Mode: kickv1alpha1.KickPolicyDiscoveryModeAuto},
+			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{},
 			GitOps:    kickv1alpha1.KickPolicyGitOpsSpec{Provider: kickv1alpha1.KickPolicyProviderAuto},
 		},
 	}
@@ -351,7 +350,7 @@ func TestHandleOverviewAggregatesAcrossNamespaces(t *testing.T) {
 	policyA := &kickv1alpha1.KickPolicy{
 		ObjectMeta: metav1.ObjectMeta{Name: "web", Namespace: "team-a"},
 		Spec: kickv1alpha1.KickPolicySpec{
-			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{Mode: kickv1alpha1.KickPolicyDiscoveryModeAuto, WorkloadSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "web"}}},
+			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{WorkloadSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "web"}}},
 			GitOps:    kickv1alpha1.KickPolicyGitOpsSpec{Provider: kickv1alpha1.KickPolicyProviderAuto},
 		},
 	}
@@ -365,7 +364,7 @@ func TestHandleOverviewAggregatesAcrossNamespaces(t *testing.T) {
 	policyB := &kickv1alpha1.KickPolicy{
 		ObjectMeta: metav1.ObjectMeta{Name: "db", Namespace: "team-b"},
 		Spec: kickv1alpha1.KickPolicySpec{
-			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{Mode: kickv1alpha1.KickPolicyDiscoveryModeAuto, WorkloadSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "db"}}},
+			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{WorkloadSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "db"}}},
 			GitOps:    kickv1alpha1.KickPolicyGitOpsSpec{Provider: kickv1alpha1.KickPolicyProviderAuto},
 		},
 	}
@@ -419,4 +418,3 @@ func TestHandleOverviewAggregatesAcrossNamespaces(t *testing.T) {
 		}
 	}
 }
-

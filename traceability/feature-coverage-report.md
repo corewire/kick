@@ -21,6 +21,7 @@
 | KICK-FEAT-017 | N/A | Pass | Pass | KICK-E2E-053 | PASS |
 | KICK-FEAT-018 | Pass | N/A | N/A | - | PASS |
 | KICK-FEAT-019 | Pass | N/A | N/A | - | PASS |
+| KICK-FEAT-020 | Pass | Pass | Pass | KICK-E2E-056 | PASS |
 
 # API Field Coverage Report
 
@@ -43,8 +44,8 @@
 | KickRequestStatus | currentRollout.replicaSet | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickrequest_api_test.go |
 | KickRequestStatus | currentRollout.startedAt | yes | Covered | Covered | Covered | PASS | unit=internal/executor/restart_test.go,internal/controller/kickrequest_controller_test.go; envtest=test/envtest/kickrequest_api_test.go; e2e=KICK-E2E-043(covered) |
 | KickRequestStatus | conditions | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickrequest_api_test.go |
-| KickPolicySpec | discovery.mode | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickpolicy_api_test.go |
 | KickPolicySpec | discovery.workloadSelector | yes | Covered | Covered | Missing | PASS | unit=internal/policy/matcher_test.go; envtest=test/envtest/kickpolicy_api_test.go |
+| KickPolicySpec | discovery.dependencySelector | yes | Covered | Covered | Missing | PASS | unit=internal/controller/kickrequest_controller_test.go,internal/controller/kickrequest_enqueuer_test.go; envtest=test/envtest/kickpolicy_api_test.go |
 | KickPolicySpec | gitOps.provider | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickpolicy_api_test.go |
 | KickPolicySpec | gitOps.requireReconciled | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickpolicy_api_test.go |
 | KickPolicySpec | gitOps.schedule.source | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickpolicy_api_test.go |

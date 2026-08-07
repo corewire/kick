@@ -23,7 +23,7 @@ type captureEnqueuer struct {
 	seen  map[string]struct{}
 }
 
-func (e *captureEnqueuer) EnqueueForConsumers(_ context.Context, _ observation.SourceIdentity, consumers []dependency.ConsumerTarget, _ time.Time) error {
+func (e *captureEnqueuer) EnqueueForConsumers(_ context.Context, _ observation.SourceIdentity, _ map[string]string, consumers []dependency.ConsumerTarget, _ time.Time) error {
 	e.calls++
 	if e.seen == nil {
 		e.seen = map[string]struct{}{}

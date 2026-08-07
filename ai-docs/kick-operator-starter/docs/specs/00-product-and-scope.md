@@ -4,7 +4,7 @@
 
 KICK ensures that Kubernetes workloads receive current Secret and ConfigMap values when Kubernetes itself does not trigger a rollout.
 
-A workload can appear healthy and its GitOps owner can appear reconciled while running Pods still contain older environment-variable values or application state loaded from mounted files. KICK detects this hidden restart requirement and performs the restart only when the GitOps provider permits it.
+A workload can appear healthy and its GitOps owner can appear reconciled while running Pods still contain older environment-variable values or application state loaded from mounted files. KICK detects this hidden restart requirement and performs the restart when policy allows — immediately by default, or gated on a GitOps provider or maintenance windows when configured.
 
 ## Product statement
 
