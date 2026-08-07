@@ -41,6 +41,9 @@ jobs:
       - name: Lint
         run: make lint
 
+      - name: Static analysis (security + complexity)
+        run: make static-check
+
       - name: Unit and envtest smoke tests
         run: make test
 

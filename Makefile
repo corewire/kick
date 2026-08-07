@@ -179,7 +179,7 @@ $(KAMERA): $(LOCALBIN)
 	GOBIN=$(LOCALBIN) GOTOOLCHAIN=local go install github.com/tgoodwin/kamera/cmd/kamera@$(KAMERA_VERSION)
 
 .PHONY: verify
-verify: fmt vet lint test helm-lint helm-template docs-gen-check feature-coverage
+verify: fmt vet lint static-check test helm-lint helm-template docs-gen-check feature-coverage
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE)
