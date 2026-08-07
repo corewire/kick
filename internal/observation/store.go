@@ -23,7 +23,7 @@ type SourceIdentity struct {
 	Name       string
 }
 
-// Record is the durable observation model used by the spike prototype.
+// Record is the durable observation model for a watched source.
 type Record struct {
 	Identity                    SourceIdentity
 	LastSeenResourceVersion     string
@@ -38,7 +38,7 @@ type Store interface {
 	Upsert(context.Context, Record) error
 }
 
-// MemoryStore is a deterministic prototype store used for tests and spikes.
+// MemoryStore is a deterministic in-memory Store used in tests.
 type MemoryStore struct {
 	mu      sync.RWMutex
 	records map[string]Record

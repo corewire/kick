@@ -1,3 +1,3 @@
-// Package observation contains Task 03 spike interfaces and prototypes for
-// durable Secret/ConfigMap change observations.
+// Package observation provides durable observation of Secret and ConfigMap
+// content changes for KICK.
 package observation

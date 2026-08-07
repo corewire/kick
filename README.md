@@ -179,4 +179,4 @@ Timeline UI path: `/timeline/ui` — opens a compact cross-namespace overview (s
 
 The controller ServiceAccount requires read access to Secrets and ConfigMaps in managed namespaces to evaluate dependency freshness. Treat this ServiceAccount as sensitive and scope RBAC and namespace access accordingly.
 
-Dependencies are pinned as starter values and must be reviewed before the first production implementation pull request.
+Dependencies are pinned and should be reviewed before each production release.

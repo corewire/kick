@@ -23,7 +23,7 @@ type ConsumerRequestEnqueuer interface {
 	EnqueueForConsumers(ctx context.Context, source observation.SourceIdentity, sourceLabels map[string]string, consumers []dependency.ConsumerTarget, observedAt time.Time) error
 }
 
-// NoopConsumerRequestEnqueuer is used until task 05 introduces kick request API wiring.
+// NoopConsumerRequestEnqueuer is a no-op enqueuer used as a default and in tests.
 type NoopConsumerRequestEnqueuer struct{}
 
 func (NoopConsumerRequestEnqueuer) EnqueueForConsumers(context.Context, observation.SourceIdentity, map[string]string, []dependency.ConsumerTarget, time.Time) error {

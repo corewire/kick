@@ -1,6 +1,6 @@
 # Dependency Discovery
 
-KICK supports `apps/v1 Deployment` in the initial release.
+KICK supports `Deployment`, `StatefulSet`, and `DaemonSet` workloads.
 
 Dependencies are discovered from:
 
