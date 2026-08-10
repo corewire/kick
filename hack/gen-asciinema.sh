@@ -3,20 +3,23 @@
 # Requires: asciinema, kubectl, the kind-kick-dev cluster with KICK installed.
 # Output: docs/static/casts/{restart,kickrequest,events}.cast — shown as tabs on the site.
 #
-# Each recording is independent: clean state -> apply -> rotate a Secret -> watch
-# one perspective of KICK turning that change into exactly one gated restart.
+# Kubeconfig and context are pinned to the local kind cluster once, up front, so
+# recorded commands stay clean (plain `kubectl -n kick-demo ...`). Each recording
+# runs from a clean namespace and waits for the KickRequest to settle Succeeded.
 set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
 CAST_DIR="$ROOT/docs/static/casts"
+STEP_DIR="$(mktemp -d)"
 mkdir -p "$CAST_DIR"
+trap 'rm -rf "$STEP_DIR"' EXIT
 
-# Always target the local kind cluster — never a shared/remote context.
+# Target the local kind cluster — never a shared/remote context. Set once here so
+# the recorded shells inherit it and the on-screen commands need no --context.
 export KUBECONFIG="${KICK_KUBECONFIG:-$ROOT/.kubeconfig-kind-kick-dev}"
-CONTEXT="${KIND_CONTEXT:-kind-kick-dev}"
-KUBECTL="kubectl --context $CONTEXT -n kick-demo"
+kubectl config use-context "${KIND_CONTEXT:-kind-kick-dev}" >/dev/null
 
-TMPFILE="/tmp/kick-demo.yaml"
+TMPFILE="$STEP_DIR/kick-demo.yaml"
 cat > "$TMPFILE" <<'EOF'
 apiVersion: v1
 kind: Namespace
@@ -66,77 +69,119 @@ spec:
 EOF
 
 cleanup() {
-  kubectl --context "$CONTEXT" delete namespace kick-demo --ignore-not-found >/dev/null 2>&1 || true
-  # Wait for full teardown so each recording starts from a clean baseline.
-  kubectl --context "$CONTEXT" wait --for=delete namespace/kick-demo --timeout=60s >/dev/null 2>&1 || true
+  kubectl delete namespace kick-demo --ignore-not-found >/dev/null 2>&1 || true
+  kubectl wait --for=delete namespace/kick-demo --timeout=60s >/dev/null 2>&1 || true
 }
 
-# Apply resources and wait until KICK has settled the baseline KickRequest
-# (baseline never restarts) so the recording only shows the change-driven kick.
+# Apply resources and wait until KICK settles the baseline KickRequest (baseline
+# never restarts) so a recording only shows the change-driven kick.
 prime() {
-  kubectl --context "$CONTEXT" apply -f "$TMPFILE" >/dev/null
-  $KUBECTL rollout status deploy/web --timeout=60s >/dev/null 2>&1 || true
+  kubectl apply -f "$TMPFILE" >/dev/null
+  kubectl -n kick-demo rollout status deploy/web --timeout=90s >/dev/null 2>&1 || true
   sleep 6
 }
 
-# ─── Recording 1: rotate a Secret → KICK restarts the Deployment ──────────────
-cleanup
-prime
-echo "Recording 1/3: restart"
-asciinema rec "$CAST_DIR/restart.cast" --overwrite --cols 92 --rows 24 --env "" -c "bash --norc --noprofile <<'REC'
+# ── Step script 1: the full story — rotate Secret, see the restart, see Succeeded
+cat > "$STEP_DIR/restart.sh" <<'STEPEOF'
+set -uo pipefail
+NS=kick-demo
 echo '# A Deployment consumes web-secret via envFrom. It is running and stable.'
-echo '\$ $KUBECTL get deploy web'
-$KUBECTL get deploy web
+sleep 2
+echo '$ kubectl -n kick-demo get deploy web'
+sleep 1
+kubectl -n $NS get deploy web
 sleep 3
 echo ''
 echo '# Rotate the Secret. Kubernetes alone would NOT restart the Pod.'
-echo '\$ $KUBECTL patch secret web-secret --type merge -p API_TOKEN=bravo'
-$KUBECTL patch secret web-secret --type merge -p '{\"stringData\":{\"API_TOKEN\":\"bravo\"}}'
-sleep 5
-echo ''
-echo '# KICK noticed the change and stamped a fresh rollout:'
-echo '\$ $KUBECTL get deploy web -o jsonpath restartedAt'
-$KUBECTL get deploy web -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}'
-printf '\n'
+sleep 2
+echo '$ kubectl -n kick-demo patch secret web-secret -p API_TOKEN=bravo'
 sleep 1
-echo '\$ $KUBECTL rollout status deploy/web'
-$KUBECTL rollout status deploy/web --timeout=60s
+kubectl -n $NS patch secret web-secret --type merge -p '{"stringData":{"API_TOKEN":"bravo"}}'
+sleep 4
+echo ''
+echo '# KICK stamped kubectl.kubernetes.io/restartedAt and the Deployment rolled out:'
+sleep 2
+echo '$ kubectl -n kick-demo rollout status deploy/web'
+sleep 1
+kubectl -n $NS rollout status deploy/web --timeout=90s
+sleep 3
+echo ''
+echo '# Exactly one KickRequest handled it — watch it settle Succeeded:'
+sleep 2
+echo '$ kubectl -n kick-demo get kickrequests -w'
+sleep 1
+kubectl -n $NS get kickrequests -w &
+PID=$!
+for _ in $(seq 1 45); do
+  ph=$(kubectl -n $NS get kickrequest deployment-web -o jsonpath='{.status.phase}' 2>/dev/null || true)
+  [ "$ph" = "Succeeded" ] && break
+  sleep 2
+done
+sleep 3
+kill $PID 2>/dev/null || true
+sleep 5
+printf '\n'
+STEPEOF
+
+# ── Step script 2: the KickRequest lifecycle table, ending Succeeded
+cat > "$STEP_DIR/kickrequest.sh" <<'STEPEOF'
+set -uo pipefail
+NS=kick-demo
+echo '# One coalesced KickRequest per target, from Pending to Succeeded.'
+sleep 2
+echo '$ kubectl -n kick-demo get kickrequests -w'
+sleep 1
+kubectl -n $NS get kickrequests -w &
+PID=$!
+sleep 3
+kubectl -n $NS patch secret web-secret --type merge -p '{"stringData":{"API_TOKEN":"bravo"}}' >/dev/null 2>&1
+for _ in $(seq 1 45); do
+  ph=$(kubectl -n $NS get kickrequest deployment-web -o jsonpath='{.status.phase}' 2>/dev/null || true)
+  [ "$ph" = "Succeeded" ] && break
+  sleep 2
+done
+sleep 3
+kill $PID 2>/dev/null || true
+sleep 2
+echo ''
+echo '$ kubectl -n kick-demo get kickrequests'
+sleep 1
+kubectl -n $NS get kickrequests
+sleep 6
+printf '\n'
+STEPEOF
+
+# ── Step script 3: the underlying Kubernetes events
+cat > "$STEP_DIR/events.sh" <<'STEPEOF'
+set -uo pipefail
+NS=kick-demo
+echo '# The restart is a normal, auditable Kubernetes rollout — watch the events.'
+sleep 2
+echo '$ kubectl -n kick-demo get events --watch-only'
+sleep 1
+kubectl -n $NS get events --field-selector reason!=LeaderElection --watch-only &
+PID=$!
+sleep 3
+kubectl -n $NS patch secret web-secret --type merge -p '{"stringData":{"API_TOKEN":"bravo"}}' >/dev/null 2>&1
+sleep 16
+kill $PID 2>/dev/null || true
 sleep 3
 printf '\n'
-REC"
+STEPEOF
 
-# ─── Recording 2: one coalesced KickRequest per target ────────────────────────
-cleanup
-prime
+# --idle-time-limit caps long silent gaps (e.g. the ~30s requeue wait) so playback
+# stays snappy while the recording still captures the real Succeeded transition.
+cleanup; prime
+echo "Recording 1/3: restart"
+asciinema rec "$CAST_DIR/restart.cast" --overwrite --cols 92 --rows 24 --idle-time-limit 2 --env "" -c "bash --norc --noprofile $STEP_DIR/restart.sh"
+
+cleanup; prime
 echo "Recording 2/3: kickrequest"
-asciinema rec "$CAST_DIR/kickrequest.cast" --overwrite --cols 92 --rows 24 --env "" -c "bash --norc --noprofile <<'REC'
-echo '\$ $KUBECTL get kickrequests -w'
-$KUBECTL get kickrequests -w &
-PID=\$!
-sleep 2
-$KUBECTL patch secret web-secret --type merge -p '{\"stringData\":{\"API_TOKEN\":\"bravo\"}}' >/dev/null 2>&1
-sleep 12
-kill \$PID 2>/dev/null || true
-sleep 2
-printf '\n'
-REC"
+asciinema rec "$CAST_DIR/kickrequest.cast" --overwrite --cols 92 --rows 24 --idle-time-limit 2 --env "" -c "bash --norc --noprofile $STEP_DIR/kickrequest.sh"
 
-# ─── Recording 3: Kubernetes events emitted by KICK ───────────────────────────
-cleanup
-prime
+cleanup; prime
 echo "Recording 3/3: events"
-asciinema rec "$CAST_DIR/events.cast" --overwrite --cols 110 --rows 24 --env "" -c "bash --norc --noprofile <<'REC'
-echo '\$ $KUBECTL get events --field-selector reason!=LeaderElection --watch-only'
-$KUBECTL get events --field-selector reason!=LeaderElection --watch-only &
-PID=\$!
-sleep 2
-$KUBECTL patch secret web-secret --type merge -p '{\"stringData\":{\"API_TOKEN\":\"bravo\"}}' >/dev/null 2>&1
-sleep 12
-kill \$PID 2>/dev/null || true
-sleep 2
-printf '\n'
-REC"
+asciinema rec "$CAST_DIR/events.cast" --overwrite --cols 110 --rows 24 --idle-time-limit 2 --env "" -c "bash --norc --noprofile $STEP_DIR/events.sh"
 
 cleanup
-rm -f "$TMPFILE"
-echo "✓ Generated: $CAST_DIR/{restart,kickrequest,events}.cast"
+echo "Generated: $CAST_DIR/{restart,kickrequest,events}.cast"
