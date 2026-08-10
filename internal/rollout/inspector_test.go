@@ -42,10 +42,10 @@ func TestInspectDaemonSetUsesConditionTransitionForInitialBaseline(t *testing.T)
 			Template: corev1.PodTemplateSpec{},
 		},
 		Status: appsv1.DaemonSetStatus{
-			ObservedGeneration:    1,
+			ObservedGeneration:     1,
 			DesiredNumberScheduled: 1,
 			UpdatedNumberScheduled: 1,
-			NumberAvailable:       1,
+			NumberAvailable:        1,
 			Conditions: []appsv1.DaemonSetCondition{{
 				Type:               appsv1.DaemonSetConditionType("Progressing"),
 				Status:             corev1.ConditionTrue,
@@ -78,10 +78,10 @@ func TestInspectDaemonSetPrefersRestartedAtAnnotation(t *testing.T) {
 			}}},
 		},
 		Status: appsv1.DaemonSetStatus{
-			ObservedGeneration:    2,
+			ObservedGeneration:     2,
 			DesiredNumberScheduled: 1,
 			UpdatedNumberScheduled: 1,
-			NumberAvailable:       1,
+			NumberAvailable:        1,
 			Conditions: []appsv1.DaemonSetCondition{{
 				Type:               appsv1.DaemonSetConditionType("Progressing"),
 				Status:             corev1.ConditionTrue,
