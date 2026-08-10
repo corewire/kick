@@ -52,6 +52,10 @@ func (i *LiveRolloutInspector) Inspect(ctx context.Context, workload client.Obje
 		state := InspectWithReplicaSets(obj, list.Items)
 		if state.StartedAt.IsZero() {
 			state.StartedAt = restartStartedAt(obj.Spec.Template.Annotations, obj.CreationTimestamp.Time)
+		} else if obj.Spec.Template.Annotations == nil || obj.Spec.Template.Annotations["kubectl.kubernetes.io/restartedAt"] == "" {
+			if t, ok := latestDeploymentConditionTime(obj.Status.Conditions); ok && t.After(state.StartedAt) {
+				state.StartedAt = t
+			}
 		}
 		return state, nil
 	case *appsv1.StatefulSet:
@@ -148,6 +152,28 @@ func progressingFailed(conditions []appsv1.DeploymentCondition) bool {
 	return false
 }
 
+func latestDeploymentConditionTime(conditions []appsv1.DeploymentCondition) (time.Time, bool) {
+	var latest time.Time
+	found := false
+	for _, cond := range conditions {
+		if !cond.LastTransitionTime.IsZero() {
+			t := cond.LastTransitionTime.Time.UTC()
+			if !found || t.After(latest) {
+				latest = t
+				found = true
+			}
+		}
+		if !cond.LastUpdateTime.IsZero() {
+			t := cond.LastUpdateTime.Time.UTC()
+			if !found || t.After(latest) {
+				latest = t
+				found = true
+			}
+		}
+	}
+	return latest, found
+}
+
 func inspectStatefulSet(statefulSet *appsv1.StatefulSet) RolloutState {
 	if statefulSet == nil {
 		return RolloutState{Reason: ReasonNoMatchingReplicaSet}
@@ -182,8 +208,20 @@ func inspectDaemonSet(daemonSet *appsv1.DaemonSet) RolloutState {
 		daemonSet.Status.UpdatedNumberScheduled < desired ||
 		daemonSet.Status.NumberAvailable < desired
 
+	startedAt := restartStartedAt(daemonSet.Spec.Template.Annotations, daemonSet.CreationTimestamp.Time)
+	if daemonSet.Spec.Template.Annotations == nil || daemonSet.Spec.Template.Annotations["kubectl.kubernetes.io/restartedAt"] == "" {
+		for _, cond := range daemonSet.Status.Conditions {
+			if cond.LastTransitionTime.IsZero() {
+				continue
+			}
+			if cond.LastTransitionTime.Time.After(startedAt) {
+				startedAt = cond.LastTransitionTime.Time.UTC()
+			}
+		}
+	}
+
 	state := RolloutState{
-		StartedAt:  restartStartedAt(daemonSet.Spec.Template.Annotations, daemonSet.CreationTimestamp.Time),
+		StartedAt:  startedAt,
 		InProgress: inProgress,
 		Complete:   !inProgress,
 	}

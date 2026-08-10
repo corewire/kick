@@ -10,6 +10,92 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
+func TestLatestDeploymentConditionTime(t *testing.T) {
+	t1 := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
+	t2 := t1.Add(30 * time.Second)
+	t3 := t1.Add(45 * time.Second)
+
+	got, ok := latestDeploymentConditionTime([]appsv1.DeploymentCondition{
+		{Type: appsv1.DeploymentProgressing, LastTransitionTime: metav1.NewTime(t1), LastUpdateTime: metav1.NewTime(t2)},
+		{Type: appsv1.DeploymentAvailable, LastTransitionTime: metav1.NewTime(t3)},
+	})
+	if !ok {
+		t.Fatalf("expected a condition timestamp")
+	}
+	if !got.Equal(t3) {
+		t.Fatalf("latest condition time = %s, want %s", got, t3)
+	}
+}
+
+func TestInspectDaemonSetUsesConditionTransitionForInitialBaseline(t *testing.T) {
+	created := time.Date(2026, 8, 9, 20, 54, 21, 0, time.UTC)
+	transition := created.Add(30 * time.Second)
+
+	ds := &appsv1.DaemonSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:         "ns",
+			Name:              "agent",
+			Generation:        1,
+			CreationTimestamp: metav1.NewTime(created),
+		},
+		Spec: appsv1.DaemonSetSpec{
+			Template: corev1.PodTemplateSpec{},
+		},
+		Status: appsv1.DaemonSetStatus{
+			ObservedGeneration:    1,
+			DesiredNumberScheduled: 1,
+			UpdatedNumberScheduled: 1,
+			NumberAvailable:       1,
+			Conditions: []appsv1.DaemonSetCondition{{
+				Type:               appsv1.DaemonSetConditionType("Progressing"),
+				Status:             corev1.ConditionTrue,
+				LastTransitionTime: metav1.NewTime(transition),
+			}},
+		},
+	}
+
+	state := inspectDaemonSet(ds)
+	if !state.StartedAt.Equal(transition) {
+		t.Fatalf("startedAt = %s, want %s", state.StartedAt, transition)
+	}
+}
+
+func TestInspectDaemonSetPrefersRestartedAtAnnotation(t *testing.T) {
+	created := time.Date(2026, 8, 9, 20, 54, 21, 0, time.UTC)
+	restarted := created.Add(2 * time.Minute)
+	transition := created.Add(30 * time.Second)
+
+	ds := &appsv1.DaemonSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:         "ns",
+			Name:              "agent",
+			Generation:        2,
+			CreationTimestamp: metav1.NewTime(created),
+		},
+		Spec: appsv1.DaemonSetSpec{
+			Template: corev1.PodTemplateSpec{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{
+				"kubectl.kubernetes.io/restartedAt": restarted.Format(time.RFC3339),
+			}}},
+		},
+		Status: appsv1.DaemonSetStatus{
+			ObservedGeneration:    2,
+			DesiredNumberScheduled: 1,
+			UpdatedNumberScheduled: 1,
+			NumberAvailable:       1,
+			Conditions: []appsv1.DaemonSetCondition{{
+				Type:               appsv1.DaemonSetConditionType("Progressing"),
+				Status:             corev1.ConditionTrue,
+				LastTransitionTime: metav1.NewTime(transition),
+			}},
+		},
+	}
+
+	state := inspectDaemonSet(ds)
+	if !state.StartedAt.Equal(restarted) {
+		t.Fatalf("startedAt = %s, want %s", state.StartedAt, restarted)
+	}
+}
+
 func TestInspectWithReplicaSetsScenarios(t *testing.T) {
 	uid := types.UID("dep-uid")
 	base := newDeployment("ns", "api", uid)
