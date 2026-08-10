@@ -55,7 +55,7 @@ func (o *Observer) ObserveSecret(ctx context.Context, _ *corev1.Secret, newObj *
 		return ObservationResult{Kind: NoChange}, nil
 	}
 	identity := SourceIdentity{APIVersion: "v1", Kind: SourceKindSecret, Namespace: newObj.Namespace, Name: newObj.Name}
-	return o.observe(ctx, identity, newObj.ResourceVersion, secretFingerprint(newObj), observedAt)
+	return o.observe(ctx, identity, newObj.ResourceVersion, secretFingerprint(newObj), observedAt, newObj.CreationTimestamp.Time)
 }
 
 func (o *Observer) ObserveConfigMap(ctx context.Context, _ *corev1.ConfigMap, newObj *corev1.ConfigMap, observedAt time.Time) (ObservationResult, error) {
@@ -63,10 +63,10 @@ func (o *Observer) ObserveConfigMap(ctx context.Context, _ *corev1.ConfigMap, ne
 		return ObservationResult{Kind: NoChange}, nil
 	}
 	identity := SourceIdentity{APIVersion: "v1", Kind: SourceKindConfigMap, Namespace: newObj.Namespace, Name: newObj.Name}
-	return o.observe(ctx, identity, newObj.ResourceVersion, configMapFingerprint(newObj), observedAt)
+	return o.observe(ctx, identity, newObj.ResourceVersion, configMapFingerprint(newObj), observedAt, newObj.CreationTimestamp.Time)
 }
 
-func (o *Observer) observe(ctx context.Context, identity SourceIdentity, rv, fingerprint string, observedAt time.Time) (ObservationResult, error) {
+func (o *Observer) observe(ctx context.Context, identity SourceIdentity, rv, fingerprint string, observedAt, createdAt time.Time) (ObservationResult, error) {
 	if observedAt.IsZero() {
 		observedAt = o.now().UTC()
 	}
@@ -77,11 +77,20 @@ func (o *Observer) observe(ctx context.Context, identity SourceIdentity, rv, fin
 	}
 	if !found {
 		kind := o.baselinePolicy.OnFirstObservation(identity)
+		// A first observation establishes a baseline; anchor it to the source's
+		// own creation time (deterministic) rather than the wall-clock moment KICK
+		// happened to see it. A dependency created alongside its workload is then
+		// never "newer" than the workload's rollout, so baselines do not trigger a
+		// spurious restart, while a later-created (previously missing) source is.
+		baselineTime := observedAt
+		if !createdAt.IsZero() {
+			baselineTime = createdAt.UTC()
+		}
 		record = Record{
 			Identity:                    identity,
 			LastSeenResourceVersion:     rv,
 			LastRelevantResourceVersion: rv,
-			LastRelevantChangeTime:      observedAt,
+			LastRelevantChangeTime:      baselineTime,
 			RelevantFingerprint:         fingerprint,
 		}
 		if err := o.store.Upsert(ctx, record); err != nil {

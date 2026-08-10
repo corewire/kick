@@ -14,55 +14,47 @@ const (
 	KickPolicyProviderFlux   KickPolicyProvider = "Flux"
 )
 
-// KickPolicyScheduleSource configures schedule/window source behavior.
-type KickPolicyScheduleSource string
-
-const (
-	KickPolicyScheduleSourceProvider KickPolicyScheduleSource = "Provider"
-	KickPolicyScheduleSourceNone     KickPolicyScheduleSource = "None"
-)
-
 // KickPolicyDiscoverySpec controls which workloads a policy manages and which of
-// their dependency changes trigger a restart. Both selectors are optional; an
-// empty or omitted selector matches everything on its axis.
+// their dependency changes trigger a restart.
 type KickPolicyDiscoverySpec struct {
 	// WorkloadSelector limits which workloads this policy manages (the actors that
-	// may be restarted). Omit to manage all supported workloads in the namespace.
-	// +optional
-	WorkloadSelector *metav1.LabelSelector `json:"workloadSelector,omitempty"`
+	// may be restarted). It is required; an explicit empty selector ({}) opts in
+	// to every supported workload in the namespace, so wide blast radius is never
+	// accidental.
+	// +kubebuilder:validation:Required
+	WorkloadSelector *metav1.LabelSelector `json:"workloadSelector"`
 	// DependencySelector limits which consumed Secret/ConfigMap changes trigger a
 	// restart. Omit to treat every discovered dependency as a trigger.
 	// +optional
 	DependencySelector *metav1.LabelSelector `json:"dependencySelector,omitempty"`
 }
 
-// KickPolicyWindowKind selects allow or deny semantics for a native window.
-type KickPolicyWindowKind string
+// KickPolicyWindowType selects allow or deny semantics for a native window.
+type KickPolicyWindowType string
 
 const (
-	KickPolicyWindowKindAllow KickPolicyWindowKind = "Allow"
-	KickPolicyWindowKindDeny  KickPolicyWindowKind = "Deny"
+	KickPolicyWindowTypeAllow KickPolicyWindowType = "Allow"
+	KickPolicyWindowTypeDeny  KickPolicyWindowType = "Deny"
 )
 
-// KickPolicyWindow is a KICK-native execution window evaluated without a GitOps provider.
+// KickPolicyWindow is a KICK-native restart window, evaluated independently of
+// any GitOps provider.
 type KickPolicyWindow struct {
 	// +kubebuilder:validation:Enum=Allow;Deny
-	Kind KickPolicyWindowKind `json:"kind"`
-	// Schedule is a standard 5-field cron expression marking each window start.
-	Schedule string `json:"schedule"`
+	Type KickPolicyWindowType `json:"type"`
+	// Cron is a standard 5-field cron expression marking each window start.
+	Cron string `json:"cron"`
 	// Duration is how long the window stays open from each start (e.g. "1h").
 	// +kubebuilder:validation:Pattern=`^([0-9]+(ns|us|µs|ms|s|m|h))+$`
 	Duration string `json:"duration"`
-	// TimeZone is the IANA zone used to evaluate the schedule (default UTC).
+	// TimeZone is the IANA zone used to evaluate the cron expression (default UTC).
 	TimeZone string `json:"timeZone,omitempty"`
 }
 
-// KickPolicyScheduleSpec configures schedule source behavior.
+// KickPolicyScheduleSpec is the native time gate: pure scheduling, no GitOps.
 type KickPolicyScheduleSpec struct {
-	// +kubebuilder:default:=Provider
-	// +kubebuilder:validation:Enum=Provider;None
-	Source KickPolicyScheduleSource `json:"source,omitempty"`
-	// Windows are KICK-native execution windows evaluated without a GitOps provider.
+	// Windows are KICK-native restart windows. Omit to allow restarts at any time.
+	// +optional
 	Windows []KickPolicyWindow `json:"windows,omitempty"`
 }
 
@@ -73,19 +65,33 @@ type KickPolicyGitOpsSpec struct {
 	// +kubebuilder:default:=None
 	// +kubebuilder:validation:Enum=None;Auto;ArgoCD;Flux
 	Provider KickPolicyProvider `json:"provider,omitempty"`
+	// RequireReconciled is a correctness gate (not a schedule): wait until the
+	// owning application has finished applying before restarting.
 	// +kubebuilder:default:=true
-	RequireReconciled *bool                  `json:"requireReconciled,omitempty"`
-	Schedule          KickPolicyScheduleSpec `json:"schedule,omitempty"`
+	RequireReconciled *bool `json:"requireReconciled,omitempty"`
+}
+
+// KickPolicyRestartSpec groups restart behavior so future knobs are additive.
+type KickPolicyRestartSpec struct {
+	// MinInterval is the minimum time between restarts of the same workload.
+	// +kubebuilder:default:="30s"
+	// +kubebuilder:validation:Pattern=`^$|^([0-9]+(ns|us|µs|ms|s|m|h))+$`
+	MinInterval string `json:"minInterval,omitempty"`
 }
 
 // KickPolicySpec configures workload scope and kick behavior.
 type KickPolicySpec struct {
+	// Suspend pauses the policy: it matches nothing and issues no restarts until
+	// unset, without deleting the object.
+	// +optional
+	Suspend   bool                    `json:"suspend,omitempty"`
 	Discovery KickPolicyDiscoverySpec `json:"discovery"`
 	// +optional
+	Schedule KickPolicyScheduleSpec `json:"schedule,omitempty"`
+	// +optional
 	GitOps KickPolicyGitOpsSpec `json:"gitOps,omitempty"`
-	// +kubebuilder:default:="30s"
-	// +kubebuilder:validation:Pattern=`^$|^([0-9]+(ns|us|µs|ms|s|m|h))+$`
-	MinInterval string `json:"minInterval,omitempty"`
+	// +optional
+	Restart KickPolicyRestartSpec `json:"restart,omitempty"`
 }
 
 // KickPolicyStatus reports policy matching and readiness state.

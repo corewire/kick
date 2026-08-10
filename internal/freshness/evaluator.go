@@ -38,7 +38,10 @@ func (e *Evaluator) Evaluate(
 		BlockingReason: state.Reason,
 	}
 
-	if state.InProgress || state.CurrentReplicaSet.Name == "" {
+	// Only evaluate freshness once the workload's rollout is complete. Complete
+	// is kind-aware (Deployments require a current ReplicaSet; StatefulSets and
+	// DaemonSets require their generation to be observed and up to date).
+	if !state.Complete {
 		return decision, nil
 	}
 

@@ -53,9 +53,18 @@ type RolloutStatus struct {
 	StartedAt  *metav1.Time `json:"startedAt,omitempty"`
 }
 
+// PolicyReference records the KickPolicy that created a request (audit).
+type PolicyReference struct {
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
+}
+
 // KickRequestSpec describes the workload to reevaluate.
 type KickRequestSpec struct {
 	TargetRef ObjectReference `json:"targetRef"`
+	// PolicyRef records the owning KickPolicy for audit and reverse lookup.
+	// +optional
+	PolicyRef *PolicyReference `json:"policyRef,omitempty"`
 }
 
 // KickRequestStatus is diagnostic and audit state. Live state remains authoritative.

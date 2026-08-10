@@ -30,7 +30,7 @@ func NewCoalescer(c client.Client, retention RetentionConfig) *Coalescer {
 }
 
 // EnsureActiveRequest creates or updates one active KickRequest for a target.
-func (c *Coalescer) EnsureActiveRequest(ctx context.Context, namespace string, target kickv1alpha1.ObjectReference, latestObservedChange time.Time) (*kickv1alpha1.KickRequest, error) {
+func (c *Coalescer) EnsureActiveRequest(ctx context.Context, namespace string, target kickv1alpha1.ObjectReference, policyName string, latestObservedChange time.Time) (*kickv1alpha1.KickRequest, error) {
 	key := types.NamespacedName{Namespace: namespace, Name: requestNameForTarget(target)}
 	var request kickv1alpha1.KickRequest
 	if err := c.Get(ctx, key, &request); err != nil {
@@ -40,6 +40,9 @@ func (c *Coalescer) EnsureActiveRequest(ctx context.Context, namespace string, t
 		request = kickv1alpha1.KickRequest{
 			ObjectMeta: metav1.ObjectMeta{Name: key.Name, Namespace: namespace},
 			Spec:       kickv1alpha1.KickRequestSpec{TargetRef: target},
+		}
+		if policyName != "" {
+			request.Spec.PolicyRef = &kickv1alpha1.PolicyReference{Name: policyName}
 		}
 		if err := c.Create(ctx, &request); err != nil {
 			return nil, err
@@ -68,6 +71,9 @@ func (c *Coalescer) updateStatusWithRetry(ctx context.Context, key types.Namespa
 
 		if request.Status.Phase == "" || isTerminalPhase(request.Status.Phase) {
 			request.Status.Phase = kickv1alpha1.KickRequestPhasePending
+			// Clear the prior rollout so the executor issues a fresh restart for
+			// this change instead of adopting the already-completed rollout.
+			request.Status.CurrentRollout = kickv1alpha1.RolloutStatus{}
 		}
 
 		if request.Status.LatestObservedDependencyChange == nil || latestObservedChange.After(request.Status.LatestObservedDependencyChange.Time) {
@@ -89,8 +95,5 @@ func isTerminalPhase(phase kickv1alpha1.KickRequestPhase) bool {
 }
 
 func requestNameForTarget(target kickv1alpha1.ObjectReference) string {
-	if target.Kind == "Deployment" {
-		return target.Name
-	}
 	return strings.ToLower(target.Kind) + "-" + target.Name
 }

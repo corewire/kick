@@ -32,6 +32,7 @@ func (e *KickRequestEnqueuer) EnqueueForConsumers(ctx context.Context, _ observa
 			continue
 		}
 
+		policyName := ""
 		if e.PolicyMatcher != nil {
 			match, err := e.PolicyMatcher.MatchWorkload(ctx, consumer.Namespace, labels)
 			if err != nil {
@@ -48,8 +49,11 @@ func (e *KickRequestEnqueuer) EnqueueForConsumers(ctx context.Context, _ observa
 			if !ok {
 				continue
 			}
+			if match.Policy != nil {
+				policyName = match.Policy.Name
+			}
 		}
-		if _, err := e.Coalescer.EnsureActiveRequest(ctx, consumer.Namespace, targetRef, observedAt); err != nil {
+		if _, err := e.Coalescer.EnsureActiveRequest(ctx, consumer.Namespace, targetRef, policyName, observedAt); err != nil {
 			return err
 		}
 	}

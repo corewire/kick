@@ -126,7 +126,7 @@ func TestKickRequestConflictRetryEnvtest(t *testing.T) {
 	wrapped := &conflictOnceClient{Client: realClient}
 	coalescer := kickrequest.NewCoalescer(wrapped, kickrequest.RetentionConfig{})
 	at := time.Date(2026, 8, 6, 11, 0, 0, 0, time.UTC)
-	if _, err := coalescer.EnsureActiveRequest(ctx, "team-b", kickv1alpha1.ObjectReference{APIVersion: "apps/v1", Kind: "Deployment", Name: "api"}, at); err != nil {
+	if _, err := coalescer.EnsureActiveRequest(ctx, "team-b", kickv1alpha1.ObjectReference{APIVersion: "apps/v1", Kind: "Deployment", Name: "api"}, "", at); err != nil {
 		t.Fatalf("ensure with conflict retry: %v", err)
 	}
 	if !wrapped.injected {
@@ -134,7 +134,7 @@ func TestKickRequestConflictRetryEnvtest(t *testing.T) {
 	}
 
 	var got kickv1alpha1.KickRequest
-	if err := realClient.Get(ctx, types.NamespacedName{Namespace: "team-b", Name: "api"}, &got); err != nil {
+	if err := realClient.Get(ctx, types.NamespacedName{Namespace: "team-b", Name: "deployment-api"}, &got); err != nil {
 		t.Fatalf("get kickrequest: %v", err)
 	}
 	if got.Status.Phase != kickv1alpha1.KickRequestPhasePending {

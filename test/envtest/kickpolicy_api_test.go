@@ -50,8 +50,8 @@ func TestKickPolicyValidationEnvtest(t *testing.T) {
 			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{
 				WorkloadSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "payments-api"}},
 			},
-			GitOps:      kickv1alpha1.KickPolicyGitOpsSpec{Provider: kickv1alpha1.KickPolicyProviderAuto},
-			MinInterval: "45s",
+			GitOps:  kickv1alpha1.KickPolicyGitOpsSpec{Provider: kickv1alpha1.KickPolicyProviderAuto},
+			Restart: kickv1alpha1.KickPolicyRestartSpec{MinInterval: "45s"},
 		},
 	}
 	if err := c.Create(ctx, valid); err != nil {
@@ -70,11 +70,8 @@ func TestKickPolicyValidationEnvtest(t *testing.T) {
 	if persisted.Spec.GitOps.RequireReconciled == nil || !*persisted.Spec.GitOps.RequireReconciled {
 		t.Fatalf("requireReconciled default not applied: %#v", persisted.Spec.GitOps.RequireReconciled)
 	}
-	if persisted.Spec.GitOps.Schedule.Source != kickv1alpha1.KickPolicyScheduleSourceProvider {
-		t.Fatalf("unexpected schedule source default: %s", persisted.Spec.GitOps.Schedule.Source)
-	}
-	if persisted.Spec.MinInterval != "45s" {
-		t.Fatalf("unexpected minInterval: %s", persisted.Spec.MinInterval)
+	if persisted.Spec.Restart.MinInterval != "45s" {
+		t.Fatalf("unexpected minInterval: %s", persisted.Spec.Restart.MinInterval)
 	}
 
 	// A policy without a gitOps block is accepted; provider defaults to None.
@@ -102,6 +99,7 @@ func TestKickPolicyValidationEnvtest(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "dep-selector", Namespace: "payments"},
 		Spec: kickv1alpha1.KickPolicySpec{
 			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{
+				WorkloadSelector:   &metav1.LabelSelector{},
 				DependencySelector: &metav1.LabelSelector{MatchLabels: map[string]string{"kick.corewire.io/watch": "true"}},
 			},
 		},
@@ -118,20 +116,30 @@ func TestKickPolicyValidationEnvtest(t *testing.T) {
 		t.Fatalf("dependencySelector not persisted: %#v", persistedDep.Spec.Discovery.DependencySelector)
 	}
 
-	// A minimal policy (empty spec) is now valid: discovery defaults to Auto,
-	// no selector = watch all workloads, and no gitOps = restart immediately.
-	minimal := &kickv1alpha1.KickPolicy{
-		ObjectMeta: metav1.ObjectMeta{Name: "minimal", Namespace: "payments"},
+	// An explicit empty workloadSelector opts in to all workloads and is valid.
+	explicitAll := &kickv1alpha1.KickPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "explicit-all", Namespace: "payments"},
+		Spec: kickv1alpha1.KickPolicySpec{
+			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{WorkloadSelector: &metav1.LabelSelector{}},
+		},
+	}
+	if err := c.Create(ctx, explicitAll); err != nil {
+		t.Fatalf("expected explicit empty workloadSelector to be accepted: %v", err)
+	}
+
+	// A policy that omits workloadSelector is rejected: wide scope is never accidental.
+	missingSelector := &kickv1alpha1.KickPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "missing-selector", Namespace: "payments"},
 		Spec:       kickv1alpha1.KickPolicySpec{},
 	}
-	if err := c.Create(ctx, minimal); err != nil {
-		t.Fatalf("expected minimal kickpolicy to be accepted: %v", err)
+	if err := c.Create(ctx, missingSelector); err == nil {
+		t.Fatalf("expected policy without workloadSelector to fail validation")
 	}
 
 	invalidProvider := &kickv1alpha1.KickPolicy{
 		ObjectMeta: metav1.ObjectMeta{Name: "badprovider", Namespace: "payments"},
 		Spec: kickv1alpha1.KickPolicySpec{
-			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{},
+			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{WorkloadSelector: &metav1.LabelSelector{}},
 			GitOps:    kickv1alpha1.KickPolicyGitOpsSpec{Provider: "Unknown"},
 		},
 	}
@@ -142,9 +150,9 @@ func TestKickPolicyValidationEnvtest(t *testing.T) {
 	invalidInterval := &kickv1alpha1.KickPolicy{
 		ObjectMeta: metav1.ObjectMeta{Name: "badinterval", Namespace: "payments"},
 		Spec: kickv1alpha1.KickPolicySpec{
-			Discovery:   kickv1alpha1.KickPolicyDiscoverySpec{},
-			GitOps:      kickv1alpha1.KickPolicyGitOpsSpec{Provider: kickv1alpha1.KickPolicyProviderAuto},
-			MinInterval: "-5s",
+			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{WorkloadSelector: &metav1.LabelSelector{}},
+			GitOps:    kickv1alpha1.KickPolicyGitOpsSpec{Provider: kickv1alpha1.KickPolicyProviderAuto},
+			Restart:   kickv1alpha1.KickPolicyRestartSpec{MinInterval: "-5s"},
 		},
 	}
 	if err := c.Create(ctx, invalidInterval); err == nil {
@@ -183,7 +191,7 @@ func TestKickPolicyStatusRoundTripEnvtest(t *testing.T) {
 	policy := &kickv1alpha1.KickPolicy{
 		ObjectMeta: metav1.ObjectMeta{Name: "default", Namespace: "team-status"},
 		Spec: kickv1alpha1.KickPolicySpec{
-			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{},
+			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{WorkloadSelector: &metav1.LabelSelector{}},
 			GitOps:    kickv1alpha1.KickPolicyGitOpsSpec{Provider: kickv1alpha1.KickPolicyProviderAuto},
 		},
 	}

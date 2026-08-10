@@ -50,6 +50,9 @@ func (m *DeploymentPolicyMatcher) MatchWorkload(ctx context.Context, namespace s
 
 	matches := make([]kickv1alpha1.KickPolicy, 0, len(list.Items))
 	for _, pol := range list.Items {
+		if pol.Spec.Suspend {
+			continue
+		}
 		selector, err := selectorForPolicy(&pol)
 		if err != nil {
 			continue

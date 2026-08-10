@@ -440,15 +440,15 @@ func policyNativeWindows(pol *kickv1alpha1.KickPolicy) []schedule.Window {
 	if pol == nil {
 		return nil
 	}
-	specWindows := pol.Spec.GitOps.Schedule.Windows
+	specWindows := pol.Spec.Schedule.Windows
 	if len(specWindows) == 0 {
 		return nil
 	}
 	out := make([]schedule.Window, 0, len(specWindows))
 	for _, w := range specWindows {
 		out = append(out, schedule.Window{
-			Allow:    w.Kind == kickv1alpha1.KickPolicyWindowKindAllow,
-			Schedule: w.Schedule,
+			Allow:    w.Type == kickv1alpha1.KickPolicyWindowTypeAllow,
+			Schedule: w.Cron,
 			Duration: w.Duration,
 			TimeZone: w.TimeZone,
 		})
