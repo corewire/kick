@@ -4,16 +4,16 @@ resources:
   file: api/v1alpha1/kickpolicy_types.go
   generated: true
   fields:
+  - path: suspend
   - path: discovery.workloadSelector
   - path: discovery.dependencySelector
+  - path: schedule.windows.type
+  - path: schedule.windows.cron
+  - path: schedule.windows.duration
+  - path: schedule.windows.timeZone
   - path: gitOps.provider
   - path: gitOps.requireReconciled
-  - path: gitOps.schedule.source
-  - path: gitOps.schedule.windows.kind
-  - path: gitOps.schedule.windows.schedule
-  - path: gitOps.schedule.windows.duration
-  - path: gitOps.schedule.windows.timeZone
-  - path: minInterval
+  - path: restart.minInterval
 - type: KickPolicyStatus
   file: api/v1alpha1/kickpolicy_types.go
   generated: true
@@ -29,6 +29,7 @@ resources:
   - path: targetRef.apiVersion
   - path: targetRef.kind
   - path: targetRef.name
+  - path: policyRef.name
 - type: KickRequestStatus
   file: api/v1alpha1/kickrequest_types.go
   generated: true

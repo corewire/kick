@@ -30,6 +30,7 @@
 | KickRequestSpec | targetRef.apiVersion | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickrequest_api_test.go |
 | KickRequestSpec | targetRef.kind | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickrequest_api_test.go |
 | KickRequestSpec | targetRef.name | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickrequest_api_test.go |
+| KickRequestSpec | policyRef.name | yes | Covered | Missing | Missing | PASS | unit=internal/kickrequest/coalescer_test.go |
 | KickRequestStatus | phase | yes | Covered | Covered | Covered | PASS | unit=internal/kickrequest/coalescer_test.go,internal/controller/kickrequest_controller_test.go; envtest=test/envtest/kickrequest_api_test.go; e2e=KICK-E2E-009(covered),KICK-E2E-015(covered),KICK-E2E-048(covered) |
 | KickRequestStatus | owner.provider | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickrequest_api_test.go |
 | KickRequestStatus | owner.apiVersion | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickrequest_api_test.go |
@@ -44,16 +45,16 @@
 | KickRequestStatus | currentRollout.replicaSet | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickrequest_api_test.go |
 | KickRequestStatus | currentRollout.startedAt | yes | Covered | Covered | Covered | PASS | unit=internal/executor/restart_test.go,internal/controller/kickrequest_controller_test.go; envtest=test/envtest/kickrequest_api_test.go; e2e=KICK-E2E-043(covered) |
 | KickRequestStatus | conditions | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickrequest_api_test.go |
+| KickPolicySpec | suspend | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickpolicy_api_test.go |
 | KickPolicySpec | discovery.workloadSelector | yes | Covered | Covered | Missing | PASS | unit=internal/policy/matcher_test.go; envtest=test/envtest/kickpolicy_api_test.go |
 | KickPolicySpec | discovery.dependencySelector | yes | Covered | Covered | Missing | PASS | unit=internal/controller/kickrequest_controller_test.go,internal/controller/kickrequest_enqueuer_test.go; envtest=test/envtest/kickpolicy_api_test.go |
+| KickPolicySpec | schedule.windows.type | yes | Missing | Missing | Covered | PASS | e2e=KICK-E2E-015(covered),KICK-E2E-036(covered),KICK-E2E-048(covered) |
+| KickPolicySpec | schedule.windows.cron | yes | Missing | Missing | Covered | PASS | e2e=KICK-E2E-015(covered),KICK-E2E-036(covered),KICK-E2E-048(covered) |
+| KickPolicySpec | schedule.windows.duration | yes | Missing | Missing | Covered | PASS | e2e=KICK-E2E-015(covered),KICK-E2E-036(covered),KICK-E2E-048(covered) |
+| KickPolicySpec | schedule.windows.timeZone | yes | Missing | Missing | Covered | PASS | e2e=KICK-E2E-015(covered),KICK-E2E-036(covered),KICK-E2E-048(covered) |
 | KickPolicySpec | gitOps.provider | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickpolicy_api_test.go |
 | KickPolicySpec | gitOps.requireReconciled | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickpolicy_api_test.go |
-| KickPolicySpec | gitOps.schedule.source | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickpolicy_api_test.go |
-| KickPolicySpec | gitOps.schedule.windows.kind | yes | Missing | Missing | Covered | PASS | e2e=KICK-E2E-033(covered),KICK-E2E-034(covered),KICK-E2E-035(covered) |
-| KickPolicySpec | gitOps.schedule.windows.schedule | yes | Missing | Missing | Covered | PASS | e2e=KICK-E2E-033(covered),KICK-E2E-034(covered),KICK-E2E-035(covered) |
-| KickPolicySpec | gitOps.schedule.windows.duration | yes | Missing | Missing | Covered | PASS | e2e=KICK-E2E-033(covered),KICK-E2E-034(covered),KICK-E2E-035(covered) |
-| KickPolicySpec | gitOps.schedule.windows.timeZone | yes | Missing | Missing | Covered | PASS | e2e=KICK-E2E-033(covered),KICK-E2E-034(covered),KICK-E2E-035(covered) |
-| KickPolicySpec | minInterval | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickpolicy_api_test.go |
+| KickPolicySpec | restart.minInterval | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickpolicy_api_test.go |
 | KickPolicyStatus | observedGeneration | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickpolicy_api_test.go |
 | KickPolicyStatus | matchedWorkloads | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickpolicy_api_test.go |
 | KickPolicyStatus | blockedWorkloads | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickpolicy_api_test.go |

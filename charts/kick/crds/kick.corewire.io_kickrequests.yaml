@@ -59,6 +59,16 @@ spec:
           spec:
             description: KickRequestSpec describes the workload to reevaluate.
             properties:
+              policyRef:
+                description: PolicyRef records the owning KickPolicy for audit and
+                  reverse lookup.
+                properties:
+                  name:
+                    minLength: 1
+                    type: string
+                required:
+                - name
+                type: object
               targetRef:
                 description: ObjectReference identifies the workload KICK may restart.
                 properties:
@@ -69,6 +79,8 @@ spec:
                     default: Deployment
                     enum:
                     - Deployment
+                    - StatefulSet
+                    - DaemonSet
                     type: string
                   name:
                     minLength: 1
