@@ -19,6 +19,17 @@ A workload restarts when it **consumes a changed dependency**, the workload is i
 scope. `dependencySelector` also scopes freshness: out-of-scope dependencies are
 ignored entirely.
 
+## spec.schedule
+
+`spec.schedule` is the KICK-native time gate: pure scheduling, evaluated without
+any GitOps provider. Omit it to allow restarts at any time.
+
+- `windows[]` KICK-native restart windows
+  - `type` enum: `Allow`, `Deny` (required)
+  - `cron` 5-field cron expression marking each window start (required)
+  - `duration` how long the window stays open from each start, e.g. `1h` (required)
+  - `timeZone` IANA zone used to evaluate the cron expression (default UTC)
+
 ## spec.gitOps
 
 `spec.gitOps` is optional. When omitted, `provider` defaults to `None` and KICK
@@ -26,12 +37,14 @@ restarts without consulting a GitOps tool (gated only by any native windows).
 
 - `provider` enum: `None`, `Auto`, `ArgoCD`, `Flux` (default `None`)
 - `requireReconciled` default: `true` (applies only to a real provider)
-- `schedule.source` enum: `Provider`, `None` (default `Provider`)
-- `schedule.windows[]` KICK-native allow/deny windows (evaluated without a provider)
+
+## spec.restart
+
+- `minInterval` default: `30s`
 
 ## spec
 
-- `minInterval` default: `30s`
+- `suspend` pauses the policy without deleting it (default `false`)
 
 ## status
 

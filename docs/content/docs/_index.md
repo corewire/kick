@@ -39,9 +39,11 @@ injects no state into your workloads.
 | [Installation](installation/) | Install KICK with Helm or from source |
 | [Quickstart](quickstart/) | Watch KICK restart a Deployment on Kind |
 | [Concepts](concepts/) | Discovery, freshness, and GitOps gating, explained |
+| [Comparison](comparison/) | How KICK differs from Reloader and Wave |
 | [Guides](guides/) | Argo CD, External Secrets, and troubleshooting |
 | [Reference](reference/) | KickPolicy / KickRequest API, metrics, events, config |
 | [Operations](operations/) | RBAC, security, scalability, upgrades |
 | [Theory](theory/operator-model/) | The formal operator model in scientific notation |
 | [Development](development/) | Debugging, the timeline UI, workflow |
+| [For AI Agents](for-ai-agents/) | llms.txt, Markdown output, agent instructions |
 | [Decisions](decisions/) | Architecture decision records |

@@ -20,16 +20,16 @@ finished reconciling the workload.
 The gate is evaluated in order. A restart runs only if **both** stages allow it.
 
 ```
-stale workload ──▶ [ 1. schedule windows ] ──▶ [ 2. GitOps provider ] ──▶ restart
+stale workload ──▶ [ 1. native windows ] ──▶ [ 2. GitOps provider ] ──▶ restart
                           │                            │
-                     OutsideSchedule            OwnerUnknown / OutOfSync / …
+                     OutsideSchedule            sync window · owner · sync state
                           ▼                            ▼
                      wait & re-check              wait & re-check
 ```
 
 ### Stage 1 — native schedule windows
 
-`spec.gitOps.schedule.windows[]` are KICK-native cron windows evaluated without
+`spec.schedule.windows[]` are KICK-native cron windows evaluated without
 any provider. Each window is either `Allow` or `Deny`:
 
 - The current time is **open** when it falls inside at least one `Allow` window
@@ -41,9 +41,9 @@ any provider. Each window is either `Allow` or `Deny`:
 When the clock is outside the allowed schedule the gate blocks with reason
 `OutsideSchedule` and re-checks when the next window boundary arrives.
 
-`schedule.source` selects where windows come from: `Provider` (default) lets a
-provider contribute windows (for example Argo CD `AppProject` sync windows);
-`None` uses only the KICK-native `windows[]`.
+Each window takes a 5-field `cron` expression, a `duration`, and an optional
+IANA `timeZone` (UTC by default). This stage never consults a GitOps tool, so a
+maintenance window works on its own.
 
 ### Stage 2 — GitOps provider
 
@@ -66,9 +66,15 @@ and confirm that owner is reconciled before it restarts.
 3. **Zero or ambiguous** — no owner (`OwnerUnknown`) or more than one
    (`MultipleOwners`) blocks the automatic restart. KICK never guesses.
 
+**Sync windows** — the Argo CD provider also evaluates `spec.syncWindows` on the
+`AppProject` that owns the `Application`, using the application name and its
+destination. A closed window blocks with `OutsideSchedule`, the same reason the
+native stage uses. So Argo CD sync windows are honoured without restating them
+in the `KickPolicy`.
+
 **Sync check** — when `requireReconciled` is `true` (the default), the owning
 `Application` must report `Synced`. An out-of-sync or still-reconciling owner
-blocks with `OutOfSync` / `SyncInProgress`, so KICK never restarts against
+blocks with `OwnerOutOfSync` / `OwnerReconciling`, so KICK never restarts against
 config the GitOps tool is mid-flight on.
 
 ## Blocking reasons
@@ -78,11 +84,14 @@ The gate surfaces why a restart is waiting on `KickRequest.status.gate.reason`:
 | Reason | Stage | Meaning |
 |--------|-------|---------|
 | `Allowed` | — | Both stages passed; the restart may run. |
-| `OutsideSchedule` | Windows | Current time is outside the allowed schedule. |
+| `OutsideSchedule` | Windows | Current time is outside a native window or an Argo CD sync window. |
 | `OwnerUnknown` | Provider | No GitOps owner could be resolved. |
-| `MultipleOwners` | Provider | More than one owner matched; ambiguous. |
-| `OutOfSync` | Provider | The owning application is not `Synced`. |
-| `SyncInProgress` | Provider | The owning application is still reconciling. |
+| `AmbiguousOwner` | Provider | More than one owner matched. |
+| `OwnerOutOfSync` | Provider | The owning application is not `Synced`. |
+| `OwnerReconciling` | Provider | The owning application is still applying. |
+| `ProjectUnknown` | Provider | The application's `AppProject` could not be read. |
+| `ProviderUnavailable` | Provider | The provider could not be queried. |
+| `ConfigurationError` | Provider | A sync window could not be parsed. |
 
 ## Waiting behaviour
 
