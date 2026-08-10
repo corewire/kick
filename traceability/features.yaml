@@ -351,3 +351,100 @@ features:
   e2e:
   - KICK-E2E-056
 
+- id: KICK-FEAT-021
+  name: Dry-run policy evaluation without restart
+  spec: ai-docs/gap-analysis/05-adoption-without-initial-restart.md
+  task: ai-docs/gap-analysis/05-adoption-without-initial-restart.md
+  tests:
+    unit: required
+    envtest: optional
+    e2e: required
+  coverage:
+    unit:
+    - internal/controller/dryrun_test.go
+  e2e:
+  - KICK-E2E-057
+- id: KICK-FEAT-022
+  name: Operation without a GitOps provider
+  spec: ai-docs/gap-analysis/01-gitops-free-operation.md
+  task: ai-docs/gap-analysis/01-gitops-free-operation.md
+  tests:
+    unit: required
+    envtest: optional
+    e2e: required
+  coverage:
+    unit:
+    - internal/controller/dryrun_test.go
+    - internal/controller/kickrequest_controller_test.go
+  e2e:
+  - KICK-E2E-058
+- id: KICK-FEAT-023
+  name: Secrets Store CSI rotation detection
+  spec: ai-docs/gap-analysis/02-secrets-store-csi.md
+  task: ai-docs/gap-analysis/02-secrets-store-csi.md
+  tests:
+    unit: required
+    envtest: not_applicable
+    e2e: not_applicable
+  coverage:
+    unit:
+    - internal/dependency/csi_test.go
+    - internal/observation/secretproviderclass_test.go
+  rationale:
+    envtest: The SecretProviderClass and SecretProviderClassPodStatus CRDs belong to
+      the Secrets Store CSI driver, are not part of this repository, and are handled
+      as unstructured objects, so envtest would only assert upstream schemas.
+    e2e: Exercising rotation requires the Secrets Store CSI driver plus a real secret
+      store provider, neither of which is installed in the e2e kind cluster.
+  e2e: []
+- id: KICK-FEAT-024
+  name: Argo Rollout workload restarts
+  spec: ai-docs/gap-analysis/04-reloader-parity-gaps.md
+  task: ai-docs/gap-analysis/04-reloader-parity-gaps.md
+  tests:
+    unit: required
+    envtest: not_applicable
+    e2e: not_applicable
+  coverage:
+    unit:
+    - internal/rollout/argorollout_test.go
+    - internal/executor/argorollout_test.go
+    - internal/dependency/csi_test.go
+  rationale:
+    envtest: The Rollout CRD is owned by Argo Rollouts and is not vendored here, so
+      envtest would assert an upstream schema rather than KICK behavior.
+    e2e: Observing a Rollout restart requires the Argo Rollouts controller, which is
+      not installed in the e2e kind cluster.
+  e2e: []
+- id: KICK-FEAT-025
+  name: Kargo stage promotion gate
+  spec: ai-docs/gap-analysis/04-reloader-parity-gaps.md
+  task: ai-docs/gap-analysis/04-reloader-parity-gaps.md
+  tests:
+    unit: required
+    envtest: not_applicable
+    e2e: not_applicable
+  coverage:
+    unit:
+    - internal/gitops/kargo/provider_test.go
+  rationale:
+    envtest: Kargo Stage and Promotion CRDs are not vendored here and are read as
+      unstructured objects; envtest would assert upstream schemas.
+    e2e: A meaningful assertion requires a running Kargo control plane driving Argo CD,
+      which is not installed in the e2e kind cluster.
+  e2e: []
+- id: KICK-FEAT-026
+  name: NotificationPolicy webhook delivery
+  spec: ai-docs/gap-analysis/04-reloader-parity-gaps.md
+  task: ai-docs/gap-analysis/04-reloader-parity-gaps.md
+  tests:
+    unit: required
+    envtest: required
+    e2e: required
+  coverage:
+    unit:
+    - internal/notify/dispatcher_test.go
+    envtest:
+    - test/envtest/notificationpolicy_api_test.go
+  e2e:
+  - KICK-E2E-059

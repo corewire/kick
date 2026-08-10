@@ -7,22 +7,37 @@ cd "$repo_root"
 cat > llms.txt <<'EOF'
 # KICK Operator (AI quick context)
 
-KICK watches Secret and ConfigMap changes and evaluates whether a Deployment restart is required and currently allowed.
+KICK watches Secret and ConfigMap changes and evaluates whether a workload restart is required and currently allowed.
 
 ## APIs
 - KickRequest (`kick.corewire.io/v1alpha1`): durable restart request state machine.
-- KickPolicy (`kick.corewire.io/v1alpha1`): workload scope and GitOps gate policy.
+- KickPolicy (`kick.corewire.io/v1alpha1`): workload scope, GitOps gate, schedule, rate limit, dry-run.
+- NotificationPolicy (`kick.corewire.io/v1alpha1`): outbound webhook delivery for KickRequest outcomes.
 
 ## Runtime model
 - Source observation detects relevant dependency content changes.
 - KickRequest reconciliation re-resolves owner/gates and re-checks freshness before restart.
-- Restart action patches `kubectl.kubernetes.io/restartedAt` on Deployments only.
+- Restart action patches `kubectl.kubernetes.io/restartedAt` on Deployment, StatefulSet and DaemonSet.
+- Argo Rollouts are restarted via `spec.restartAt` instead, so the canary strategy is not re-run.
+
+## Optional integrations (off by default)
+- GitOps gating is opt-in: `spec.gitOps.provider` defaults to `None`. Providers: ArgoCD, Flux, Kargo, Auto.
+- `--enable-argo-rollouts`: treat `argoproj.io/v1alpha1` Rollouts as restartable workloads.
+- `--enable-csi-integration`: observe `SecretProviderClassPodStatus` for Secrets Store CSI rotation.
+
+## Deliberate non-goals
+- Dependencies declared by name are not supported; only proven env/volume/CSI references are used.
+- KICK has no admission webhook and never holds pods `Pending`.
+- OpenShift `DeploymentConfig` is not supported.
 
 ## Key references
 - docs/content/docs/installation.md
 - docs/content/docs/quickstart.md
+- docs/content/docs/comparison.md
+- docs/content/docs/guides/without-gitops.md
 - docs/content/docs/reference/kickrequest.md
 - docs/content/docs/reference/kickpolicy.md
+- docs/content/docs/reference/notificationpolicy.md
 - docs/content/docs/reference/configuration.md
 - docs/content/docs/reference/metrics.md
 - docs/content/docs/reference/events.md

@@ -14,6 +14,20 @@ argocd:
 requestRetention: 24h
 rolloutTimeout: 15m
 
+# Optional integrations. Each one needs its CRDs installed; KICK additionally
+# probes the API server at startup and stays inactive when a CRD is absent.
+integrations:
+  # Restart Argo Rollouts through spec.restartAt.
+  argoRollouts:
+    enabled: false
+  # Restart workloads when a Secrets Store CSI mounted secret rotates.
+  secretsStoreCSI:
+    enabled: false
+  # Block restarts while a Kargo Promotion is in flight. Requires
+  # spec.gitOps.provider: Kargo on the KickPolicy.
+  kargo:
+    enabled: false
+
 image:
   repository: ghcr.io/corewire/kick
   tag: dev

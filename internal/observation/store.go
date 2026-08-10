@@ -13,6 +13,10 @@ type SourceKind string
 const (
 	SourceKindSecret    SourceKind = "Secret"
 	SourceKindConfigMap SourceKind = "ConfigMap"
+	// SourceKindSecretProviderClass is an external secret mounted through the
+	// Secrets Store CSI driver. Its content never enters the API server, so the
+	// observed fingerprint is derived from the provider-reported object versions.
+	SourceKindSecretProviderClass SourceKind = "SecretProviderClass"
 )
 
 // SourceIdentity is the durable key for observed objects.

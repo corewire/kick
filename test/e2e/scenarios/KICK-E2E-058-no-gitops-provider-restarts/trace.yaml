@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-058
+name: no-gitops-provider-restarts
+features:
+  - KICK-FEAT-022
+provider: core
+class: behavior
+required: true

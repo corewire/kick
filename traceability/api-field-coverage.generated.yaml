@@ -5,6 +5,7 @@ resources:
   generated: true
   fields:
   - path: suspend
+  - path: dryRun
   - path: discovery.workloadSelector
   - path: discovery.dependencySelector
   - path: schedule.windows.type
@@ -47,4 +48,38 @@ resources:
   - path: latestObservedDependencyChange
   - path: currentRollout.replicaSet
   - path: currentRollout.startedAt
+  - path: conditions
+- type: NotificationPolicySpec
+  file: api/v1alpha1/notificationpolicy_types.go
+  generated: true
+  fields:
+  - path: suspend
+  - path: phases
+  - path: workloadSelector
+  - path: webhook.url
+  - path: webhook.method
+  - path: webhook.headers.name
+  - path: webhook.headers.value
+  - path: webhook.headers.valueFrom.name
+  - path: webhook.headers.valueFrom.key
+  - path: webhook.auth.bearerToken.name
+  - path: webhook.auth.bearerToken.key
+  - path: webhook.auth.basic.username.name
+  - path: webhook.auth.basic.username.key
+  - path: webhook.auth.basic.password.name
+  - path: webhook.auth.basic.password.key
+  - path: webhook.tls.caBundle.name
+  - path: webhook.tls.caBundle.key
+  - path: webhook.tls.clientCertificate.name
+  - path: webhook.tls.clientCertificate.key
+  - path: webhook.timeoutSeconds
+- type: NotificationPolicyStatus
+  file: api/v1alpha1/notificationpolicy_types.go
+  generated: true
+  fields:
+  - path: observedGeneration
+  - path: lastDeliveryTime
+  - path: lastError
+  - path: delivered
+  - path: failed
   - path: conditions

@@ -81,6 +81,7 @@ spec:
                     - Deployment
                     - StatefulSet
                     - DaemonSet
+                    - Rollout
                     type: string
                   name:
                     minLength: 1
@@ -208,6 +209,7 @@ spec:
                 - Succeeded
                 - NoLongerRequired
                 - Failed
+                - DryRun
                 type: string
             type: object
         type: object

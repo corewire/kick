@@ -35,8 +35,18 @@ any GitOps provider. Omit it to allow restarts at any time.
 `spec.gitOps` is optional. When omitted, `provider` defaults to `None` and KICK
 restarts without consulting a GitOps tool (gated only by any native windows).
 
-- `provider` enum: `None`, `Auto`, `ArgoCD`, `Flux` (default `None`)
+- `provider` enum: `None`, `Auto`, `ArgoCD`, `Flux`, `Kargo` (default `None`)
 - `requireReconciled` default: `true` (applies only to a real provider)
+
+`Kargo` is never auto-detected and must be selected explicitly: Kargo does not
+write to workloads, Argo CD does, so a Kargo-managed workload is
+indistinguishable from a plain Argo CD one. With `Kargo`, KICK resolves the
+authorised `Stage` from the owning Application's
+`kargo.akuity.io/authorized-stage` annotation, blocks while a Promotion for that
+Stage is in flight, and then delegates to the Argo CD gate. More than one
+authorised stage is treated as ambiguous ownership and blocks.
+
+See [Running without GitOps](../guides/without-gitops/) for the `None` case.
 
 ## spec.restart
 
@@ -45,6 +55,10 @@ restarts without consulting a GitOps tool (gated only by any native windows).
 ## spec
 
 - `suspend` pauses the policy without deleting it (default `false`)
+- `dryRun` evaluates every gate and the freshness check but never patches a
+  workload (default `false`). The `KickRequest` ends in the terminal `DryRun`
+  phase with the decision recorded in its conditions, so you can see exactly
+  what would have happened.
 
 ## status
 

@@ -1,0 +1,98 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: kick-e2e-059-notificationpolicy-delivers-on-success
+spec:
+  steps:
+    - name: create-fixtures
+      try:
+        - apply:
+            file: resources.yaml
+        - assert:
+            resource:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: app
+                namespace: kick-e2e-059
+              status:
+                readyReplicas: 1
+    - name: change-secret
+      try:
+        - script:
+            content: |
+              set -eu
+              kubectl -n kick-e2e-059 patch secret app-secret --type merge -p '{"stringData":{"token":"bravo"}}'
+    - name: assert-restart-succeeded
+      try:
+        - script:
+            content: |
+              set -eu
+              deadline=$(( $(date +%s) + 150 ))
+              while true; do
+                phase=$(kubectl -n kick-e2e-059 get kickrequest deployment-app \
+                  -o jsonpath='{.status.phase}' 2>/dev/null || true)
+                if [ "$phase" = "Succeeded" ]; then
+                  break
+                fi
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "expected the kickrequest to succeed, got '${phase}'" >&2
+                  kubectl -n kick-e2e-059 get kickrequests -o yaml >&2 || true
+                  exit 1
+                fi
+                sleep 2
+              done
+    - name: assert-delivery-attempted
+      try:
+        - script:
+            content: |
+              set -eu
+              # The endpoint rejects the request, so the attempt must surface as
+              # a failure with an error message rather than being swallowed.
+              deadline=$(( $(date +%s) + 120 ))
+              while true; do
+                failed=$(kubectl -n kick-e2e-059 get notificationpolicy default \
+                  -o jsonpath='{.status.failed}' 2>/dev/null || true)
+                if [ -n "${failed}" ] && [ "${failed}" -ge 1 ]; then
+                  break
+                fi
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "expected at least one delivery attempt, status.failed='${failed}'" >&2
+                  kubectl -n kick-e2e-059 get notificationpolicy default -o yaml >&2 || true
+                  exit 1
+                fi
+                sleep 2
+              done
+              last_error=$(kubectl -n kick-e2e-059 get notificationpolicy default \
+                -o jsonpath='{.status.lastError}')
+              if [ -z "${last_error}" ]; then
+                echo "expected status.lastError to describe the failed delivery" >&2
+                exit 1
+              fi
+              # A failed notification must never fail the restart itself.
+              phase=$(kubectl -n kick-e2e-059 get kickrequest deployment-app -o jsonpath='{.status.phase}')
+              if [ "${phase}" != "Succeeded" ]; then
+                echo "notification failure must not change the request phase, got '${phase}'" >&2
+                exit 1
+              fi
+    - name: assert-suspend-stops-delivery
+      try:
+        - script:
+            content: |
+              set -eu
+              kubectl -n kick-e2e-059 patch notificationpolicy default --type merge -p '{"spec":{"suspend":true}}'
+              before=$(kubectl -n kick-e2e-059 get notificationpolicy default -o jsonpath='{.status.failed}')
+              kubectl -n kick-e2e-059 patch secret app-secret --type merge -p '{"stringData":{"token":"charlie"}}'
+              sleep 60
+              after=$(kubectl -n kick-e2e-059 get notificationpolicy default -o jsonpath='{.status.failed}')
+              if [ "${before}" != "${after}" ]; then
+                echo "a suspended policy must not deliver (failed ${before} -> ${after})" >&2
+                exit 1
+              fi
+    - name: cleanup
+      try:
+        - delete:
+            ref:
+              apiVersion: v1
+              kind: Namespace
+              name: kick-e2e-059

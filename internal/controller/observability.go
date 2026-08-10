@@ -15,6 +15,7 @@ const (
 	eventKickSucceeded        = "KickSucceeded"
 	eventKickNoLongerRequired = "KickNoLongerRequired"
 	eventKickFailed           = "KickFailed"
+	eventKickDryRun           = "KickDryRun"
 	eventOwnerUnknown         = "OwnerUnknown"
 	eventOwnerAmbiguous       = "OwnerAmbiguous"
 )

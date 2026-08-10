@@ -126,6 +126,11 @@ resources:
     coverage:
       envtest:
       - test/envtest/kickpolicy_api_test.go
+  - path: dryRun
+    required: true
+    coverage:
+      unit:
+      - internal/controller/dryrun_test.go
   - path: discovery.workloadSelector
     required: true
     coverage:
@@ -207,3 +212,151 @@ resources:
     coverage:
       envtest:
       - test/envtest/kickpolicy_api_test.go
+- type: NotificationPolicySpec
+  file: api/v1alpha1/notificationpolicy_types.go
+  fields:
+  - path: suspend
+    required: true
+    coverage:
+      unit:
+      - internal/notify/dispatcher_test.go
+      envtest:
+      - test/envtest/notificationpolicy_api_test.go
+  - path: phases
+    required: true
+    coverage:
+      unit:
+      - internal/notify/dispatcher_test.go
+      envtest:
+      - test/envtest/notificationpolicy_api_test.go
+  - path: workloadSelector
+    required: true
+    coverage:
+      unit:
+      - internal/notify/dispatcher_test.go
+      envtest:
+      - test/envtest/notificationpolicy_api_test.go
+  - path: webhook.url
+    required: true
+    coverage:
+      unit:
+      - internal/notify/dispatcher_test.go
+      envtest:
+      - test/envtest/notificationpolicy_api_test.go
+  - path: webhook.method
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/notificationpolicy_api_test.go
+  - path: webhook.timeoutSeconds
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/notificationpolicy_api_test.go
+  - path: webhook.headers.name
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/notificationpolicy_api_test.go
+  - path: webhook.headers.value
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/notificationpolicy_api_test.go
+  - path: webhook.headers.valueFrom.name
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/notificationpolicy_api_test.go
+  - path: webhook.headers.valueFrom.key
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/notificationpolicy_api_test.go
+  - path: webhook.auth.bearerToken.name
+    required: true
+    coverage:
+      unit:
+      - internal/notify/dispatcher_test.go
+      envtest:
+      - test/envtest/notificationpolicy_api_test.go
+  - path: webhook.auth.bearerToken.key
+    required: true
+    coverage:
+      unit:
+      - internal/notify/dispatcher_test.go
+      envtest:
+      - test/envtest/notificationpolicy_api_test.go
+  - path: webhook.auth.basic.username.name
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/notificationpolicy_api_test.go
+  - path: webhook.auth.basic.username.key
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/notificationpolicy_api_test.go
+  - path: webhook.auth.basic.password.name
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/notificationpolicy_api_test.go
+  - path: webhook.auth.basic.password.key
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/notificationpolicy_api_test.go
+  - path: webhook.tls.caBundle.name
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/notificationpolicy_api_test.go
+  - path: webhook.tls.caBundle.key
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/notificationpolicy_api_test.go
+  - path: webhook.tls.clientCertificate.name
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/notificationpolicy_api_test.go
+  - path: webhook.tls.clientCertificate.key
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/notificationpolicy_api_test.go
+- type: NotificationPolicyStatus
+  file: api/v1alpha1/notificationpolicy_types.go
+  fields:
+  - path: observedGeneration
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/notificationpolicy_api_test.go
+  - path: lastDeliveryTime
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/notificationpolicy_api_test.go
+  - path: lastError
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/notificationpolicy_api_test.go
+  - path: delivered
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/notificationpolicy_api_test.go
+  - path: failed
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/notificationpolicy_api_test.go
+  - path: conditions
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/notificationpolicy_api_test.go

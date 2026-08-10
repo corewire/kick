@@ -30,7 +30,7 @@ type stubGateResolver struct {
 	calls    int
 }
 
-func (s *stubGateResolver) ResolveOwnerAndGate(context.Context, client.Object, time.Time) (kickv1alpha1.GitOpsOwnerStatus, gitops.GateDecision, error) {
+func (s *stubGateResolver) ResolveOwnerAndGate(context.Context, client.Object, string, time.Time) (kickv1alpha1.GitOpsOwnerStatus, gitops.GateDecision, error) {
 	s.calls++
 	return s.owner, s.decision, s.err
 }

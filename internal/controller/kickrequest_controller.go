@@ -12,6 +12,7 @@ import (
 	"github.com/corewire/kick/internal/freshness"
 	"github.com/corewire/kick/internal/gitops"
 	argocdprovider "github.com/corewire/kick/internal/gitops/argocd"
+	"github.com/corewire/kick/internal/notify"
 	"github.com/corewire/kick/internal/observation"
 	"github.com/corewire/kick/internal/policy"
 	"github.com/corewire/kick/internal/schedule"
@@ -38,19 +39,19 @@ const (
 )
 
 type GateResolver interface {
-	ResolveOwnerAndGate(context.Context, client.Object, time.Time) (kickv1alpha1.GitOpsOwnerStatus, gitops.GateDecision, error)
+	ResolveOwnerAndGate(ctx context.Context, workload client.Object, providerName string, now time.Time) (kickv1alpha1.GitOpsOwnerStatus, gitops.GateDecision, error)
 }
 
 type RegistryGateResolver struct {
 	Registry *gitops.Registry
 }
 
-func (r *RegistryGateResolver) ResolveOwnerAndGate(ctx context.Context, workload client.Object, now time.Time) (kickv1alpha1.GitOpsOwnerStatus, gitops.GateDecision, error) {
+func (r *RegistryGateResolver) ResolveOwnerAndGate(ctx context.Context, workload client.Object, providerName string, now time.Time) (kickv1alpha1.GitOpsOwnerStatus, gitops.GateDecision, error) {
 	if r == nil || r.Registry == nil {
 		return kickv1alpha1.GitOpsOwnerStatus{}, gitops.GateDecision{Reason: gitops.GateConfigurationError, Message: "provider registry is not configured"}, nil
 	}
 
-	provider, detectDecision := r.Registry.DetectProvider(workload)
+	provider, detectDecision := r.selectProvider(workload, providerName)
 	if provider == nil {
 		return kickv1alpha1.GitOpsOwnerStatus{}, detectDecision, nil
 	}
@@ -85,6 +86,38 @@ func (r *RegistryGateResolver) ResolveOwnerAndGate(ctx context.Context, workload
 	return ownerToStatus(owner), decision, nil
 }
 
+// selectProvider honors an explicitly configured provider and falls back to
+// detection when the policy asks for Auto. Some providers (Kargo) cannot be
+// detected from workload metadata alone and must be named.
+func (r *RegistryGateResolver) selectProvider(workload client.Object, providerName string) (gitops.Provider, gitops.GateDecision) {
+	if providerName == "" {
+		return r.Registry.DetectProvider(workload)
+	}
+	provider, ok := r.Registry.ProviderByName(providerName)
+	if !ok {
+		return nil, gitops.GateDecision{Reason: gitops.GateProviderUnavailable, Message: "configured provider is not enabled: " + providerName}
+	}
+	return provider, gitops.GateDecision{}
+}
+
+// gateProviderName maps the policy provider enum onto a registered provider
+// name. Auto returns an empty string, which selects detection.
+func gateProviderName(pol *kickv1alpha1.KickPolicy) string {
+	if pol == nil {
+		return ""
+	}
+	switch pol.Spec.GitOps.Provider {
+	case kickv1alpha1.KickPolicyProviderArgoCD:
+		return "argocd"
+	case kickv1alpha1.KickPolicyProviderFlux:
+		return "flux"
+	case kickv1alpha1.KickPolicyProviderKargo:
+		return "kargo"
+	default:
+		return ""
+	}
+}
+
 type FreshnessEvaluator interface {
 	Evaluate(ctx context.Context, workload client.Object, currentDependencies []dependency.DependencyRef, latestRelevantChanges map[dependency.DependencyRef]time.Time) (freshness.FreshnessDecision, error)
 }
@@ -102,9 +135,12 @@ type KickRequestReconciler struct {
 	ObservationStore   observation.Store
 	FreshnessEvaluator FreshnessEvaluator
 	RestartExecutor    RestartExecutor
-	Clock              func() time.Time
-	RequeueInterval    time.Duration
-	RequestRetention   time.Duration
+	// Notifier receives phase transitions. Delivery is best-effort and never
+	// influences reconciliation.
+	Notifier         notify.Dispatcher
+	Clock            func() time.Time
+	RequeueInterval  time.Duration
+	RequestRetention time.Duration
 }
 
 func (r *KickRequestReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -154,7 +190,7 @@ func (r *KickRequestReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			gitops.GateDecision{Allowed: true, Reconciled: true, Reason: gitops.GateAllowed, Message: "no GitOps provider configured"})
 	}
 
-	ownerStatus, gateDecision, err := r.GateResolver.ResolveOwnerAndGate(ctx, workload, now)
+	ownerStatus, gateDecision, err := r.GateResolver.ResolveOwnerAndGate(ctx, workload, gateProviderName(matchedPolicy), now)
 	if err != nil {
 		observeControllerError("kickrequest", "ResolveOwnerAndGate")
 		return ctrl.Result{}, err
@@ -326,6 +362,10 @@ func (r *KickRequestReconciler) evaluateFreshnessAndExecute(
 		return res, err
 	}
 
+	if policyDryRun(matchedPolicy) {
+		return r.recordDryRun(ctx, req, request, ownerStatus, gateDecision, freshnessDecision)
+	}
+
 	// Transition to Executing once. The executor owns CurrentRollout.StartedAt
 	// (the time KICK issues the restart); pre-seeding it from the existing
 	// ReplicaSet would make the executor treat the restart as already issued.
@@ -379,6 +419,24 @@ func (r *KickRequestReconciler) handleFreshnessGate(ctx context.Context, req ctr
 	}
 
 	return ctrl.Result{}, false, nil
+}
+
+// recordDryRun terminates a request that would have restarted the workload, but
+// whose policy runs in dry-run mode.
+func (r *KickRequestReconciler) recordDryRun(ctx context.Context, req ctrl.Request, request *kickv1alpha1.KickRequest, ownerStatus kickv1alpha1.GitOpsOwnerStatus, gateDecision gitops.GateDecision, freshnessDecision freshness.FreshnessDecision) (ctrl.Result, error) {
+	const message = "restart required, not performed because the policy is in dry-run mode"
+	if err := r.updateRequestStatus(ctx, req.NamespacedName, func(status *kickv1alpha1.KickRequestStatus) {
+		status.Owner = ownerStatus
+		status.Gate = gateToStatus(gateDecision)
+		status.CurrentRollout = rolloutToStatus(freshnessDecision)
+		status.LatestObservedDependencyChange = toMetav1TimePtr(freshnessDecision.LatestChange)
+		setPhase(status, kickv1alpha1.KickRequestPhaseDryRun, "DryRun", message)
+	}); err != nil {
+		observeControllerError("kickrequest", "UpdateStatus")
+		return ctrl.Result{}, err
+	}
+	r.recordTransition(request, kickv1alpha1.KickRequestPhaseDryRun, "DryRun", message, ownerStatus.Provider)
+	return ctrl.Result{}, nil
 }
 
 // markExecuting transitions the request to Executing before issuing the restart.
@@ -438,6 +496,11 @@ func policyNativeWindows(pol *kickv1alpha1.KickPolicy) []schedule.Window {
 		})
 	}
 	return out
+}
+
+// policyDryRun reports whether the matched policy evaluates without patching.
+func policyDryRun(pol *kickv1alpha1.KickPolicy) bool {
+	return pol != nil && pol.Spec.DryRun
 }
 
 // policyGitOpsGated reports whether restart decisions defer to a GitOps
@@ -519,6 +582,12 @@ func dependencyLabels(ctx context.Context, c client.Client, dep dependency.Depen
 			return nil, false, client.IgnoreNotFound(err)
 		}
 		return configMap.GetLabels(), true, nil
+	case dependency.SecretProviderClass:
+		obj := dependency.NewSecretProviderClassObject()
+		if err := c.Get(ctx, key, obj); err != nil {
+			return nil, false, client.IgnoreNotFound(err)
+		}
+		return obj.GetLabels(), true, nil
 	default:
 		return nil, false, nil
 	}
@@ -644,7 +713,13 @@ func dependencyToSourceIdentity(dep dependency.DependencyRef) (observation.Sourc
 }
 
 func supportedTargetRef(ref kickv1alpha1.ObjectReference) bool {
-	if ref.Name == "" || ref.APIVersion != "apps/v1" {
+	if ref.Name == "" {
+		return false
+	}
+	if dependency.IsArgoRollout(ref.APIVersion, ref.Kind) {
+		return true
+	}
+	if ref.APIVersion != "apps/v1" {
 		return false
 	}
 	switch ref.Kind {
@@ -656,6 +731,13 @@ func supportedTargetRef(ref kickv1alpha1.ObjectReference) bool {
 }
 
 func loadTargetWorkload(ctx context.Context, c client.Client, ref kickv1alpha1.ObjectReference, key types.NamespacedName) (client.Object, error) {
+	if dependency.IsArgoRollout(ref.APIVersion, ref.Kind) {
+		obj := dependency.NewArgoRolloutObject()
+		if err := c.Get(ctx, key, obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	}
 	switch ref.Kind {
 	case "Deployment":
 		var deployment appsv1.Deployment
@@ -739,7 +821,7 @@ func setPhase(status *kickv1alpha1.KickRequestStatus, phase kickv1alpha1.KickReq
 		Message:            message,
 		Status:             metav1.ConditionTrue,
 	}
-	if phase == kickv1alpha1.KickRequestPhaseSucceeded || phase == kickv1alpha1.KickRequestPhaseNoLongerRequired || phase == kickv1alpha1.KickRequestPhaseFailed {
+	if phase == kickv1alpha1.KickRequestPhaseSucceeded || phase == kickv1alpha1.KickRequestPhaseNoLongerRequired || phase == kickv1alpha1.KickRequestPhaseFailed || phase == kickv1alpha1.KickRequestPhaseDryRun {
 		condition.Status = metav1.ConditionFalse
 	}
 	apimeta.SetStatusCondition(&status.Conditions, condition)
@@ -753,7 +835,7 @@ func sanitizeReason(reason string) string {
 }
 
 func isTerminalPhase(phase kickv1alpha1.KickRequestPhase) bool {
-	return phase == kickv1alpha1.KickRequestPhaseSucceeded || phase == kickv1alpha1.KickRequestPhaseNoLongerRequired || phase == kickv1alpha1.KickRequestPhaseFailed
+	return phase == kickv1alpha1.KickRequestPhaseSucceeded || phase == kickv1alpha1.KickRequestPhaseNoLongerRequired || phase == kickv1alpha1.KickRequestPhaseFailed || phase == kickv1alpha1.KickRequestPhaseDryRun
 }
 
 func ownerToStatus(owner gitops.Owner) kickv1alpha1.GitOpsOwnerStatus {
@@ -787,6 +869,8 @@ func (r *KickRequestReconciler) recordTransition(request *kickv1alpha1.KickReque
 		observeRequestResult(provider, "no_longer_required")
 	case kickv1alpha1.KickRequestPhaseFailed:
 		observeRequestResult(provider, "failed")
+	case kickv1alpha1.KickRequestPhaseDryRun:
+		observeRequestResult(provider, "dry_run")
 	case kickv1alpha1.KickRequestPhaseExecuting:
 		observeRestartResult(provider, "started")
 	}
@@ -796,6 +880,19 @@ func (r *KickRequestReconciler) recordTransition(request *kickv1alpha1.KickReque
 		if eventReason != "" {
 			r.Recorder.Event(request, eventType, eventReason, message)
 		}
+	}
+	if r.Notifier != nil {
+		r.Notifier.Notify(notify.Event{
+			Namespace:      request.Namespace,
+			RequestName:    request.Name,
+			Phase:          string(newPhase),
+			Reason:         reason,
+			Message:        message,
+			TargetKind:     request.Spec.TargetRef.Kind,
+			TargetName:     request.Spec.TargetRef.Name,
+			GitOpsProvider: provider,
+			OccurredAt:     r.now().UTC(),
+		}.WithWorkloadLabels(request.Labels))
 	}
 	request.Status.Phase = newPhase
 }
@@ -821,6 +918,8 @@ func phaseToEvent(phase kickv1alpha1.KickRequestPhase, reason string) (string, s
 		return corev1.EventTypeNormal, eventKickNoLongerRequired
 	case kickv1alpha1.KickRequestPhaseFailed:
 		return corev1.EventTypeWarning, eventKickFailed
+	case kickv1alpha1.KickRequestPhaseDryRun:
+		return corev1.EventTypeNormal, eventKickDryRun
 	default:
 		return "", ""
 	}

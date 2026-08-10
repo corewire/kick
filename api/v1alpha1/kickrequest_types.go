@@ -17,6 +17,9 @@ const (
 	KickRequestPhaseSucceeded         KickRequestPhase = "Succeeded"
 	KickRequestPhaseNoLongerRequired  KickRequestPhase = "NoLongerRequired"
 	KickRequestPhaseFailed            KickRequestPhase = "Failed"
+	// KickRequestPhaseDryRun is terminal: the restart was required and allowed,
+	// but the policy runs in dry-run mode so no workload was patched.
+	KickRequestPhaseDryRun KickRequestPhase = "DryRun"
 )
 
 // ObjectReference identifies the workload KICK may restart.
@@ -24,7 +27,7 @@ type ObjectReference struct {
 	// +kubebuilder:default:=apps/v1
 	APIVersion string `json:"apiVersion"`
 	// +kubebuilder:default:=Deployment
-	// +kubebuilder:validation:Enum=Deployment;StatefulSet;DaemonSet
+	// +kubebuilder:validation:Enum=Deployment;StatefulSet;DaemonSet;Rollout
 	Kind string `json:"kind"`
 	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
@@ -69,7 +72,7 @@ type KickRequestSpec struct {
 
 // KickRequestStatus is diagnostic and audit state. Live state remains authoritative.
 type KickRequestStatus struct {
-	// +kubebuilder:validation:Enum=Pending;WaitingForGate;WaitingForOwner;WaitingForApplicationSync;WaitingForRollout;Executing;Succeeded;NoLongerRequired;Failed
+	// +kubebuilder:validation:Enum=Pending;WaitingForGate;WaitingForOwner;WaitingForApplicationSync;WaitingForRollout;Executing;Succeeded;NoLongerRequired;Failed;DryRun
 	Phase                          KickRequestPhase   `json:"phase,omitempty"`
 	Owner                          GitOpsOwnerStatus  `json:"owner,omitempty"`
 	Gate                           GateStatus         `json:"gate,omitempty"`

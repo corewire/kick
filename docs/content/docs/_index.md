@@ -6,14 +6,16 @@ llmsDescription: |
   Documentation index for the KICK Kubernetes operator. Sections: getting
   started (install + quickstart), concepts (discovery, freshness, GitOps
   gates), theory (formal operator model with notation), guides (ArgoCD,
-  external-secrets, troubleshooting), reference (KickPolicy/KickRequest,
-  metrics, events, configuration), operations (RBAC, security, scalability,
-  upgrades), development, and design decisions.
+  running without GitOps, external-secrets, troubleshooting), reference
+  (KickPolicy/KickRequest/NotificationPolicy, metrics, events, configuration),
+  operations (RBAC, security, scalability, upgrades), development, and design
+  decisions. GitOps gating is optional; spec.gitOps.provider defaults to None.
 ---
 
 KICK restarts a workload when a `Secret` or `ConfigMap` it consumes changes —
 but only when the running rollout is actually stale, and only when your GitOps
-tool permits the restart.
+tool permits the restart. GitOps gating is optional: KICK also runs on a cluster
+with no GitOps controller at all.
 
 ### What is KICK?
 
@@ -40,8 +42,8 @@ injects no state into your workloads.
 | [Quickstart](quickstart/) | Watch KICK restart a Deployment on Kind |
 | [Concepts](concepts/) | Discovery, freshness, and GitOps gating, explained |
 | [Comparison](comparison/) | How KICK differs from Reloader and Wave |
-| [Guides](guides/) | Argo CD, External Secrets, and troubleshooting |
-| [Reference](reference/) | KickPolicy / KickRequest API, metrics, events, config |
+| [Guides](guides/) | Argo CD, Kargo, running without GitOps, External Secrets, troubleshooting |
+| [Reference](reference/) | KickPolicy / KickRequest / NotificationPolicy API, metrics, events, config |
 | [Operations](operations/) | RBAC, security, scalability, upgrades |
 | [Theory](theory/operator-model/) | The formal operator model in scientific notation |
 | [Development](development/) | Debugging, the timeline UI, workflow |

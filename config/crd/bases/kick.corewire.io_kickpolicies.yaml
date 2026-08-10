@@ -159,6 +159,12 @@ spec:
                 required:
                 - workloadSelector
                 type: object
+              dryRun:
+                description: |-
+                  DryRun evaluates every gate and freshness check as usual but never patches
+                  a workload. Matching requests end in the terminal DryRun phase, so an
+                  operator can see exactly what adopting this policy would restart.
+                type: boolean
               gitOps:
                 description: KickPolicyGitOpsSpec configures provider gate behavior.
                 properties:
@@ -172,6 +178,7 @@ spec:
                     - Auto
                     - ArgoCD
                     - Flux
+                    - Kargo
                     type: string
                   requireReconciled:
                     default: true

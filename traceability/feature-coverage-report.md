@@ -22,6 +22,12 @@
 | KICK-FEAT-018 | Pass | N/A | N/A | - | PASS |
 | KICK-FEAT-019 | Pass | N/A | N/A | - | PASS |
 | KICK-FEAT-020 | Pass | Pass | Pass | KICK-E2E-056 | PASS |
+| KICK-FEAT-021 | Pass | Optional | Pass | KICK-E2E-057 | PASS |
+| KICK-FEAT-022 | Pass | Optional | Pass | KICK-E2E-058 | PASS |
+| KICK-FEAT-023 | Pass | N/A | N/A | - | PASS |
+| KICK-FEAT-024 | Pass | N/A | N/A | - | PASS |
+| KICK-FEAT-025 | Pass | N/A | N/A | - | PASS |
+| KICK-FEAT-026 | Pass | Pass | Pass | KICK-E2E-059 | PASS |
 
 # API Field Coverage Report
 
@@ -46,6 +52,7 @@
 | KickRequestStatus | currentRollout.startedAt | yes | Covered | Covered | Covered | PASS | unit=internal/executor/restart_test.go,internal/controller/kickrequest_controller_test.go; envtest=test/envtest/kickrequest_api_test.go; e2e=KICK-E2E-043(covered) |
 | KickRequestStatus | conditions | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickrequest_api_test.go |
 | KickPolicySpec | suspend | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickpolicy_api_test.go |
+| KickPolicySpec | dryRun | yes | Covered | Missing | Missing | PASS | unit=internal/controller/dryrun_test.go |
 | KickPolicySpec | discovery.workloadSelector | yes | Covered | Covered | Missing | PASS | unit=internal/policy/matcher_test.go; envtest=test/envtest/kickpolicy_api_test.go |
 | KickPolicySpec | discovery.dependencySelector | yes | Covered | Covered | Missing | PASS | unit=internal/controller/kickrequest_controller_test.go,internal/controller/kickrequest_enqueuer_test.go; envtest=test/envtest/kickpolicy_api_test.go |
 | KickPolicySpec | schedule.windows.type | yes | Missing | Missing | Covered | PASS | e2e=KICK-E2E-015(covered),KICK-E2E-036(covered),KICK-E2E-048(covered) |
@@ -59,3 +66,29 @@
 | KickPolicyStatus | matchedWorkloads | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickpolicy_api_test.go |
 | KickPolicyStatus | blockedWorkloads | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickpolicy_api_test.go |
 | KickPolicyStatus | conditions | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickpolicy_api_test.go |
+| NotificationPolicySpec | suspend | yes | Covered | Covered | Missing | PASS | unit=internal/notify/dispatcher_test.go; envtest=test/envtest/notificationpolicy_api_test.go |
+| NotificationPolicySpec | phases | yes | Covered | Covered | Missing | PASS | unit=internal/notify/dispatcher_test.go; envtest=test/envtest/notificationpolicy_api_test.go |
+| NotificationPolicySpec | workloadSelector | yes | Covered | Covered | Missing | PASS | unit=internal/notify/dispatcher_test.go; envtest=test/envtest/notificationpolicy_api_test.go |
+| NotificationPolicySpec | webhook.url | yes | Covered | Covered | Missing | PASS | unit=internal/notify/dispatcher_test.go; envtest=test/envtest/notificationpolicy_api_test.go |
+| NotificationPolicySpec | webhook.method | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/notificationpolicy_api_test.go |
+| NotificationPolicySpec | webhook.timeoutSeconds | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/notificationpolicy_api_test.go |
+| NotificationPolicySpec | webhook.headers.name | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/notificationpolicy_api_test.go |
+| NotificationPolicySpec | webhook.headers.value | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/notificationpolicy_api_test.go |
+| NotificationPolicySpec | webhook.headers.valueFrom.name | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/notificationpolicy_api_test.go |
+| NotificationPolicySpec | webhook.headers.valueFrom.key | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/notificationpolicy_api_test.go |
+| NotificationPolicySpec | webhook.auth.bearerToken.name | yes | Covered | Covered | Missing | PASS | unit=internal/notify/dispatcher_test.go; envtest=test/envtest/notificationpolicy_api_test.go |
+| NotificationPolicySpec | webhook.auth.bearerToken.key | yes | Covered | Covered | Missing | PASS | unit=internal/notify/dispatcher_test.go; envtest=test/envtest/notificationpolicy_api_test.go |
+| NotificationPolicySpec | webhook.auth.basic.username.name | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/notificationpolicy_api_test.go |
+| NotificationPolicySpec | webhook.auth.basic.username.key | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/notificationpolicy_api_test.go |
+| NotificationPolicySpec | webhook.auth.basic.password.name | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/notificationpolicy_api_test.go |
+| NotificationPolicySpec | webhook.auth.basic.password.key | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/notificationpolicy_api_test.go |
+| NotificationPolicySpec | webhook.tls.caBundle.name | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/notificationpolicy_api_test.go |
+| NotificationPolicySpec | webhook.tls.caBundle.key | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/notificationpolicy_api_test.go |
+| NotificationPolicySpec | webhook.tls.clientCertificate.name | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/notificationpolicy_api_test.go |
+| NotificationPolicySpec | webhook.tls.clientCertificate.key | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/notificationpolicy_api_test.go |
+| NotificationPolicyStatus | observedGeneration | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/notificationpolicy_api_test.go |
+| NotificationPolicyStatus | lastDeliveryTime | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/notificationpolicy_api_test.go |
+| NotificationPolicyStatus | lastError | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/notificationpolicy_api_test.go |
+| NotificationPolicyStatus | delivered | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/notificationpolicy_api_test.go |
+| NotificationPolicyStatus | failed | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/notificationpolicy_api_test.go |
+| NotificationPolicyStatus | conditions | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/notificationpolicy_api_test.go |

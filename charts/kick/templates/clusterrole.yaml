@@ -22,9 +22,30 @@ rules:
   - apiGroups: ["kick.corewire.io"]
     resources: ["kickpolicies"]
     verbs: ["get", "list", "watch"]
+  - apiGroups: ["kick.corewire.io"]
+    resources: ["notificationpolicies"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["kick.corewire.io"]
+    resources: ["notificationpolicies/status"]
+    verbs: ["get", "update", "patch"]
   - apiGroups: ["argoproj.io"]
     resources: ["applications"]
     verbs: ["get", "list", "watch"]
+{{- if .Values.integrations.argoRollouts.enabled }}
+  - apiGroups: ["argoproj.io"]
+    resources: ["rollouts"]
+    verbs: ["get", "list", "watch", "patch"]
+{{- end }}
+{{- if .Values.integrations.secretsStoreCSI.enabled }}
+  - apiGroups: ["secrets-store.csi.x-k8s.io"]
+    resources: ["secretproviderclasses", "secretproviderclasspodstatuses"]
+    verbs: ["get", "list", "watch"]
+{{- end }}
+{{- if .Values.integrations.kargo.enabled }}
+  - apiGroups: ["kargo.akuity.io"]
+    resources: ["stages", "promotions"]
+    verbs: ["get", "list", "watch"]
+{{- end }}
   - apiGroups: ["coordination.k8s.io"]
     resources: ["leases"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]

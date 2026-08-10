@@ -12,6 +12,7 @@ const (
 	KickPolicyProviderAuto   KickPolicyProvider = "Auto"
 	KickPolicyProviderArgoCD KickPolicyProvider = "ArgoCD"
 	KickPolicyProviderFlux   KickPolicyProvider = "Flux"
+	KickPolicyProviderKargo  KickPolicyProvider = "Kargo"
 )
 
 // KickPolicyDiscoverySpec controls which workloads a policy manages and which of
@@ -63,7 +64,7 @@ type KickPolicyGitOpsSpec struct {
 	// Provider selects the GitOps gate. "None" (the default) restarts without
 	// consulting any GitOps tool, gated only by any native schedule windows.
 	// +kubebuilder:default:=None
-	// +kubebuilder:validation:Enum=None;Auto;ArgoCD;Flux
+	// +kubebuilder:validation:Enum=None;Auto;ArgoCD;Flux;Kargo
 	Provider KickPolicyProvider `json:"provider,omitempty"`
 	// RequireReconciled is a correctness gate (not a schedule): wait until the
 	// owning application has finished applying before restarting.
@@ -84,7 +85,12 @@ type KickPolicySpec struct {
 	// Suspend pauses the policy: it matches nothing and issues no restarts until
 	// unset, without deleting the object.
 	// +optional
-	Suspend   bool                    `json:"suspend,omitempty"`
+	Suspend bool `json:"suspend,omitempty"`
+	// DryRun evaluates every gate and freshness check as usual but never patches
+	// a workload. Matching requests end in the terminal DryRun phase, so an
+	// operator can see exactly what adopting this policy would restart.
+	// +optional
+	DryRun    bool                    `json:"dryRun,omitempty"`
 	Discovery KickPolicyDiscoverySpec `json:"discovery"`
 	// +optional
 	Schedule KickPolicyScheduleSpec `json:"schedule,omitempty"`

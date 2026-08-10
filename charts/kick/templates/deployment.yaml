@@ -26,6 +26,12 @@ spec:
             - --leader-elect={{ .Values.leaderElection.enabled }}
             - --health-probe-bind-address=:8081
             - --metrics-bind-address=:8080
+{{- if .Values.integrations.secretsStoreCSI.enabled }}
+            - --enable-csi-integration
+{{- end }}
+{{- if .Values.integrations.argoRollouts.enabled }}
+            - --enable-argo-rollouts
+{{- end }}
           livenessProbe:
             httpGet:
               path: {{ .Values.probes.liveness.path }}

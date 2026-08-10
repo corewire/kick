@@ -1,3 +1,4 @@
 resources:
 - bases/kick.corewire.io_kickrequests.yaml
 - bases/kick.corewire.io_kickpolicies.yaml
+- bases/kick.corewire.io_notificationpolicies.yaml

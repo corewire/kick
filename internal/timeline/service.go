@@ -465,6 +465,12 @@ func loadWorkload(ctx context.Context, c client.Client, namespace, kind, name st
 			return nil, err
 		}
 		return &daemonSet, nil
+	case "Rollout":
+		obj := dependency.NewArgoRolloutObject()
+		if err := c.Get(ctx, key, obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
 	default:
 		return nil, fmt.Errorf("unsupported kind: %s", kind)
 	}

@@ -1,0 +1,93 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: kick-e2e-058-no-gitops-provider-restarts
+spec:
+  steps:
+    - name: create-fixtures
+      try:
+        - apply:
+            file: resources.yaml
+        - assert:
+            resource:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: app
+                namespace: kick-e2e-058
+              status:
+                readyReplicas: 1
+    - name: change-secret
+      try:
+        - script:
+            content: |
+              set -eu
+              kubectl -n kick-e2e-058 patch secret app-secret --type merge -p '{"stringData":{"token":"bravo"}}'
+    - name: assert-restart-succeeded
+      try:
+        - script:
+            content: |
+              set -eu
+              deadline=$(( $(date +%s) + 150 ))
+              while true; do
+                phase=$(kubectl -n kick-e2e-058 get kickrequest deployment-app \
+                  -o jsonpath='{.status.phase}' 2>/dev/null || true)
+                if [ "$phase" = "Succeeded" ]; then
+                  break
+                fi
+                case "$phase" in
+                  Failed|DryRun)
+                    echo "unexpected terminal phase '${phase}' without a GitOps provider" >&2
+                    kubectl -n kick-e2e-058 get kickrequests -o yaml >&2 || true
+                    exit 1
+                    ;;
+                esac
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "expected the kickrequest to succeed, got '${phase}'" >&2
+                  kubectl -n kick-e2e-058 get kickrequests -o yaml >&2 || true
+                  exit 1
+                fi
+                sleep 2
+              done
+    - name: assert-exactly-one-rollout
+      try:
+        - script:
+            content: |
+              set -eu
+              restarted=$(kubectl -n kick-e2e-058 get deployment app \
+                -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}')
+              if [ -z "${restarted}" ]; then
+                echo "expected restartedAt to be set" >&2
+                exit 1
+              fi
+              # Ownership was never resolved, so no gate may have been recorded
+              # as blocking.
+              provider=$(kubectl -n kick-e2e-058 get kickrequest deployment-app \
+                -o jsonpath='{.status.owner.provider}' || true)
+              if [ -n "${provider}" ] && [ "${provider}" != "none" ]; then
+                echo "expected no GitOps owner, got '${provider}'" >&2
+                exit 1
+              fi
+              # Let the system settle, then require the state to be stable: a
+              # single rollout, and no second KickRequest.
+              sleep 30
+              settled=$(kubectl -n kick-e2e-058 get deployment app \
+                -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}')
+              if [ "${settled}" != "${restarted}" ]; then
+                echo "expected exactly one restart, restartedAt changed from '${restarted}' to '${settled}'" >&2
+                exit 1
+              fi
+              revisions=$(kubectl -n kick-e2e-058 get replicaset \
+                -l app=app --no-headers | wc -l | tr -d ' ')
+              if [ "${revisions}" != "2" ]; then
+                echo "expected exactly 2 replicasets (initial + one restart), got ${revisions}" >&2
+                kubectl -n kick-e2e-058 get replicaset -o wide >&2 || true
+                exit 1
+              fi
+    - name: cleanup
+      try:
+        - delete:
+            ref:
+              apiVersion: v1
+              kind: Namespace
+              name: kick-e2e-058

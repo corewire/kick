@@ -74,6 +74,18 @@ func (r *Registry) Register(provider Provider) {
 	r.providers = append(r.providers, provider)
 }
 
+// ProviderByName returns the registered provider with the given name. Explicit
+// selection is required for providers that cannot be detected from the workload
+// alone.
+func (r *Registry) ProviderByName(name string) (Provider, bool) {
+	for _, provider := range r.providers {
+		if provider.Name() == name {
+			return provider, true
+		}
+	}
+	return nil, false
+}
+
 func (r *Registry) DetectProvider(workload client.Object) (Provider, GateDecision) {
 	confident := make([]Provider, 0, len(r.providers))
 	for _, provider := range r.providers {

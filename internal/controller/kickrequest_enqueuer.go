@@ -32,27 +32,14 @@ func (e *KickRequestEnqueuer) EnqueueForConsumers(ctx context.Context, _ observa
 			continue
 		}
 
-		policyName := ""
-		if e.PolicyMatcher != nil {
-			match, err := e.PolicyMatcher.MatchWorkload(ctx, consumer.Namespace, labels)
-			if err != nil {
-				return err
-			}
-			if !match.Managed {
-				continue
-			}
-			// The changed dependency must be in the policy's trigger scope.
-			ok, err := dependencySelectorMatches(match.Policy, sourceLabels)
-			if err != nil {
-				return err
-			}
-			if !ok {
-				continue
-			}
-			if match.Policy != nil {
-				policyName = match.Policy.Name
-			}
+		policyName, managed, err := e.resolvePolicy(ctx, consumer.Namespace, labels, sourceLabels)
+		if err != nil {
+			return err
 		}
+		if !managed {
+			continue
+		}
+
 		if _, err := e.Coalescer.EnsureActiveRequest(ctx, consumer.Namespace, targetRef, policyName, observedAt); err != nil {
 			return err
 		}
@@ -60,7 +47,44 @@ func (e *KickRequestEnqueuer) EnqueueForConsumers(ctx context.Context, _ observa
 	return nil
 }
 
+// resolvePolicy reports whether a consumer is managed and which policy name to
+// record. Without a matcher every consumer is managed and carries no policy.
+func (e *KickRequestEnqueuer) resolvePolicy(ctx context.Context, namespace string, workloadLabels, sourceLabels map[string]string) (string, bool, error) {
+	if e.PolicyMatcher == nil {
+		return "", true, nil
+	}
+
+	match, err := e.PolicyMatcher.MatchWorkload(ctx, namespace, workloadLabels)
+	if err != nil {
+		return "", false, err
+	}
+	if !match.Managed {
+		return "", false, nil
+	}
+
+	// The changed dependency must be in the policy's trigger scope.
+	inScope, err := dependencySelectorMatches(match.Policy, sourceLabels)
+	if err != nil {
+		return "", false, err
+	}
+	if !inScope {
+		return "", false, nil
+	}
+
+	if match.Policy == nil {
+		return "", true, nil
+	}
+	return match.Policy.Name, true, nil
+}
+
 func consumerWorkloadLabels(ctx context.Context, c client.Client, consumer dependency.ConsumerTarget) (map[string]string, error) {
+	if dependency.IsArgoRollout(consumer.APIVersion, consumer.Kind) {
+		obj := dependency.NewArgoRolloutObject()
+		if err := c.Get(ctx, client.ObjectKey{Namespace: consumer.Namespace, Name: consumer.Name}, obj); err != nil {
+			return nil, err
+		}
+		return obj.GetLabels(), nil
+	}
 	switch consumer.Kind {
 	case "Deployment":
 		var deployment appsv1.Deployment

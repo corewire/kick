@@ -351,3 +351,21 @@ scenarios:
     status: required
     features:
       - KICK-FEAT-020
+  - id: KICK-E2E-057
+    name: dry run evaluates without restart
+    directory: test/e2e/scenarios/KICK-E2E-057-dry-run-evaluates-without-restart
+    status: required
+    features:
+      - KICK-FEAT-021
+  - id: KICK-E2E-058
+    name: no gitops provider restarts
+    directory: test/e2e/scenarios/KICK-E2E-058-no-gitops-provider-restarts
+    status: required
+    features:
+      - KICK-FEAT-022
+  - id: KICK-E2E-059
+    name: notificationpolicy delivers on success
+    directory: test/e2e/scenarios/KICK-E2E-059-notificationpolicy-delivers-on-success
+    status: required
+    features:
+      - KICK-FEAT-026

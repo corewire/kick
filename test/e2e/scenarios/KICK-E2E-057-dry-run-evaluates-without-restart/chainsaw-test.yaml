@@ -1,0 +1,84 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: kick-e2e-057-dry-run-evaluates-without-restart
+spec:
+  steps:
+    - name: create-fixtures
+      try:
+        - apply:
+            file: resources.yaml
+        - assert:
+            resource:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: app
+                namespace: kick-e2e-057
+              status:
+                readyReplicas: 1
+    - name: record-baseline
+      try:
+        - script:
+            content: |
+              set -eu
+              kubectl -n kick-e2e-057 get deployment app \
+                -o jsonpath='{.metadata.generation}' > /tmp/kick-e2e-057-generation
+              cat /tmp/kick-e2e-057-generation
+    - name: change-secret
+      try:
+        - script:
+            content: |
+              set -eu
+              kubectl -n kick-e2e-057 patch secret app-secret --type merge -p '{"stringData":{"token":"bravo"}}'
+    - name: assert-dry-run-request
+      try:
+        - script:
+            content: |
+              set -eu
+              deadline=$(( $(date +%s) + 120 ))
+              while true; do
+                phase=$(kubectl -n kick-e2e-057 get kickrequest deployment-app \
+                  -o jsonpath='{.status.phase}' 2>/dev/null || true)
+                if [ "$phase" = "DryRun" ]; then
+                  break
+                fi
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "expected the kickrequest to reach the DryRun phase, got '${phase}'" >&2
+                  kubectl -n kick-e2e-057 get kickrequests -o yaml >&2 || true
+                  exit 1
+                fi
+                sleep 2
+              done
+    - name: assert-no-restart
+      try:
+        - script:
+            content: |
+              set -eu
+              # Give the controller time to do the wrong thing before asserting.
+              sleep 20
+              restarted=$(kubectl -n kick-e2e-057 get deployment app \
+                -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}' || true)
+              if [ -n "${restarted}" ]; then
+                echo "dry-run must not write restartedAt, got '${restarted}'" >&2
+                exit 1
+              fi
+              before=$(cat /tmp/kick-e2e-057-generation)
+              after=$(kubectl -n kick-e2e-057 get deployment app -o jsonpath='{.metadata.generation}')
+              if [ "${before}" != "${after}" ]; then
+                echo "dry-run must not mutate the deployment (generation ${before} -> ${after})" >&2
+                exit 1
+              fi
+              # DryRun is terminal: the request must not progress afterwards.
+              phase=$(kubectl -n kick-e2e-057 get kickrequest deployment-app -o jsonpath='{.status.phase}')
+              if [ "${phase}" != "DryRun" ]; then
+                echo "DryRun must be terminal, phase moved to '${phase}'" >&2
+                exit 1
+              fi
+    - name: cleanup
+      try:
+        - delete:
+            ref:
+              apiVersion: v1
+              kind: Namespace
+              name: kick-e2e-057

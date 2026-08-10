@@ -6,9 +6,13 @@ Kind: `KickRequest`
 
 ## spec
 
-- `targetRef.apiVersion` default: `apps/v1`
-- `targetRef.kind` enum: `Deployment`
+- `targetRef.apiVersion` default: `apps/v1`. Use `argoproj.io/v1alpha1` for an
+  Argo Rollout.
+- `targetRef.kind` enum: `Deployment`, `StatefulSet`, `DaemonSet`, `Rollout`
 - `targetRef.name` required
+
+`Rollout` is only accepted with `apiVersion: argoproj.io/v1alpha1`, and requires
+the controller to run with `--enable-argo-rollouts` and the CRD to be present.
 
 ## status
 
@@ -22,6 +26,8 @@ Kind: `KickRequest`
   - `Succeeded`
   - `NoLongerRequired`
   - `Failed`
+  - `DryRun` — terminal. The policy had `spec.dryRun: true`, so everything was
+    evaluated but no workload was patched.
 - `owner`: resolved GitOps owner details
 - `gate`: last gate decision (`reason`, `message`, `requeueAt`)
 - `latestObservedDependencyChange`
@@ -33,4 +39,11 @@ Kind: `KickRequest`
 KICK mutates:
 
 - `status.*` on KickRequest;
-- `metadata.annotations["kubectl.kubernetes.io/restartedAt"]` on target Deployment PodTemplate.
+- `metadata.annotations["kubectl.kubernetes.io/restartedAt"]` on the target
+  Deployment, StatefulSet or DaemonSet PodTemplate;
+- `spec.restartAt` on a target Argo `Rollout`. The pod template is deliberately
+  left untouched so the canary or blue-green strategy is not re-run for a
+  configuration change.
+
+KICK never writes dependency hashes, environment variables, or KICK-owned state
+annotations into a workload.

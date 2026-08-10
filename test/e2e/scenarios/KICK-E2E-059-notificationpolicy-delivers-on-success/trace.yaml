@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-059
+name: notificationpolicy-delivers-on-success
+features:
+  - KICK-FEAT-026
+provider: core
+class: behavior
+required: true

@@ -6,6 +6,8 @@ import (
 	"time"
 
 	kickv1alpha1 "github.com/corewire/kick/api/v1alpha1"
+	"github.com/corewire/kick/internal/dependency"
+	"github.com/corewire/kick/internal/rollout"
 	"github.com/corewire/kick/internal/telemetry"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -14,6 +16,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -62,7 +65,8 @@ func (e *RestartExecutor) Execute(ctx context.Context, requestKey types.Namespac
 func isTerminalPhase(phase kickv1alpha1.KickRequestPhase) bool {
 	return phase == kickv1alpha1.KickRequestPhaseSucceeded ||
 		phase == kickv1alpha1.KickRequestPhaseNoLongerRequired ||
-		phase == kickv1alpha1.KickRequestPhaseFailed
+		phase == kickv1alpha1.KickRequestPhaseFailed ||
+		phase == kickv1alpha1.KickRequestPhaseDryRun
 }
 
 // progressRollout advances an in-flight rollout to Succeeded or Failed.
@@ -112,7 +116,7 @@ func (e *RestartExecutor) startRollout(ctx context.Context, requestKey types.Nam
 		return Result{}, err
 	}
 
-	patch, err := restartPatch(now)
+	patch, err := restartPatch(targetRef, now)
 	if err != nil {
 		span.RecordError(err)
 		return Result{}, err
@@ -140,7 +144,18 @@ func (e *RestartExecutor) updateRequestStatus(ctx context.Context, key types.Nam
 	})
 }
 
-func restartPatch(now time.Time) ([]byte, error) {
+// restartPatch returns the smallest patch that makes the workload controller
+// recreate its pods.
+//
+// Argo Rollouts owns its own pod lifecycle and exposes spec.restartAt for this;
+// patching its pod template would instead be interpreted as a new revision and
+// would run the full canary/blue-green strategy for a config change.
+func restartPatch(targetRef kickv1alpha1.ObjectReference, now time.Time) ([]byte, error) {
+	if dependency.IsArgoRollout(targetRef.APIVersion, targetRef.Kind) {
+		return json.Marshal(map[string]any{
+			"spec": map[string]any{"restartAt": now.Format(time.RFC3339)},
+		})
+	}
 	obj := map[string]any{
 		"spec": map[string]any{
 			"template": map[string]any{
@@ -161,6 +176,8 @@ func rolloutComplete(workload client.Object) bool {
 		return rolloutCompleteStatefulSet(obj)
 	case *appsv1.DaemonSet:
 		return rolloutCompleteDaemonSet(obj)
+	case *unstructured.Unstructured:
+		return rollout.ArgoRolloutComplete(obj)
 	default:
 		return false
 	}
@@ -214,6 +231,15 @@ func getWorkload(ctx context.Context, c client.Client, targetRef kickv1alpha1.Ob
 			return nil, err
 		}
 		return &daemonSet, nil
+	case "Rollout":
+		if !dependency.IsArgoRollout(targetRef.APIVersion, targetRef.Kind) {
+			return nil, apierrors.NewBadRequest("unsupported target kind")
+		}
+		obj := dependency.NewArgoRolloutObject()
+		if err := c.Get(ctx, key, obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
 	default:
 		return nil, apierrors.NewBadRequest("unsupported target kind")
 	}

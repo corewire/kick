@@ -1,8 +1,41 @@
 package dependency
 
-import "sort"
+import (
+	"sort"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+)
 
 const coreAPIVersion = "v1"
+
+// SecretsStoreAPIVersion is the API version of the Secrets Store CSI driver CRDs.
+const SecretsStoreAPIVersion = "secrets-store.csi.x-k8s.io/v1"
+
+// SecretProviderClassGVK identifies the Secrets Store CSI SecretProviderClass.
+var SecretProviderClassGVK = schema.GroupVersionKind{
+	Group:   "secrets-store.csi.x-k8s.io",
+	Version: "v1",
+	Kind:    "SecretProviderClass",
+}
+
+// NewSecretProviderClassObject returns an empty object typed by GVK for
+// Get/List calls against the optional Secrets Store CSI CRD.
+func NewSecretProviderClassObject() *unstructured.Unstructured {
+	obj := &unstructured.Unstructured{}
+	obj.SetGroupVersionKind(SecretProviderClassGVK)
+	return obj
+}
+
+// SecretsStoreCSIDriver is the CSI driver name registered by the Secrets Store
+// CSI driver. It deliberately differs from the API group: the driver registers
+// as "secrets-store.csi.k8s.io" while its CRDs live in
+// "secrets-store.csi.x-k8s.io".
+const SecretsStoreCSIDriver = "secrets-store.csi.k8s.io"
+
+// secretProviderClassVolumeAttribute is the CSI volume attribute naming the
+// SecretProviderClass a pod mounts.
+const secretProviderClassVolumeAttribute = "secretProviderClass"
 
 // Kind is a supported runtime dependency kind.
 type Kind string
@@ -10,6 +43,10 @@ type Kind string
 const (
 	Secret    Kind = "Secret"
 	ConfigMap Kind = "ConfigMap"
+	// SecretProviderClass is an external secret mounted through the Secrets Store
+	// CSI driver. Its content lives outside the cluster, so freshness is derived
+	// from SecretProviderClassPodStatus instead of the object itself.
+	SecretProviderClass Kind = "SecretProviderClass"
 )
 
 // DependencyRef is a namespaced Secret or ConfigMap consumed by a workload.

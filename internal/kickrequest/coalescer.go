@@ -33,47 +33,67 @@ func NewCoalescer(c client.Client, retention RetentionConfig) *Coalescer {
 // EnsureActiveRequest creates or updates one active KickRequest for a target.
 func (c *Coalescer) EnsureActiveRequest(ctx context.Context, namespace string, target kickv1alpha1.ObjectReference, policyName string, latestObservedChange time.Time) (*kickv1alpha1.KickRequest, error) {
 	key := types.NamespacedName{Namespace: namespace, Name: requestNameForTarget(target)}
-	var request kickv1alpha1.KickRequest
-	if err := c.Get(ctx, key, &request); err != nil {
-		if !apierrors.IsNotFound(err) {
-			return nil, err
-		}
-		request = kickv1alpha1.KickRequest{
-			ObjectMeta: metav1.ObjectMeta{Name: key.Name, Namespace: namespace},
-			Spec:       kickv1alpha1.KickRequestSpec{TargetRef: target},
-		}
-		if tp := telemetry.Traceparent(ctx); tp != "" {
-			request.Annotations = map[string]string{telemetry.TraceparentAnnotation: tp}
-		}
-		if policyName != "" {
-			request.Spec.PolicyRef = &kickv1alpha1.PolicyReference{Name: policyName}
-		}
-		if err := c.Create(ctx, &request); err != nil {
-			return nil, err
-		}
-	} else if request.Status.Phase == "" || isTerminalPhase(request.Status.Phase) {
-		// A new restart cycle begins: re-root the trace on the change that
-		// triggered it. Repeated events during an active cycle keep the
-		// original traceparent so the in-flight restart stays correlated.
-		if tp := telemetry.Traceparent(ctx); tp != "" && request.Annotations[telemetry.TraceparentAnnotation] != tp {
-			if request.Annotations == nil {
-				request.Annotations = map[string]string{}
-			}
-			request.Annotations[telemetry.TraceparentAnnotation] = tp
-			if err := c.Update(ctx, &request); err != nil {
-				return nil, err
-			}
-		}
+	if err := c.ensureRequestObject(ctx, key, target, policyName); err != nil {
+		return nil, err
 	}
 
 	if err := c.updateStatusWithRetry(ctx, key, latestObservedChange); err != nil {
 		return nil, err
 	}
 
+	var request kickv1alpha1.KickRequest
 	if err := c.Get(ctx, key, &request); err != nil {
 		return nil, err
 	}
 	return &request, nil
+}
+
+// ensureRequestObject creates the request when absent, otherwise re-roots its
+// trace if a new restart cycle is starting.
+func (c *Coalescer) ensureRequestObject(ctx context.Context, key types.NamespacedName, target kickv1alpha1.ObjectReference, policyName string) error {
+	var request kickv1alpha1.KickRequest
+	err := c.Get(ctx, key, &request)
+	if apierrors.IsNotFound(err) {
+		return c.createRequest(ctx, key, target, policyName)
+	}
+	if err != nil {
+		return err
+	}
+
+	if request.Status.Phase != "" && !isTerminalPhase(request.Status.Phase) {
+		return nil
+	}
+	return c.rerootTrace(ctx, &request)
+}
+
+func (c *Coalescer) createRequest(ctx context.Context, key types.NamespacedName, target kickv1alpha1.ObjectReference, policyName string) error {
+	request := kickv1alpha1.KickRequest{
+		ObjectMeta: metav1.ObjectMeta{Name: key.Name, Namespace: key.Namespace},
+		Spec:       kickv1alpha1.KickRequestSpec{TargetRef: target},
+	}
+	if tp := telemetry.Traceparent(ctx); tp != "" {
+		request.Annotations = map[string]string{telemetry.TraceparentAnnotation: tp}
+	}
+	if policyName != "" {
+		request.Spec.PolicyRef = &kickv1alpha1.PolicyReference{Name: policyName}
+	}
+	return c.Create(ctx, &request)
+}
+
+// rerootTrace re-roots a request on the change that starts a new restart cycle.
+// Repeated events during an active cycle keep the original traceparent so the
+// in-flight restart stays correlated.
+func (c *Coalescer) rerootTrace(ctx context.Context, request *kickv1alpha1.KickRequest) error {
+	tp := telemetry.Traceparent(ctx)
+	if tp == "" || request.Annotations[telemetry.TraceparentAnnotation] == tp {
+		return nil
+	}
+
+	if request.Annotations == nil {
+		request.Annotations = map[string]string{}
+	}
+	request.Annotations[telemetry.TraceparentAnnotation] = tp
+	return c.Update(ctx, request)
 }
 
 func (c *Coalescer) updateStatusWithRetry(ctx context.Context, key types.NamespacedName, latestObservedChange time.Time) error {
@@ -104,7 +124,7 @@ func (c *Coalescer) updateStatusWithRetry(ctx context.Context, key types.Namespa
 
 func isTerminalPhase(phase kickv1alpha1.KickRequestPhase) bool {
 	switch phase {
-	case kickv1alpha1.KickRequestPhaseSucceeded, kickv1alpha1.KickRequestPhaseNoLongerRequired, kickv1alpha1.KickRequestPhaseFailed:
+	case kickv1alpha1.KickRequestPhaseSucceeded, kickv1alpha1.KickRequestPhaseNoLongerRequired, kickv1alpha1.KickRequestPhaseFailed, kickv1alpha1.KickRequestPhaseDryRun:
 		return true
 	default:
 		return false

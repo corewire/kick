@@ -3,6 +3,7 @@ package dependency
 import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -41,6 +42,8 @@ func ExtractDependenciesForObject(obj client.Object) []DependencyRef {
 		return ExtractStatefulSetDependencies(workload)
 	case *appsv1.DaemonSet:
 		return ExtractDaemonSetDependencies(workload)
+	case *unstructured.Unstructured:
+		return extractUnstructuredDependencies(workload)
 	default:
 		return nil
 	}
@@ -59,7 +62,11 @@ func appendNamed(refs []DependencyRef, namespace string, kind Kind, name string)
 	if name == "" {
 		return refs
 	}
-	return append(refs, DependencyRef{APIVersion: coreAPIVersion, Kind: kind, Namespace: namespace, Name: name})
+	apiVersion := coreAPIVersion
+	if kind == SecretProviderClass {
+		apiVersion = SecretsStoreAPIVersion
+	}
+	return append(refs, DependencyRef{APIVersion: apiVersion, Kind: kind, Namespace: namespace, Name: name})
 }
 
 // containerRefs collects Secret/ConfigMap refs exposed through env and envFrom.
@@ -88,6 +95,9 @@ func volumeRefs(namespace string, volumes []corev1.Volume) []DependencyRef {
 		}
 		if volume.ConfigMap != nil {
 			refs = appendNamed(refs, namespace, ConfigMap, volume.ConfigMap.Name)
+		}
+		if volume.CSI != nil && volume.CSI.Driver == SecretsStoreCSIDriver {
+			refs = appendNamed(refs, namespace, SecretProviderClass, volume.CSI.VolumeAttributes[secretProviderClassVolumeAttribute])
 		}
 		if volume.Projected == nil {
 			continue

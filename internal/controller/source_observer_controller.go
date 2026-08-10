@@ -36,6 +36,9 @@ type SourceObservationReconciler struct {
 	Scheme   *runtime.Scheme
 	Observer *observation.Observer
 	Enqueuer ConsumerRequestEnqueuer
+	// OptionalWorkloadKinds are CRD-backed workload kinds (for example Argo
+	// Rollouts) that are only looked up when their CRD is installed.
+	OptionalWorkloadKinds []dependency.WorkloadKind
 }
 
 func (r *SourceObservationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -89,7 +92,7 @@ func (r *SourceObservationReconciler) reconcileSecret(ctx context.Context, req c
 		Kind:       dependency.Secret,
 		Namespace:  secret.Namespace,
 		Name:       secret.Name,
-	})
+	}, r.OptionalWorkloadKinds...)
 	if err != nil {
 		return true, err
 	}
@@ -120,7 +123,7 @@ func (r *SourceObservationReconciler) reconcileConfigMap(ctx context.Context, re
 		Kind:       dependency.ConfigMap,
 		Namespace:  configMap.Namespace,
 		Name:       configMap.Name,
-	})
+	}, r.OptionalWorkloadKinds...)
 	if err != nil {
 		return true, err
 	}

@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-057
+name: dry-run-evaluates-without-restart
+features:
+  - KICK-FEAT-021
+provider: core
+class: behavior
+required: true

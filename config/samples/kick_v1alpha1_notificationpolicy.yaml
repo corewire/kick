@@ -1,0 +1,24 @@
+apiVersion: kick.corewire.io/v1alpha1
+kind: NotificationPolicy
+metadata:
+  name: sample
+  namespace: default
+spec:
+  phases:
+    - Succeeded
+    - Failed
+    - DryRun
+  workloadSelector:
+    matchLabels:
+      kick.corewire.io/enabled: "true"
+  webhook:
+    url: https://alerts.example.com/hooks/kick
+    method: POST
+    timeoutSeconds: 10
+    headers:
+      - name: X-Kick-Source
+        value: production
+    auth:
+      bearerToken:
+        name: kick-webhook-credentials
+        key: token
