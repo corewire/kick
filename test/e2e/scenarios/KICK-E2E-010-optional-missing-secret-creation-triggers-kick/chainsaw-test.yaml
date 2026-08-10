@@ -8,30 +8,50 @@ spec:
       try:
         - apply:
             file: resources.yaml
-    - name: create-optional-secret
-      try:
-        - apply:
-            file: optional-secret.yaml
-    - name: assert-request-created
+    - name: assert-creating-optional-secret-restarts-workload
       try:
         - script:
             content: |
               set -eu
-              deadline=$(( $(date +%s) + 120 ))
+              NS=kick-e2e-010
+              deadline=$(( $(date +%s) + 150 ))
+
+              # The optional Secret is absent at start: the workload runs and must
+              # NOT be restarted while the reference stays unresolved.
               while true; do
-                count=$(kubectl -n kick-e2e-010 get kickrequests --no-headers 2>/dev/null | wc -l | tr -d ' ')
-                phase=$(kubectl -n kick-e2e-010 get kickrequest app-010 -o jsonpath='{.status.phase}' 2>/dev/null || true)
-                reason=$(kubectl -n kick-e2e-010 get kickrequest app-010 -o jsonpath='{.status.gate.reason}' 2>/dev/null || true)
-                latest=$(kubectl -n kick-e2e-010 get kickrequest app-010 -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
-                if [ "$count" = "1" ] && [ "$phase" = "WaitingForOwner" ] && [ "$reason" = "OwnerUnknown" ]; then
-                  break
-                fi
+                avail=$(kubectl -n $NS get deployment app-010 -o jsonpath='{.status.availableReplicas}' 2>/dev/null || true)
+                if [ "$avail" = "1" ]; then break; fi
                 if [ "$(date +%s)" -ge "$deadline" ]; then
-                  echo "expected one WaitingForOwner request for app-010" >&2
-                  kubectl -n kick-e2e-010 get kickrequests -o yaml >&2 || true
+                  echo "deployment app-010 never became available" >&2
+                  kubectl -n $NS get deployment app-010 -o yaml >&2 || true
                   exit 1
                 fi
-                sleep 2
+                sleep 3
+              done
+
+              before=$(kubectl -n $NS get deployment app-010 -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}' 2>/dev/null || true)
+              if [ -n "$before" ]; then
+                echo "workload restarted before the optional secret existed" >&2
+                exit 1
+              fi
+
+              # Avoid same-second timestamp ties with the baseline rollout when
+              # creating the previously missing optional Secret.
+              sleep 2
+
+              # Creating the previously-missing optional Secret is a relevant change.
+              kubectl -n $NS apply -f optional-secret.yaml
+
+              while true; do
+                after=$(kubectl -n $NS get deployment app-010 -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}' 2>/dev/null || true)
+                if [ -n "$after" ] && [ "$after" != "$before" ]; then break; fi
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "creating the optional secret did not restart app-010" >&2
+                  kubectl -n $NS get deployment app-010 -o yaml >&2 || true
+                  kubectl -n $NS get kickrequests -o yaml >&2 || true
+                  exit 1
+                fi
+                sleep 3
               done
     - name: cleanup
       try:
