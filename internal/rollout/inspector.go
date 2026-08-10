@@ -157,14 +157,14 @@ func latestDeploymentConditionTime(conditions []appsv1.DeploymentCondition) (tim
 	found := false
 	for _, cond := range conditions {
 		if !cond.LastTransitionTime.IsZero() {
-			t := cond.LastTransitionTime.Time.UTC()
+			t := cond.LastTransitionTime.UTC()
 			if !found || t.After(latest) {
 				latest = t
 				found = true
 			}
 		}
 		if !cond.LastUpdateTime.IsZero() {
-			t := cond.LastUpdateTime.Time.UTC()
+			t := cond.LastUpdateTime.UTC()
 			if !found || t.After(latest) {
 				latest = t
 				found = true
@@ -214,8 +214,8 @@ func inspectDaemonSet(daemonSet *appsv1.DaemonSet) RolloutState {
 			if cond.LastTransitionTime.IsZero() {
 				continue
 			}
-			if cond.LastTransitionTime.Time.After(startedAt) {
-				startedAt = cond.LastTransitionTime.Time.UTC()
+			if cond.LastTransitionTime.After(startedAt) {
+				startedAt = cond.LastTransitionTime.UTC()
 			}
 		}
 	}
