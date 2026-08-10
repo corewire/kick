@@ -16,7 +16,7 @@ spec:
               deadline=$(( $(date +%s) + 120 ))
               while true; do
                 count=$(kubectl -n kick-e2e-017 get kickrequests --no-headers 2>/dev/null | wc -l | tr -d ' ')
-                latest=$(kubectl -n kick-e2e-017 get kickrequest app-017 -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
+                latest=$(kubectl -n kick-e2e-017 get kickrequest deployment-app-017 -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
                 if [ "$count" = "1" ]; then
                   break
                 fi

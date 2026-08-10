@@ -4,13 +4,13 @@ metadata:
   name: default
   namespace: kick-e2e-036
 spec:
-  discovery: {}
+  discovery:
+    workloadSelector: {}
   gitOps:
     provider: Auto
-    schedule:
-      source: None
-      # Editing the window to an always-active allow opens the gate.
-      windows:
-        - kind: Allow
-          schedule: "* * * * *"
-          duration: "1h"
+  schedule:
+    # Editing the window to an always-active allow opens the gate.
+    windows:
+      - type: Allow
+        cron: "* * * * *"
+        duration: "1h"

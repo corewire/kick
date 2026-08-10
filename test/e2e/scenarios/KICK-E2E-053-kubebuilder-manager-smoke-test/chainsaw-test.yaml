@@ -17,7 +17,7 @@ spec:
               set -eu
               deadline=$(( $(date +%s) + 120 ))
               while true; do
-                phase=$(kubectl -n kick-e2e-053 get kickrequest app-053 -o jsonpath='{.status.phase}' 2>/dev/null || true)
+                phase=$(kubectl -n kick-e2e-053 get kickrequest deployment-app-053 -o jsonpath='{.status.phase}' 2>/dev/null || true)
                 if [ "$phase" = "WaitingForOwner" ]; then
                   break
                 fi

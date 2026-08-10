@@ -9,7 +9,8 @@ metadata:
   name: default
   namespace: kick-e2e-025
 spec:
-  discovery: {}
+  discovery:
+    workloadSelector: {}
   gitOps:
     provider: Auto
 ---

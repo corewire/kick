@@ -16,9 +16,9 @@ spec:
               deadline=$(( $(date +%s) + 120 ))
               while true; do
                 count=$(kubectl -n kick-e2e-052 get kickrequests --no-headers 2>/dev/null | wc -l | tr -d ' ')
-                phase=$(kubectl -n kick-e2e-052 get kickrequest app-052 -o jsonpath='{.status.phase}' 2>/dev/null || true)
-                reason=$(kubectl -n kick-e2e-052 get kickrequest app-052 -o jsonpath='{.status.gate.reason}' 2>/dev/null || true)
-                latest=$(kubectl -n kick-e2e-052 get kickrequest app-052 -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
+                phase=$(kubectl -n kick-e2e-052 get kickrequest deployment-app-052 -o jsonpath='{.status.phase}' 2>/dev/null || true)
+                reason=$(kubectl -n kick-e2e-052 get kickrequest deployment-app-052 -o jsonpath='{.status.gate.reason}' 2>/dev/null || true)
+                latest=$(kubectl -n kick-e2e-052 get kickrequest deployment-app-052 -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
                 if [ "$count" = "1" ] && [ "$phase" = "WaitingForOwner" ] && [ "$reason" = "OwnerUnknown" ]; then
                   break
                 fi

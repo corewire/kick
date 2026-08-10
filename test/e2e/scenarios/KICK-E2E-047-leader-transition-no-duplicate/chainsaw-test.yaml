@@ -16,9 +16,9 @@ spec:
               deadline=$(( $(date +%s) + 120 ))
               while true; do
                 count=$(kubectl -n kick-e2e-047 get kickrequests --no-headers 2>/dev/null | wc -l | tr -d ' ')
-                phase=$(kubectl -n kick-e2e-047 get kickrequest app-047 -o jsonpath='{.status.phase}' 2>/dev/null || true)
-                reason=$(kubectl -n kick-e2e-047 get kickrequest app-047 -o jsonpath='{.status.gate.reason}' 2>/dev/null || true)
-                latest=$(kubectl -n kick-e2e-047 get kickrequest app-047 -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
+                phase=$(kubectl -n kick-e2e-047 get kickrequest deployment-app-047 -o jsonpath='{.status.phase}' 2>/dev/null || true)
+                reason=$(kubectl -n kick-e2e-047 get kickrequest deployment-app-047 -o jsonpath='{.status.gate.reason}' 2>/dev/null || true)
+                latest=$(kubectl -n kick-e2e-047 get kickrequest deployment-app-047 -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
                 if [ "$count" = "1" ] && [ "$phase" = "WaitingForOwner" ] && [ "$reason" = "OwnerUnknown" ]; then
                   break
                 fi
@@ -30,11 +30,11 @@ spec:
                 sleep 2
               done
 
-                            phase=$(kubectl -n kick-e2e-047 get kickrequest app-047 -o jsonpath='{.status.phase}')
-                            reason=$(kubectl -n kick-e2e-047 get kickrequest app-047 -o jsonpath='{.status.gate.reason}')
+                            phase=$(kubectl -n kick-e2e-047 get kickrequest deployment-app-047 -o jsonpath='{.status.phase}')
+                            reason=$(kubectl -n kick-e2e-047 get kickrequest deployment-app-047 -o jsonpath='{.status.gate.reason}')
                             if [ "$phase" != "WaitingForOwner" ] || [ "$reason" != "OwnerUnknown" ]; then
                               echo "expected stable OwnerUnknown gate for baseline scenario" >&2
-                              kubectl -n kick-e2e-047 get kickrequest app-047 -o yaml >&2 || true
+                              kubectl -n kick-e2e-047 get kickrequest deployment-app-047 -o yaml >&2 || true
                               exit 1
                             fi
     - name: cleanup

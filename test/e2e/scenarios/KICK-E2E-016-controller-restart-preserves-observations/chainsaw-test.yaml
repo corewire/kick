@@ -3,6 +3,9 @@ kind: Test
 metadata:
   name: kick-e2e-016-controller-restart-preserves-observations
 spec:
+  # This scenario restarts the shared controller-manager; run it serially so it
+  # never disrupts in-flight observations of concurrently-running scenarios.
+  concurrent: false
   steps:
     - name: create-fixtures
       try:
@@ -16,7 +19,7 @@ spec:
               deadline=$(( $(date +%s) + 120 ))
               while true; do
                 count=$(kubectl -n kick-e2e-016 get kickrequests --no-headers 2>/dev/null | wc -l | tr -d ' ')
-                latest=$(kubectl -n kick-e2e-016 get kickrequest app-016 -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
+                latest=$(kubectl -n kick-e2e-016 get kickrequest deployment-app-016 -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
                 if [ "$count" = "1" ]; then
                   break
                 fi
@@ -28,19 +31,19 @@ spec:
                 sleep 2
               done
 
-                            before=$(kubectl -n kick-e2e-016 get kickrequest app-016 -o jsonpath='{.status.latestObservedDependencyChange}')
+                            before=$(kubectl -n kick-e2e-016 get kickrequest deployment-app-016 -o jsonpath='{.status.latestObservedDependencyChange}')
                             kubectl -n kick-system rollout restart deployment/kick-controller-manager
                             kubectl -n kick-system rollout status deployment/kick-controller-manager --timeout=180s
                             kubectl -n kick-e2e-016 patch secret app-secret --type merge -p '{"stringData":{"token":"delta"}}'
                             deadline2=$(( $(date +%s) + 90 ))
                             while true; do
-                              after=$(kubectl -n kick-e2e-016 get kickrequest app-016 -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
+                              after=$(kubectl -n kick-e2e-016 get kickrequest deployment-app-016 -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
                               if [ "$after" != "$before" ]; then
                                 break
                               fi
                               if [ "$(date +%s)" -ge "$deadline2" ]; then
                                 echo "expected observation to persist across controller restart" >&2
-                                kubectl -n kick-e2e-016 get kickrequest app-016 -o yaml >&2 || true
+                                kubectl -n kick-e2e-016 get kickrequest deployment-app-016 -o yaml >&2 || true
                                 exit 1
                               fi
                               sleep 2

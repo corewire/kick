@@ -22,7 +22,7 @@ spec:
               set -eu
               deadline=$(( $(date +%s) + 120 ))
               while true; do
-                watched=$(kubectl -n kick-e2e-056 get kickrequest app-watched --no-headers 2>/dev/null | wc -l | tr -d ' ')
+                watched=$(kubectl -n kick-e2e-056 get kickrequest deployment-app-watched --no-headers 2>/dev/null | wc -l | tr -d ' ')
                 if [ "$watched" = "1" ]; then
                   break
                 fi
@@ -34,7 +34,7 @@ spec:
                 sleep 2
               done
               # The out-of-scope dependency must never produce a request for its consumer.
-              ignored=$(kubectl -n kick-e2e-056 get kickrequest app-ignored --no-headers 2>/dev/null | wc -l | tr -d ' ')
+              ignored=$(kubectl -n kick-e2e-056 get kickrequest deployment-app-ignored --no-headers 2>/dev/null | wc -l | tr -d ' ')
               if [ "$ignored" != "0" ]; then
                 echo "did not expect a kickrequest for app-ignored (dependency out of selector scope)" >&2
                 kubectl -n kick-e2e-056 get kickrequests -o yaml >&2 || true

@@ -9,15 +9,8 @@ metadata:
   name: default
   namespace: kick-e2e-012
 spec:
-  discovery: {}
-  gitOps:
-    provider: Auto
-    schedule:
-      source: None
-      windows:
-        - kind: Allow
-          schedule: "* * * * *"
-          duration: 24h
+  discovery:
+    workloadSelector: {}
 ---
 apiVersion: apps/v1
 kind: Deployment

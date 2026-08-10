@@ -16,9 +16,9 @@ spec:
               deadline=$(( $(date +%s) + 120 ))
               while true; do
                 count=$(kubectl -n kick-e2e-014 get kickrequests --no-headers 2>/dev/null | wc -l | tr -d ' ')
-                phase=$(kubectl -n kick-e2e-014 get kickrequest app-014 -o jsonpath='{.status.phase}' 2>/dev/null || true)
-                reason=$(kubectl -n kick-e2e-014 get kickrequest app-014 -o jsonpath='{.status.gate.reason}' 2>/dev/null || true)
-                latest=$(kubectl -n kick-e2e-014 get kickrequest app-014 -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
+                phase=$(kubectl -n kick-e2e-014 get kickrequest deployment-app-014 -o jsonpath='{.status.phase}' 2>/dev/null || true)
+                reason=$(kubectl -n kick-e2e-014 get kickrequest deployment-app-014 -o jsonpath='{.status.gate.reason}' 2>/dev/null || true)
+                latest=$(kubectl -n kick-e2e-014 get kickrequest deployment-app-014 -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
                 if [ "$count" = "1" ] && [ "$phase" = "WaitingForOwner" ] && [ "$reason" = "OwnerUnknown" ]; then
                   break
                 fi
@@ -30,7 +30,7 @@ spec:
                 sleep 2
               done
 
-              initial=$(kubectl -n kick-e2e-014 get kickrequest app-014 -o jsonpath='{.status.latestObservedDependencyChange}')
+              initial=$(kubectl -n kick-e2e-014 get kickrequest deployment-app-014 -o jsonpath='{.status.latestObservedDependencyChange}')
               kubectl -n kick-e2e-014 apply -f - <<'EOF'
               apiVersion: v1
               kind: Secret
@@ -42,10 +42,10 @@ spec:
                 token: alpha
               EOF
               sleep 6
-              updated=$(kubectl -n kick-e2e-014 get kickrequest app-014 -o jsonpath='{.status.latestObservedDependencyChange}')
+              updated=$(kubectl -n kick-e2e-014 get kickrequest deployment-app-014 -o jsonpath='{.status.latestObservedDependencyChange}')
               if [ "$updated" != "$initial" ]; then
                 echo "identical content unexpectedly changed timestamp" >&2
-                kubectl -n kick-e2e-014 get kickrequest app-014 -o yaml >&2 || true
+                kubectl -n kick-e2e-014 get kickrequest deployment-app-014 -o yaml >&2 || true
                 exit 1
               fi
     - name: cleanup

@@ -8,26 +8,54 @@ spec:
       try:
         - apply:
             file: resources.yaml
-    - name: assert-request-created
+    - name: assert-dependency-change-restarts-workload
       try:
         - script:
             content: |
               set -eu
-              deadline=$(( $(date +%s) + 120 ))
+              NS=kick-e2e-006
+              deadline=$(( $(date +%s) + 150 ))
+
+              # 1. Baseline: KICK discovers the dependency and settles the request
+              #    terminal by adopting the workload's initial rollout.
               while true; do
-                count=$(kubectl -n kick-e2e-006 get kickrequests --no-headers 2>/dev/null | wc -l | tr -d ' ')
-                phase=$(kubectl -n kick-e2e-006 get kickrequest app-006 -o jsonpath='{.status.phase}' 2>/dev/null || true)
-                reason=$(kubectl -n kick-e2e-006 get kickrequest app-006 -o jsonpath='{.status.gate.reason}' 2>/dev/null || true)
-                latest=$(kubectl -n kick-e2e-006 get kickrequest app-006 -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
-                if [ "$count" = "1" ] && [ "$phase" = "WaitingForOwner" ] && [ "$reason" = "OwnerUnknown" ]; then
+                phase=$(kubectl -n $NS get kickrequest deployment-app-006 -o jsonpath='{.status.phase}' 2>/dev/null || true)
+                if [ "$phase" = "Succeeded" ] || [ "$phase" = "NoLongerRequired" ]; then
                   break
                 fi
                 if [ "$(date +%s)" -ge "$deadline" ]; then
-                  echo "expected one WaitingForOwner request for app-006" >&2
-                  kubectl -n kick-e2e-006 get kickrequests -o yaml >&2 || true
+                  echo "baseline KickRequest deployment-app-006 never settled" >&2
+                  kubectl -n $NS get kickrequests -o yaml >&2 || true
                   exit 1
                 fi
-                sleep 2
+                sleep 3
+              done
+
+              # Correctness: the baseline must NOT have restarted the workload.
+              before=$(kubectl -n $NS get deployment app-006 -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}' 2>/dev/null || true)
+              if [ -n "$before" ]; then
+                echo "baseline unexpectedly restarted app-006" >&2
+                kubectl -n $NS get deployment app-006 -o yaml >&2 || true
+                exit 1
+              fi
+
+              # 2. Mutate the referenced dependency (a relevant change).
+              kubectl -n $NS patch secret app-secret --type merge -p '{"stringData":{"token":"bravo"}}'
+
+              # 3. The change MUST actually restart the workload: KICK stamps the
+              #    pod template with kubectl.kubernetes.io/restartedAt.
+              while true; do
+                after=$(kubectl -n $NS get deployment app-006 -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}' 2>/dev/null || true)
+                if [ -n "$after" ] && [ "$after" != "$before" ]; then
+                  break
+                fi
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "dependency change did not restart app-006" >&2
+                  kubectl -n $NS get deployment app-006 -o yaml >&2 || true
+                  kubectl -n $NS get kickrequest deployment-app-006 -o yaml >&2 || true
+                  exit 1
+                fi
+                sleep 3
               done
     - name: cleanup
       try:

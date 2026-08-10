@@ -31,7 +31,7 @@ spec:
               apiVersion: kick.corewire.io/v1alpha1
               kind: KickRequest
               metadata:
-                name: app-036
+                name: deployment-app-036
                 namespace: kick-e2e-036
               status:
                 phase: WaitingForGate
@@ -72,7 +72,7 @@ spec:
               apiVersion: kick.corewire.io/v1alpha1
               kind: KickRequest
               metadata:
-                name: app-036
+                name: deployment-app-036
                 namespace: kick-e2e-036
               status:
                 gate:

@@ -10,6 +10,7 @@ metadata:
   namespace: kick-e2e-056
 spec:
   discovery:
+    workloadSelector: {}
     # Only Secret/ConfigMap changes carrying this label trigger a restart.
     dependencySelector:
       matchLabels:

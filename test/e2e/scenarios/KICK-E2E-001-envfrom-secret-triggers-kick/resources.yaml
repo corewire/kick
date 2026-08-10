@@ -9,9 +9,10 @@ metadata:
   name: default
   namespace: kick-e2e-001
 spec:
-  discovery: {}
-  gitOps:
-    provider: Auto
+  # provider defaults to None: KICK self-gates and restarts immediately on a
+  # stale dependency, no GitOps owner required.
+  discovery:
+    workloadSelector: {}
 ---
 apiVersion: apps/v1
 kind: Deployment

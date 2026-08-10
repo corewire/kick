@@ -9,16 +9,16 @@ metadata:
   name: default
   namespace: kick-e2e-036
 spec:
-  discovery: {}
+  discovery:
+    workloadSelector: {}
   gitOps:
     provider: Auto
-    schedule:
-      source: None
-      # Always-active deny window: the gate starts closed.
-      windows:
-        - kind: Deny
-          schedule: "* * * * *"
-          duration: "1h"
+  schedule:
+    # Always-active deny window: the gate starts closed.
+    windows:
+      - type: Deny
+        cron: "* * * * *"
+        duration: "1h"
 ---
 apiVersion: apps/v1
 kind: Deployment

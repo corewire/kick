@@ -8,42 +8,54 @@ spec:
       try:
         - apply:
             file: resources.yaml
-    - name: assert-relevant-update-advances-timestamp
+    - name: assert-dependency-change-restarts-workload
       try:
         - script:
             content: |
               set -eu
-              deadline=$(( $(date +%s) + 120 ))
-              initial=""
+              NS=kick-e2e-012
+              deadline=$(( $(date +%s) + 150 ))
+
+              # 1. Baseline: KICK discovers the dependency and settles the request
+              #    terminal by adopting the workload's initial rollout.
               while true; do
-                count=$(kubectl -n kick-e2e-012 get kickrequests --no-headers 2>/dev/null | wc -l | tr -d ' ')
-                initial=$(kubectl -n kick-e2e-012 get kickrequest config-api -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
-                if [ "$count" = "1" ] && [ -n "$initial" ]; then
+                phase=$(kubectl -n $NS get kickrequest deployment-config-api -o jsonpath='{.status.phase}' 2>/dev/null || true)
+                if [ "$phase" = "Succeeded" ] || [ "$phase" = "NoLongerRequired" ]; then
                   break
                 fi
                 if [ "$(date +%s)" -ge "$deadline" ]; then
-                  echo "expected initial KickRequest and timestamp for config-api" >&2
-                  kubectl -n kick-e2e-012 get kickrequests -o yaml >&2 || true
+                  echo "baseline KickRequest deployment-config-api never settled" >&2
+                  kubectl -n $NS get kickrequests -o yaml >&2 || true
                   exit 1
                 fi
-                sleep 2
+                sleep 3
               done
 
-              kubectl -n kick-e2e-012 patch configmap app-config --type merge -p '{"data":{"mode":"bravo"}}'
+              # Correctness: the baseline must NOT have restarted the workload.
+              before=$(kubectl -n $NS get deployment config-api -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}' 2>/dev/null || true)
+              if [ -n "$before" ]; then
+                echo "baseline unexpectedly restarted config-api" >&2
+                kubectl -n $NS get deployment config-api -o yaml >&2 || true
+                exit 1
+              fi
 
+              # 2. Mutate the referenced dependency (a relevant change).
+              kubectl -n $NS patch configmap app-config --type merge -p '{"data":{"mode":"bravo"}}'
+
+              # 3. The change MUST actually restart the workload: KICK stamps the
+              #    pod template with kubectl.kubernetes.io/restartedAt.
               while true; do
-                count=$(kubectl -n kick-e2e-012 get kickrequests --no-headers 2>/dev/null | wc -l | tr -d ' ')
-                updated=$(kubectl -n kick-e2e-012 get kickrequest config-api -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
-                if [ "$count" = "1" ] && [ -n "$updated" ] && [ "$updated" != "$initial" ]; then
+                after=$(kubectl -n $NS get deployment config-api -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}' 2>/dev/null || true)
+                if [ -n "$after" ] && [ "$after" != "$before" ]; then
                   break
                 fi
                 if [ "$(date +%s)" -ge "$deadline" ]; then
-                  echo "expected relevant ConfigMap update to advance latestObservedDependencyChange" >&2
-                  kubectl -n kick-e2e-012 get configmap app-config -o yaml >&2 || true
-                  kubectl -n kick-e2e-012 get kickrequest config-api -o yaml >&2 || true
+                  echo "dependency change did not restart config-api" >&2
+                  kubectl -n $NS get deployment config-api -o yaml >&2 || true
+                  kubectl -n $NS get kickrequest deployment-config-api -o yaml >&2 || true
                   exit 1
                 fi
-                sleep 2
+                sleep 3
               done
     - name: cleanup
       try:

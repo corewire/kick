@@ -9,9 +9,8 @@ metadata:
   name: default
   namespace: kick-e2e-054
 spec:
-  discovery: {}
-  gitOps:
-    provider: Auto
+  discovery:
+    workloadSelector: {}
 ---
 apiVersion: apps/v1
 kind: StatefulSet

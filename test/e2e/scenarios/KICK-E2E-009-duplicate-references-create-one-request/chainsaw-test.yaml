@@ -8,27 +8,54 @@ spec:
       try:
         - apply:
             file: resources.yaml
-    - name: assert-single-request
+    - name: assert-duplicate-refs-yield-one-restart
       try:
         - script:
             content: |
               set -eu
-              deadline=$(( $(date +%s) + 90 ))
+              NS=kick-e2e-009
+              deadline=$(( $(date +%s) + 150 ))
+
+              # A workload referencing the same Secret twice must produce exactly
+              # ONE KickRequest that settles terminal without a spurious restart.
               while true; do
-                count=$(kubectl -n kick-e2e-009 get kickrequests --no-headers 2>/dev/null | wc -l | tr -d ' ')
-                phase=$(kubectl -n kick-e2e-009 get kickrequest duplicate-api -o jsonpath='{.status.phase}' 2>/dev/null || true)
-                reason=$(kubectl -n kick-e2e-009 get kickrequest duplicate-api -o jsonpath='{.status.gate.reason}' 2>/dev/null || true)
-                target=$(kubectl -n kick-e2e-009 get kickrequest duplicate-api -o jsonpath='{.spec.targetRef.name}' 2>/dev/null || true)
-                latest=$(kubectl -n kick-e2e-009 get kickrequest duplicate-api -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
-                if [ "$count" = "1" ] && [ "$phase" = "WaitingForOwner" ] && [ "$reason" = "OwnerUnknown" ] && [ "$target" = "duplicate-api" ]; then
+                count=$(kubectl -n $NS get kickrequests --no-headers 2>/dev/null | wc -l | tr -d ' ')
+                phase=$(kubectl -n $NS get kickrequest deployment-duplicate-api -o jsonpath='{.status.phase}' 2>/dev/null || true)
+                if [ "$count" = "1" ] && { [ "$phase" = "Succeeded" ] || [ "$phase" = "NoLongerRequired" ]; }; then
                   break
                 fi
                 if [ "$(date +%s)" -ge "$deadline" ]; then
-                  echo "expected one KickRequest with WaitingForOwner/OwnerUnknown for duplicate-api" >&2
-                  kubectl -n kick-e2e-009 get kickrequests -o yaml >&2 || true
+                  echo "expected exactly one settled KickRequest for duplicate-api" >&2
+                  kubectl -n $NS get kickrequests -o yaml >&2 || true
                   exit 1
                 fi
-                sleep 2
+                sleep 3
+              done
+
+              before=$(kubectl -n $NS get deployment duplicate-api -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}' 2>/dev/null || true)
+              if [ -n "$before" ]; then echo "baseline unexpectedly restarted duplicate-api" >&2; exit 1; fi
+
+              # One relevant change to the shared Secret restarts the workload once.
+              kubectl -n $NS patch secret shared-secret --type merge -p '{"stringData":{"token":"rotated"}}'
+
+              while true; do
+                after=$(kubectl -n $NS get deployment duplicate-api -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}' 2>/dev/null || true)
+                count=$(kubectl -n $NS get kickrequests --no-headers 2>/dev/null | wc -l | tr -d ' ')
+                if [ -n "$after" ] && [ "$after" != "$before" ]; then
+                  if [ "$count" != "1" ]; then
+                    echo "duplicate references produced more than one KickRequest (count=$count)" >&2
+                    kubectl -n $NS get kickrequests -o yaml >&2 || true
+                    exit 1
+                  fi
+                  break
+                fi
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "shared Secret change did not restart duplicate-api" >&2
+                  kubectl -n $NS get deployment duplicate-api -o yaml >&2 || true
+                  kubectl -n $NS get kickrequest deployment-duplicate-api -o yaml >&2 || true
+                  exit 1
+                fi
+                sleep 3
               done
     - name: cleanup
       try:
