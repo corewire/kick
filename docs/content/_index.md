@@ -13,6 +13,10 @@ llmsDescription: |
 ---
 
 <div class="hx-mt-6 hx-mb-6">
+  <img src="/images/kick-long.png" alt="KICK — Give Stale Workloads the Boot" class="hx-w-full hx-max-w-2xl hx-mx-auto">
+</div>
+
+<div class="hx-mt-6 hx-mb-6">
 {{< hextra/hero-headline >}}
   KICK
 {{< /hextra/hero-headline >}}

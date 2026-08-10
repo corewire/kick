@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/static/images/kick-long.png" alt="KICK — Give Stale Workloads the Boot" width="640">
+</p>
+
 # KICK operator
 
 KICK restarts your workloads when the config they depend on changes.
@@ -6,9 +10,9 @@ When a Secret or ConfigMap that a workload consumes (via `env`, `envFrom`, or a 
 
 Supported workloads: `Deployment`, `StatefulSet`, `DaemonSet`.
 
-![How KICK works](docs/images/how-kick-works.drawio.svg)
+![How KICK works](docs/static/images/how-kick-works.drawio.svg)
 
-> The diagrams are editable draw.io files under [docs/images/](docs/images/) — open any `*.drawio.svg` in [diagrams.net](https://app.diagrams.net) to change it. See [docs/concepts/overview.md](docs/concepts/overview.md) for the full picture.
+> The diagrams are editable draw.io files under [docs/static/images/](docs/static/images/) — open any `*.drawio.svg` in [diagrams.net](https://app.diagrams.net) to change it. See [docs/content/docs/concepts/_index.md](docs/content/docs/concepts/_index.md) for the full picture.
 
 ## Try it
 
