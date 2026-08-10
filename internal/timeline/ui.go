@@ -25,10 +25,10 @@ const timelineHTML = `<!doctype html>
       --bg: #eef0f0;
       --panel: #f8f9f9;
       --blue: #1d71b8;
-      --orange: #f9b233;
+      --orange: #e8792b;
       --green: #2e9e5b;
       --red: #d64545;
-      --amber: #e6a010;
+      --violet: #7c5cd6;
       --teal: #2b9c9c;
       --gray: #8a9698;
       --lane-h: 26px;
@@ -180,8 +180,8 @@ const timelineHTML = `<!doctype html>
   <div id="tooltip" class="tooltip"></div>
 <script>
 var COLORS = {
-  blue: '#1d71b8', orange: '#f9b233', green: '#2e9e5b',
-  red: '#d64545', amber: '#e6a010', teal: '#2b9c9c', gray: '#8a9698'
+  blue: '#1d71b8', orange: '#e8792b', green: '#2e9e5b',
+  red: '#d64545', violet: '#7c5cd6', teal: '#2b9c9c', gray: '#8a9698'
 };
 var state = { workloads: [], events: [], min: 0, max: 0, viewMin: 0, viewMax: 0, zoomed: false, filter: '', selected: '' };
 
@@ -193,7 +193,7 @@ function phaseColor(phase) {
   var p = (phase || '').toLowerCase();
   if (p.indexOf('succeed') >= 0 || p.indexOf('complete') >= 0 || p.indexOf('nolongerrequired') >= 0 || p.indexOf('notrequired') >= 0 || p.indexOf('ready') >= 0 || p === 'done') return COLORS.green;
   if (p.indexOf('fail') >= 0 || p.indexOf('error') >= 0) return COLORS.red;
-  if (p.indexOf('wait') >= 0 || p.indexOf('block') >= 0 || p.indexOf('pending') >= 0) return COLORS.amber;
+  if (p.indexOf('wait') >= 0 || p.indexOf('block') >= 0 || p.indexOf('pending') >= 0) return COLORS.violet;
   if (p.indexOf('progress') >= 0 || p.indexOf('rollout') >= 0 || p.indexOf('kick') >= 0) return COLORS.blue;
   if (!p) return COLORS.gray;
   return COLORS.blue;
@@ -265,7 +265,7 @@ function renderLegend() {
     ['dot', COLORS.orange, 'dependency change'],
     ['dot', COLORS.green, 'workload restarted'],
     ['dot', COLORS.blue, 'kick request'],
-    ['dot', COLORS.amber, 'waiting / blocked'],
+    ['dot', COLORS.violet, 'waiting / blocked'],
     ['dot', COLORS.red, 'failed / warning'],
     ['dot', COLORS.gray, 'k8s event'],
     ['bar', COLORS.blue, 'state over time (band)']
@@ -417,12 +417,22 @@ function renderLanes() {
       seg.style.left = sg.left + '%'; seg.style.width = sg.width + '%'; seg.style.background = sg.color;
       track.appendChild(seg);
     });
-    w.events.forEach(function(ev) {
+    // Fan out markers that cluster at (nearly) the same position so overlapping
+    // events of different types stay individually visible instead of occluding.
+    var placedX = [];
+    w.events.slice().sort(function(a, b) { return new Date(a.at) - new Date(b.at); }).forEach(function(ev) {
       var ts = new Date(ev.at).getTime();
       if (ts < state.viewMin || ts > state.viewMax) return;
+      var left = pct(ts);
+      var slot = 0;
+      for (var i = placedX.length - 1; i >= 0; i--) {
+        if (Math.abs(placedX[i] - left) < 1.2) slot++; else break;
+      }
+      placedX.push(left);
       var st = eventStyle(ev);
       var mk = document.createElement('div'); mk.className = 'mk' + (st.square ? ' sq' : '');
-      mk.style.left = pct(ts) + '%';
+      mk.style.left = left + '%';
+      if (slot > 0) mk.style.marginLeft = (slot * 11) + 'px';
       mk.style.background = st.color;
       mk.addEventListener('mousemove', function(e) { showTip(tipFor(ev), e.clientX, e.clientY); });
       mk.addEventListener('mouseleave', hideTip);

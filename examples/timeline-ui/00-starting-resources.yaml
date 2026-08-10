@@ -9,15 +9,10 @@ metadata:
   name: timeline-demo
   namespace: timeline-demo
 spec:
-  discovery: {}
+  discovery: 
     workloadSelector:
       matchLabels:
         kick-demo: "true"
-  gitOps:
-    provider: Auto
-    requireReconciled: false
-    schedule:
-      source: None
   minInterval: 15s
 ---
 apiVersion: v1
@@ -58,6 +53,13 @@ spec:
       containers:
       - name: app
         image: registry.k8s.io/pause:3.10
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
         envFrom:
         - secretRef:
             name: demo-secret
@@ -87,6 +89,13 @@ spec:
       containers:
       - name: db
         image: registry.k8s.io/pause:3.10
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
         env:
         - name: DB_PASSWORD
           valueFrom:
@@ -115,6 +124,13 @@ spec:
       containers:
       - name: agent
         image: registry.k8s.io/pause:3.10
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
         volumeMounts:
         - name: cfg
           mountPath: /etc/demo
