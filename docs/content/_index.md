@@ -37,7 +37,7 @@ llmsDescription: |
 {{< tabs >}}
 
 {{< tab name="Restart" >}}
-{{< asciinema file="casts/restart.cast" autoplay="true" loop="true" speed="0.5" >}}
+{{< asciinema file="casts/restart.cast" autoplay="true" loop="true" speed="0.75" >}}
 {{< /tab >}}
 
 {{< tab name="KickRequest" >}}

@@ -86,39 +86,36 @@ cat > "$STEP_DIR/restart.sh" <<'STEPEOF'
 set -uo pipefail
 NS=kick-demo
 echo '# A Deployment consumes web-secret via envFrom. It is running and stable.'
-sleep 2
+sleep 1.5
 echo '$ kubectl -n kick-demo get deploy web'
 sleep 1
 kubectl -n $NS get deploy web
-sleep 3
+sleep 2
 echo ''
 echo '# Rotate the Secret. Kubernetes alone would NOT restart the Pod.'
-sleep 2
+sleep 1.5
 echo '$ kubectl -n kick-demo patch secret web-secret -p API_TOKEN=bravo'
 sleep 1
 kubectl -n $NS patch secret web-secret --type merge -p '{"stringData":{"API_TOKEN":"bravo"}}'
-sleep 4
-echo ''
-echo '# KICK stamped kubectl.kubernetes.io/restartedAt and the Deployment rolled out:'
 sleep 2
+for _ in $(seq 1 20); do
+  ra=$(kubectl -n $NS get deploy web -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}' 2>/dev/null || true)
+  [ -n "$ra" ] && break
+  sleep 1
+done
+echo ''
+echo '# KICK stamped kubectl.kubernetes.io/restartedAt on the Pod template:'
+sleep 1.5
+echo '$ kubectl -n kick-demo get deploy web -o jsonpath="{...restartedAt}"'
+sleep 1
+kubectl -n $NS get deploy web -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}'
+printf '\n'
+sleep 2
+echo '# So the Deployment rolls out fresh Pods:'
+sleep 1.5
 echo '$ kubectl -n kick-demo rollout status deploy/web'
 sleep 1
 kubectl -n $NS rollout status deploy/web --timeout=90s
-sleep 3
-echo ''
-echo '# Exactly one KickRequest handled it — watch it settle Succeeded:'
-sleep 2
-echo '$ kubectl -n kick-demo get kickrequests -w'
-sleep 1
-kubectl -n $NS get kickrequests -w &
-PID=$!
-for _ in $(seq 1 45); do
-  ph=$(kubectl -n $NS get kickrequest deployment-web -o jsonpath='{.status.phase}' 2>/dev/null || true)
-  [ "$ph" = "Succeeded" ] && break
-  sleep 2
-done
-sleep 3
-kill $PID 2>/dev/null || true
 sleep 5
 printf '\n'
 STEPEOF
@@ -169,19 +166,20 @@ sleep 3
 printf '\n'
 STEPEOF
 
-# --idle-time-limit caps long silent gaps (e.g. the ~30s requeue wait) so playback
-# stays snappy while the recording still captures the real Succeeded transition.
+# --idle-time-limit caps long silent gaps so playback stays snappy. restart/events
+# have no long gaps, so a high cap preserves their intentional pauses (incl. the
+# readable end hold); kickrequest uses a low cap to compress the ~30s requeue wait.
 cleanup; prime
 echo "Recording 1/3: restart"
-asciinema rec "$CAST_DIR/restart.cast" --overwrite --cols 92 --rows 24 --idle-time-limit 2 --env "" -c "bash --norc --noprofile $STEP_DIR/restart.sh"
+asciinema rec "$CAST_DIR/restart.cast" --overwrite --cols 92 --rows 24 --idle-time-limit 8 --env "" -c "bash --norc --noprofile $STEP_DIR/restart.sh"
 
 cleanup; prime
 echo "Recording 2/3: kickrequest"
-asciinema rec "$CAST_DIR/kickrequest.cast" --overwrite --cols 92 --rows 24 --idle-time-limit 2 --env "" -c "bash --norc --noprofile $STEP_DIR/kickrequest.sh"
+asciinema rec "$CAST_DIR/kickrequest.cast" --overwrite --cols 92 --rows 24 --idle-time-limit 4 --env "" -c "bash --norc --noprofile $STEP_DIR/kickrequest.sh"
 
 cleanup; prime
 echo "Recording 3/3: events"
-asciinema rec "$CAST_DIR/events.cast" --overwrite --cols 110 --rows 24 --idle-time-limit 2 --env "" -c "bash --norc --noprofile $STEP_DIR/events.sh"
+asciinema rec "$CAST_DIR/events.cast" --overwrite --cols 110 --rows 24 --idle-time-limit 8 --env "" -c "bash --norc --noprofile $STEP_DIR/events.sh"
 
 cleanup
 echo "Generated: $CAST_DIR/{restart,kickrequest,events}.cast"
