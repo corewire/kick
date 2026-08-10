@@ -9,7 +9,8 @@ metadata:
   name: default
   namespace: kick-example-021
 spec:
-  discovery: {}
+  discovery:
+    workloadSelector: {}
   gitOps:
     provider: Auto
 ---

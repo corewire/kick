@@ -9,11 +9,12 @@ metadata:
   name: timeline-demo
   namespace: timeline-demo
 spec:
-  discovery: 
+  discovery:
     workloadSelector:
       matchLabels:
         kick-demo: "true"
-  minInterval: 15s
+  restart:
+    minInterval: 15s
 ---
 apiVersion: v1
 kind: Secret
