@@ -88,7 +88,8 @@ one's Secrets and ConfigMaps:
 
 ```yaml
 spec:
-  discovery: {}                   # no selector = watch every workload
+  discovery:
+    workloadSelector: {}          # explicit empty selector = watch every workload
 ```
 
 **Restart only on specific config changes.** Add a `dependencySelector` and a

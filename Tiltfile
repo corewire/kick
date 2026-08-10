@@ -28,3 +28,12 @@ k8s_resource(
     resource_deps=['preflight'],
     port_forwards=['8090:8090'],
 )
+
+# --- Documentation: Hugo Hextra (live reload) ---
+local_resource(
+    'docs',
+    serve_cmd='cd docs && hugo server --buildDrafts --port 1313 --bind 0.0.0.0',
+    deps=['docs/content', 'docs/hugo.yaml', 'docs/assets', 'docs/static'],
+    links=['http://localhost:1313/kick/'],
+    labels=['docs'],
+)

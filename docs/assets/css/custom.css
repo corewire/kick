@@ -1,0 +1,11 @@
+/* Mermaid diagrams: fill available width */
+pre.mermaid svg {
+  max-width: 100% !important;
+  height: auto !important;
+}
+
+/* Inline SVG diagrams (flow, concept maps) scale to the content column */
+.content img[src$=".svg"] {
+  max-width: 100%;
+  height: auto;
+}
