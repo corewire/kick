@@ -55,7 +55,15 @@ Set empty value to disable:
 
 ## OTEL export (Tempo/Jaeger)
 
-KICK now emits OTEL spans for source observation, KickRequest reconciliation, and restart execution.
+KICK emits a small, high-signal set of spans built to answer one question:
+*when did the source change, and when did the workload restart?*
+
+Each restart cycle is a **single trace** with two spans sharing one trace ID:
+
+- `dependency.changed` — a relevant Secret/ConfigMap change with consumers, carrying a `source.changed` event at the observed-change time.
+- `restart.executed` — the actual workload patch, carrying a `workload.restarted` event at the restart time.
+
+Correlation is durable: the observer stamps the change's W3C `traceparent` onto the KickRequest (annotation `kick.corewire.io/traceparent`), and the executor resumes that trace when it restarts the workload — even across GitOps gate waits and controller restarts. Per-reconcile bookkeeping is deliberately **not** traced.
 
 Configure OTLP export:
 
@@ -70,3 +78,14 @@ Examples:
 - Jaeger collector OTLP gRPC endpoint.
 
 When endpoint is unset, tracing remains disabled and has no exporter overhead.
+
+## Tracing demo (Tilt)
+
+`tilt up` deploys a self-contained tracing backend for local development:
+
+- Jaeger all-in-one (`hack/tracing/jaeger.yaml`) in the `kick-tracing` namespace, with in-memory storage and the OTLP receiver enabled.
+- The `config/dev` overlay points the manager at it via `--otel-otlp-endpoint=jaeger.kick-tracing.svc.cluster.local:4317`.
+
+Open the Jaeger UI at [http://localhost:16686](http://localhost:16686) (port-forwarded by Tilt), select the `kick-controller` service, and trigger a restart to see source-observation, KickRequest reconciliation, and restart-execution spans.
+
+> The demo backend has no persistence or auth. It is for local development only.

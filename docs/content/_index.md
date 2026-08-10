@@ -13,14 +13,14 @@ llmsDescription: |
 ---
 
 <div class="hx-mt-6 hx-mb-6">
-  <img src="/images/kick-long.png" alt="KICK — Give Stale Workloads the Boot" class="hx-w-full hx-max-w-2xl hx-mx-auto">
+  <img src="images/kick-long-dark.png" alt="KICK — Give Stale Workloads the Boot" class="kick-logo kick-logo-on-light" style="max-width: 307px; width: 100%; margin: 0 auto; display: block">
+  <img src="images/kick-long-light.png" alt="KICK — Give Stale Workloads the Boot" class="kick-logo kick-logo-on-dark" style="max-width: 307px; width: 100%; margin: 0 auto; display: none">
 </div>
 
-<div class="hx-mt-6 hx-mb-6">
-{{< hextra/hero-headline >}}
-  KICK
-{{< /hextra/hero-headline >}}
-</div>
+<style>
+.dark .kick-logo-on-light { display: none !important; }
+.dark .kick-logo-on-dark { display: block !important; }
+</style>
 
 <div class="hx-mb-8">
 {{< hextra/hero-subtitle >}}
