@@ -15,10 +15,6 @@ import (
 	"github.com/corewire/kick/internal/observation"
 	"github.com/corewire/kick/internal/policy"
 	"github.com/corewire/kick/internal/schedule"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/trace"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -112,14 +108,8 @@ type KickRequestReconciler struct {
 }
 
 func (r *KickRequestReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	ctx, span := otel.Tracer("kick.controller").Start(ctx, "kickrequest.reconcile")
-	defer span.End()
-	span.SetAttributes(attribute.String("kick.request.namespace", req.Namespace), attribute.String("kick.request.name", req.Name))
-
 	if !r.dependenciesConfigured() {
 		observeControllerError("kickrequest", "MissingDependency")
-		span.RecordError(fmt.Errorf("missing dependency"))
-		span.SetStatus(codes.Error, "missing dependency")
 		return ctrl.Result{}, fmt.Errorf("kickrequest reconciler dependencies are not fully configured")
 	}
 
@@ -127,12 +117,9 @@ func (r *KickRequestReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	if err := r.Get(ctx, req.NamespacedName, &request); err != nil {
 		if !apierrors.IsNotFound(err) {
 			observeControllerError("kickrequest", "GetRequest")
-			span.RecordError(err)
-			span.SetStatus(codes.Error, "get request failed")
 		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	span.SetAttributes(attribute.String("kick.target.kind", request.Spec.TargetRef.Kind), attribute.String("kick.target.name", request.Spec.TargetRef.Name))
 	if isTerminalPhase(request.Status.Phase) {
 		return r.reconcileTerminalRequest(ctx, &request)
 	}
@@ -351,9 +338,6 @@ func (r *KickRequestReconciler) evaluateFreshnessAndExecute(
 	result, err := r.RestartExecutor.Execute(ctx, req.NamespacedName, request.Spec.TargetRef, targetKey)
 	if err != nil {
 		observeControllerError("kickrequest", "ExecuteRestart")
-		span := trace.SpanFromContext(ctx)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "restart execution failed")
 		return ctrl.Result{}, err
 	}
 

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	kickv1alpha1 "github.com/corewire/kick/api/v1alpha1"
+	"github.com/corewire/kick/internal/telemetry"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -41,11 +42,27 @@ func (c *Coalescer) EnsureActiveRequest(ctx context.Context, namespace string, t
 			ObjectMeta: metav1.ObjectMeta{Name: key.Name, Namespace: namespace},
 			Spec:       kickv1alpha1.KickRequestSpec{TargetRef: target},
 		}
+		if tp := telemetry.Traceparent(ctx); tp != "" {
+			request.Annotations = map[string]string{telemetry.TraceparentAnnotation: tp}
+		}
 		if policyName != "" {
 			request.Spec.PolicyRef = &kickv1alpha1.PolicyReference{Name: policyName}
 		}
 		if err := c.Create(ctx, &request); err != nil {
 			return nil, err
+		}
+	} else if request.Status.Phase == "" || isTerminalPhase(request.Status.Phase) {
+		// A new restart cycle begins: re-root the trace on the change that
+		// triggered it. Repeated events during an active cycle keep the
+		// original traceparent so the in-flight restart stays correlated.
+		if tp := telemetry.Traceparent(ctx); tp != "" && request.Annotations[telemetry.TraceparentAnnotation] != tp {
+			if request.Annotations == nil {
+				request.Annotations = map[string]string{}
+			}
+			request.Annotations[telemetry.TraceparentAnnotation] = tp
+			if err := c.Update(ctx, &request); err != nil {
+				return nil, err
+			}
 		}
 	}
 

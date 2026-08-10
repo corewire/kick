@@ -6,6 +6,7 @@ import (
 	"time"
 
 	kickv1alpha1 "github.com/corewire/kick/api/v1alpha1"
+	"github.com/corewire/kick/internal/telemetry"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -38,25 +39,12 @@ func NewRestartExecutor(c client.Client, timeout time.Duration) *RestartExecutor
 }
 
 func (e *RestartExecutor) Execute(ctx context.Context, requestKey types.NamespacedName, targetRef kickv1alpha1.ObjectReference, targetKey types.NamespacedName) (Result, error) {
-	_, span := otel.Tracer("kick.executor").Start(ctx, "restart.execute")
-	defer span.End()
-	span.SetAttributes(
-		attribute.String("kick.request.namespace", requestKey.Namespace),
-		attribute.String("kick.request.name", requestKey.Name),
-		attribute.String("kick.target.kind", targetRef.Kind),
-		attribute.String("kick.target.name", targetRef.Name),
-	)
-
 	var request kickv1alpha1.KickRequest
 	if err := e.Client.Get(ctx, requestKey, &request); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "get request failed")
 		return Result{}, err
 	}
 	workload, err := getWorkload(ctx, e.Client, targetRef, targetKey)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "get workload failed")
 		return Result{}, err
 	}
 
@@ -68,7 +56,7 @@ func (e *RestartExecutor) Execute(ctx context.Context, requestKey types.Namespac
 		return e.progressRollout(ctx, requestKey, workload, request)
 	}
 
-	return e.startRollout(ctx, requestKey, workload, span)
+	return e.startRollout(ctx, requestKey, workload, request, targetRef)
 }
 
 func isTerminalPhase(phase kickv1alpha1.KickRequestPhase) bool {
@@ -98,19 +86,35 @@ func (e *RestartExecutor) progressRollout(ctx context.Context, requestKey types.
 	return Result{}, nil
 }
 
-// startRollout marks the request Executing and patches the workload to restart it.
-func (e *RestartExecutor) startRollout(ctx context.Context, requestKey types.NamespacedName, workload client.Object, span trace.Span) (Result, error) {
+// startRollout marks the request Executing and patches the workload to restart
+// it. This is the meaningful "restart happened" moment, so it opens the
+// restart.executed span as a child of the dependency-change trace carried on
+// the request, correlating the source change with this restart.
+func (e *RestartExecutor) startRollout(ctx context.Context, requestKey types.NamespacedName, workload client.Object, request kickv1alpha1.KickRequest, targetRef kickv1alpha1.ObjectReference) (Result, error) {
 	now := e.Now().UTC()
+	parent := telemetry.ContextFromTraceparent(ctx, request.Annotations[telemetry.TraceparentAnnotation])
+	_, span := otel.Tracer("kick.executor").Start(parent, "restart.executed")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("kick.request.namespace", requestKey.Namespace),
+		attribute.String("kick.request.name", requestKey.Name),
+		attribute.String("kick.target.kind", targetRef.Kind),
+		attribute.String("kick.target.name", targetRef.Name),
+	)
+
 	if err := e.updateRequestStatus(ctx, requestKey, func(status *kickv1alpha1.KickRequestStatus) {
 		status.Phase = kickv1alpha1.KickRequestPhaseExecuting
 		t := metav1.NewTime(now)
 		status.CurrentRollout.StartedAt = &t
 	}); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "mark executing failed")
 		return Result{}, err
 	}
 
 	patch, err := restartPatch(now)
 	if err != nil {
+		span.RecordError(err)
 		return Result{}, err
 	}
 	if err := e.Client.Patch(ctx, workload, client.RawPatch(types.MergePatchType, patch)); err != nil {
@@ -121,6 +125,7 @@ func (e *RestartExecutor) startRollout(ctx context.Context, requestKey types.Nam
 		span.SetStatus(codes.Error, "patch failed")
 		return Result{}, err
 	}
+	span.AddEvent("workload.restarted", trace.WithTimestamp(now))
 	return Result{Patched: true}, nil
 }
 

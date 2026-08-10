@@ -1,0 +1,9 @@
+# Dev overlay: base manager + OTLP tracing exporter pointed at the in-cluster
+# Jaeger all-in-one (see hack/tracing/jaeger.yaml). Used by the Tiltfile only.
+resources:
+- ../default
+patches:
+- path: manager_tracing_patch.yaml
+  target:
+    kind: Deployment
+    name: ".*controller-manager"

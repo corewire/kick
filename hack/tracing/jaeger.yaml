@@ -1,0 +1,52 @@
+# Jaeger all-in-one: a simple, self-contained tracing backend for local dev.
+# In-memory storage, OTLP receiver enabled, UI on :16686.
+# Do not use in production — no persistence, no auth.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kick-tracing
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jaeger
+  namespace: kick-tracing
+  labels: {app: jaeger}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: jaeger}
+  template:
+    metadata:
+      labels: {app: jaeger}
+    spec:
+      containers:
+      - name: jaeger
+        image: jaegertracing/all-in-one:1.62.0
+        env:
+        - name: COLLECTOR_OTLP_ENABLED
+          value: "true"
+        ports:
+        - {name: ui, containerPort: 16686}
+        - {name: otlp-grpc, containerPort: 4317}
+        - {name: otlp-http, containerPort: 4318}
+        readinessProbe:
+          httpGet: {path: /, port: 16686}
+          initialDelaySeconds: 3
+          periodSeconds: 5
+        resources:
+          requests: {cpu: 10m, memory: 128Mi}
+          limits: {cpu: 500m, memory: 512Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger
+  namespace: kick-tracing
+  labels: {app: jaeger}
+spec:
+  selector: {app: jaeger}
+  ports:
+  - {name: ui, port: 16686, targetPort: 16686}
+  - {name: otlp-grpc, port: 4317, targetPort: 4317}
+  - {name: otlp-http, port: 4318, targetPort: 4318}

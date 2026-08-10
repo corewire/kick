@@ -9,6 +9,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -38,25 +39,35 @@ type SourceObservationReconciler struct {
 }
 
 func (r *SourceObservationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	ctx, span := otel.Tracer("kick.controller").Start(ctx, "source-observer.reconcile")
-	defer span.End()
-	span.SetAttributes(attribute.String("source.namespace", req.Namespace), attribute.String("source.name", req.Name))
-
 	if result, err := r.reconcileSecret(ctx, req); err != nil || result {
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, "secret reconcile failed")
-		}
 		return ctrl.Result{}, err
 	}
 	if result, err := r.reconcileConfigMap(ctx, req); err != nil || result {
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, "configmap reconcile failed")
-		}
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
+}
+
+// enqueueDependencyChange starts the trace that answers "when did the source
+// change, and when did the workload restart?". It is only entered for a
+// relevant change with consumers, and the executor continues this trace via the
+// traceparent stamped on each KickRequest.
+func (r *SourceObservationReconciler) enqueueDependencyChange(ctx context.Context, identity observation.SourceIdentity, labels map[string]string, consumers []dependency.ConsumerTarget, observedAt time.Time) error {
+	ctx, span := otel.Tracer("kick.controller").Start(ctx, "dependency.changed")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("kick.source.kind", string(identity.Kind)),
+		attribute.String("kick.source.namespace", identity.Namespace),
+		attribute.String("kick.source.name", identity.Name),
+		attribute.Int("kick.consumers", len(consumers)),
+	)
+	span.AddEvent("source.changed", trace.WithTimestamp(observedAt))
+	if err := r.Enqueuer.EnqueueForConsumers(ctx, identity, labels, consumers, observedAt); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "enqueue failed")
+		return err
+	}
+	return nil
 }
 
 func (r *SourceObservationReconciler) reconcileSecret(ctx context.Context, req ctrl.Request) (bool, error) {
@@ -85,12 +96,9 @@ func (r *SourceObservationReconciler) reconcileSecret(ctx context.Context, req c
 	if len(consumers) == 0 {
 		return true, nil
 	}
-	if result.Kind == observation.BaselineEstablished {
-		// Baseline events are only actionable when consumers already reference a
-		// previously missing optional source.
-		return true, r.Enqueuer.EnqueueForConsumers(ctx, result.Identity, secret.GetLabels(), consumers, observedAt)
-	}
-	return true, r.Enqueuer.EnqueueForConsumers(ctx, result.Identity, secret.GetLabels(), consumers, observedAt)
+	// Baseline and relevant changes both enqueue; baseline only reaches here when
+	// consumers already reference a previously missing optional source.
+	return true, r.enqueueDependencyChange(ctx, result.Identity, secret.GetLabels(), consumers, observedAt)
 }
 
 func (r *SourceObservationReconciler) reconcileConfigMap(ctx context.Context, req ctrl.Request) (bool, error) {
@@ -119,12 +127,7 @@ func (r *SourceObservationReconciler) reconcileConfigMap(ctx context.Context, re
 	if len(consumers) == 0 {
 		return true, nil
 	}
-	if result.Kind == observation.BaselineEstablished {
-		// Baseline events are only actionable when consumers already reference a
-		// previously missing optional source.
-		return true, r.Enqueuer.EnqueueForConsumers(ctx, result.Identity, configMap.GetLabels(), consumers, observedAt)
-	}
-	return true, r.Enqueuer.EnqueueForConsumers(ctx, result.Identity, configMap.GetLabels(), consumers, observedAt)
+	return true, r.enqueueDependencyChange(ctx, result.Identity, configMap.GetLabels(), consumers, observedAt)
 }
 
 func (r *SourceObservationReconciler) SetupWithManager(mgr ctrl.Manager) error {

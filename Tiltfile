@@ -21,11 +21,21 @@ docker_build(
     only=['api', 'cmd', 'config', 'internal', 'go.mod', 'go.sum'],
 )
 
-k8s_yaml(kustomize('config/default'))
+k8s_yaml(kustomize('config/dev'))
+
+# --- Tracing backend: Jaeger all-in-one (OTLP receiver + UI) ---
+k8s_yaml('hack/tracing/jaeger.yaml')
+
+k8s_resource(
+    'jaeger',
+    port_forwards=['16686:16686'],
+    links=['http://localhost:16686/'],
+    labels=['tracing'],
+)
 
 k8s_resource(
     'kick-controller-manager',
-    resource_deps=['preflight'],
+    resource_deps=['preflight', 'jaeger'],
     port_forwards=['8090:8090'],
 )
 
@@ -33,7 +43,7 @@ k8s_resource(
 local_resource(
     'docs',
     serve_cmd='cd docs && hugo server --buildDrafts --port 1313 --bind 0.0.0.0',
-    deps=['docs/content', 'docs/hugo.yaml', 'docs/assets', 'docs/static'],
+    deps=['docs/content', 'docs/hugo.yaml', 'docs/assets', 'docs/static', 'docs/layouts'],
     links=['http://localhost:1313/kick/'],
     labels=['docs'],
 )
