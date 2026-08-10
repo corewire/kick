@@ -1,0 +1,8 @@
+{"version": 2, "width": 92, "height": 24, "timestamp": 1786348459, "env": {}}
+[0.005467, "o", "$ kubectl --context kind-kick-dev -n kick-demo get kickrequests -w\r\n"]
+[2.107462, "o", "NAME             PHASE   TARGET   PROVIDER   OWNER   REASON   AGE\r\ndeployment-web           web                                  0s\r\n"]
+[2.12066, "o", "deployment-web   Executing   web                         Allowed   0s\r\n"]
+[2.130556, "o", "deployment-web   Executing   web                         Allowed   0s\r\n"]
+[2.159511, "o", "deployment-web   WaitingForRollout   web                         Allowed   0s\r\n"]
+[2.174861, "o", "deployment-web   WaitingForRollout   web                         Allowed   0s\r\n"]
+[16.100226, "o", "\r\n"]

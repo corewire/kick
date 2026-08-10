@@ -151,6 +151,10 @@ helm-template:
 docs-gen:
 	bash hack/gen-docs.sh
 
+.PHONY: docs-casts
+docs-casts:
+	bash hack/gen-asciinema.sh
+
 .PHONY: docs-gen-check
 docs-gen-check: docs-gen
 	git diff --exit-code -- llms.txt llms-full.txt

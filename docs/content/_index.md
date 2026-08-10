@@ -34,6 +34,22 @@ llmsDescription: |
 > permission, and then issues exactly one restart via the standard
 > `kubectl.kubernetes.io/restartedAt` annotation.
 
+{{< tabs >}}
+
+{{< tab name="Restart" >}}
+{{< asciinema file="casts/restart.cast" autoplay="true" loop="true" speed="1" >}}
+{{< /tab >}}
+
+{{< tab name="KickRequest" >}}
+{{< asciinema file="casts/kickrequest.cast" autoplay="true" loop="true" speed="1" >}}
+{{< /tab >}}
+
+{{< tab name="Events" >}}
+{{< asciinema file="casts/events.cast" autoplay="true" loop="true" speed="1" >}}
+{{< /tab >}}
+
+{{< /tabs >}}
+
 ![How the KICK reconcile flow turns a dependency change into a gated restart](/images/kick-flow.svg "Observation → coalesce → gate → freshness → restart")
 
 ---

@@ -9,3 +9,8 @@ pre.mermaid svg {
   max-width: 100%;
   height: auto;
 }
+
+/* Asciinema player: fill available width in tab containers */
+.ap-player {
+  width: 100% !important;
+}
