@@ -55,10 +55,9 @@ spec:
   gitOps:
     provider: ArgoCD
     requireReconciled: true
-    schedule:
-      source: Provider
 
-  minInterval: 30s
+  restart:
+    minInterval: 30s
 ```
 
 ---
@@ -76,13 +75,15 @@ spec:
     workloadSelector: {}
     dependencySelector: {}
 
+  schedule:
+    windows: []
+
   gitOps:
     provider: None
     requireReconciled: true
-    schedule:
-      source: Provider
 
-  minInterval: 30s
+  restart:
+    minInterval: 30s
 ```
 
 ---
@@ -294,8 +295,6 @@ spec:
   gitOps:
     provider: None
     requireReconciled: true
-    schedule:
-      source: Provider
 ```
 
 ---
@@ -481,68 +480,37 @@ If the GitOps reconciliation already created a newer rollout, the kick may no lo
 
 ---
 
-## `spec.gitOps.schedule.source`
-Type:
+# `spec.schedule`
 
-```text
-string
-```
-Required:
-
-```text
-No
-```
-Default:
-
-```text
-Provider
-```
-Supported values:
-
-```text
-Provider
-None
-```
-
-### `Provider`
-KICK obtains scheduling or window information from the resolved GitOps provider.
-
-For Argo CD:
-
-```text
-Application
-→ Application.spec.project
-→ AppProject
-→ AppProject.spec.syncWindows
-```
-For Flux:
-
-```text
-Flux owner
-→ supported Flux scheduling mechanism
-```
-The provider adapter translates its native behavior into a generic gate decision.
-
-### `None`
-Provider schedule or window information is ignored.
-
-The `requireReconciled` setting still applies independently.
-
-Example:
+## Purpose
+The `schedule` section is KICK's native time gate. It is pure scheduling and is
+independent of any GitOps provider. Omit it to allow restarts at any time.
 
 ```yaml
 spec:
-  gitOps:
-    provider: ArgoCD
-    requireReconciled: true
-    schedule:
-      source: None
+  schedule:
+    windows:
+      - type: Allow             # Allow | Deny (Deny wins)
+        cron: "0 2 * * *"        # 5-field cron marking each window start
+        duration: 1h             # how long the window stays open
+        timeZone: Europe/Berlin  # IANA zone, default UTC
 ```
-This configuration waits for the Application to be reconciled but does not enforce AppProject sync windows.
+
+## Window evaluation
+- No windows ⇒ always open.
+- Only Deny windows ⇒ open except during a Deny window.
+- Any Allow window present ⇒ closed by default; open only inside an Allow window
+  and never inside a Deny window.
+
+## Provider sync windows
+Argo CD `AppProject.spec.syncWindows` govern when Argo itself syncs. They are
+honored by the Argo provider gate (part of `gitOps`), not by `spec.schedule`.
+There is no per-policy toggle: a restart is not a sync. Flux has no window
+concept at all, so Flux users rely on `spec.schedule` for all time gating.
 
 ---
 
-# `spec.minInterval`
+# `spec.restart.minInterval`
 Type:
 
 ```text
@@ -567,7 +535,8 @@ Example:
 
 ```yaml
 spec:
-  minInterval: 1m
+  restart:
+    minInterval: 1m
 ```
 The interval has two purposes:
 
@@ -695,22 +664,11 @@ requireReconciled: false
 must immediately re-evaluate requests blocked only by GitOps reconciliation state.
 
 ## Schedule changes
-Changing:
-
-```yaml
-schedule:
-  source: Provider
-```
-to:
-
-```yaml
-schedule:
-  source: None
-```
-must immediately re-evaluate requests blocked by a provider schedule.
+Editing `spec.schedule.windows` (adding, removing, or retiming an Allow/Deny
+window) must immediately re-evaluate requests whose gate depends on the window.
 
 ## Minimum-interval changes
-Changing `minInterval` must cause pending request timings to be recalculated.
+Changing `restart.minInterval` must cause pending request timings to be recalculated.
 
 Previously calculated wake-up times are advisory and must not remain authoritative after a policy update.
 

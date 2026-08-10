@@ -16,9 +16,8 @@ spec:
   gitOps:
     provider: ArgoCD
     requireReconciled: true
-    schedule:
-      source: Provider
-  minInterval: 30s
+  restart:
+    minInterval: 30s
 ```
 
 This policy enables KICK only for workloads in namespace payments that match label kick.corewire.io/enabled=true.
