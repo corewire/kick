@@ -37,15 +37,15 @@ llmsDescription: |
 {{< tabs >}}
 
 {{< tab name="Restart" >}}
-{{< asciinema file="casts/restart.cast" autoplay="true" loop="true" speed="1" >}}
+{{< asciinema file="casts/restart.cast" autoplay="true" loop="true" speed="0.5" >}}
 {{< /tab >}}
 
 {{< tab name="KickRequest" >}}
-{{< asciinema file="casts/kickrequest.cast" autoplay="true" loop="true" speed="1" >}}
+{{< asciinema file="casts/kickrequest.cast" autoplay="true" loop="true" speed="0.5" >}}
 {{< /tab >}}
 
 {{< tab name="Events" >}}
-{{< asciinema file="casts/events.cast" autoplay="true" loop="true" speed="1" >}}
+{{< asciinema file="casts/events.cast" autoplay="true" loop="true" speed="0.5" >}}
 {{< /tab >}}
 
 {{< /tabs >}}
