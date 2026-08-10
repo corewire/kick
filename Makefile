@@ -157,7 +157,7 @@ docs-casts:
 
 .PHONY: docs-gen-check
 docs-gen-check: docs-gen
-	git diff --exit-code -- llms.txt llms-full.txt
+	git diff --exit-code -- llms.txt llms-full.txt docs/static/llms-full.txt
 
 .PHONY: feature-coverage
 feature-coverage:

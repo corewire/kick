@@ -19,13 +19,13 @@ KICK watches Secret and ConfigMap changes and evaluates whether a Deployment res
 - Restart action patches `kubectl.kubernetes.io/restartedAt` on Deployments only.
 
 ## Key references
-- docs/getting-started/installation.md
-- docs/getting-started/quickstart.md
-- docs/reference/kickrequest.md
-- docs/reference/kickpolicy.md
-- docs/reference/configuration.md
-- docs/reference/metrics.md
-- docs/reference/events.md
+- docs/content/docs/installation.md
+- docs/content/docs/quickstart.md
+- docs/content/docs/reference/kickrequest.md
+- docs/content/docs/reference/kickpolicy.md
+- docs/content/docs/reference/configuration.md
+- docs/content/docs/reference/metrics.md
+- docs/content/docs/reference/events.md
 
 ## Security
 - Controller needs read access to Secrets/ConfigMaps to evaluate freshness.
@@ -40,14 +40,15 @@ EOF
   cat llms.txt
   echo
 
-  for section in getting-started concepts guides reference operations; do
-    for file in $(find "docs/${section}" -maxdepth 1 -type f -name "*.md" | sort); do
-      echo
-      echo "## Source: ${file}"
-      echo
-      cat "${file}"
-    done
+  for file in $(find docs/content/docs -type f -name "*.md" | sort); do
+    echo
+    echo "## Source: ${file}"
+    echo
+    cat "${file}"
   done
 } > llms-full.txt
+
+# Publish alongside the Hugo site so agents can fetch it over HTTP.
+cp llms-full.txt docs/static/llms-full.txt
 
 echo "Generated llms.txt and llms-full.txt"

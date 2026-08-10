@@ -12,13 +12,13 @@ KICK watches Secret and ConfigMap changes and evaluates whether a Deployment res
 - Restart action patches `kubectl.kubernetes.io/restartedAt` on Deployments only.
 
 ## Key references
-- docs/getting-started/installation.md
-- docs/getting-started/quickstart.md
-- docs/reference/kickrequest.md
-- docs/reference/kickpolicy.md
-- docs/reference/configuration.md
-- docs/reference/metrics.md
-- docs/reference/events.md
+- docs/content/docs/installation.md
+- docs/content/docs/quickstart.md
+- docs/content/docs/reference/kickrequest.md
+- docs/content/docs/reference/kickpolicy.md
+- docs/content/docs/reference/configuration.md
+- docs/content/docs/reference/metrics.md
+- docs/content/docs/reference/events.md
 
 ## Security
 - Controller needs read access to Secrets/ConfigMaps to evaluate freshness.
