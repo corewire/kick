@@ -1,0 +1,6 @@
+# Search for Argo CD Applications outside the control-plane namespace as well.
+# KICK-E2E-025 places its Application in the workload namespace to exercise the
+# "apps in any namespace" ownership path.
+- op: add
+  path: /spec/template/spec/containers/0/args/-
+  value: --argocd-application-namespaces=argocd,kick-e2e-025

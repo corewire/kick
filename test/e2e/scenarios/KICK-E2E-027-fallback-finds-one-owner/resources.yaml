@@ -12,35 +12,25 @@ spec:
   discovery:
     workloadSelector: {}
   gitOps:
-    provider: Auto
+    provider: ArgoCD
 ---
-apiVersion: apps/v1
-kind: Deployment
+# No tracking-id annotation on the workload, so KICK must resolve the owner by
+# scanning Application status.resources.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
 metadata:
-  name: app-027
-  namespace: kick-e2e-027
+  name: kick-e2e-027
+  namespace: argocd
 spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: app-027
-  template:
-    metadata:
-      labels:
-        app: app-027
-    spec:
-      containers:
-        - name: app
-          image: registry.k8s.io/pause:3.10
-          envFrom:
-            - secretRef:
-                name: app-secret
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: app-secret
-  namespace: kick-e2e-027
-type: Opaque
-stringData:
-  token: alpha
+  project: default
+  source:
+    repoURL: http://gitea.kick-e2e-git.svc.cluster.local:3000/kick-e2e/apps.git
+    targetRevision: main
+    path: scenarios/027
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kick-e2e-027
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

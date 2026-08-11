@@ -87,6 +87,20 @@ test: setup-envtest
 e2e-namespace:
 	@KUBECONFIG=$(KIND_KUBECONFIG) $(KUBECTL) --context $(KIND_CONTEXT) create namespace $(E2E_NAMESPACE) --dry-run=client -o yaml | KUBECONFIG=$(KIND_KUBECONFIG) $(KUBECTL) --context $(KIND_CONTEXT) apply -f - >/dev/null
 
+# Deploys the manager with the flags the integration scenarios rely on.
+.PHONY: e2e-install
+e2e-install: manifests kustomize
+	$(KUSTOMIZE) build config/e2e | $(KUBECTL) --kubeconfig $(KIND_KUBECONFIG) --context $(KIND_CONTEXT) apply -f -
+	$(KUBECTL) --kubeconfig $(KIND_KUBECONFIG) --context $(KIND_CONTEXT) -n kick-system rollout status deployment/kick-controller-manager --timeout=180s
+
+# Installs the in-cluster Git server the GitOps scenarios sync from.
+.PHONY: e2e-git-server
+e2e-git-server:
+	KICK_E2E_KUBECONFIG=$(KIND_KUBECONFIG) test/e2e/setup/gitea/install-gitea.sh
+
+.PHONY: e2e-integration-setup
+e2e-integration-setup: e2e-namespace e2e-install e2e-git-server
+
 .PHONY: test-e2e
 test-e2e: chainsaw e2e-namespace
 	KUBECONFIG=$(KIND_KUBECONFIG) $(CHAINSAW) test --config test/e2e/chainsaw-configuration.yaml --kube-context $(KIND_CONTEXT) test/e2e/scenarios
@@ -96,23 +110,23 @@ test-e2e-core: chainsaw e2e-namespace
 	$(call e2e_suite,core,-Ev,$(E2E_IDS_NONCORE),$(E2E_CHAINSAW_CONFIG))
 
 .PHONY: test-e2e-argocd
-test-e2e-argocd: chainsaw e2e-namespace
-	$(call e2e_suite,argocd,-E,$(E2E_IDS_ARGOCD),$(E2E_CHAINSAW_CONFIG))
+test-e2e-argocd: chainsaw e2e-integration-setup
+	$(call e2e_suite,argocd,-E,$(E2E_IDS_ARGOCD),$(E2E_CHAINSAW_CONFIG_INTEGRATION))
 
 .PHONY: test-e2e-recovery
 test-e2e-recovery: chainsaw e2e-namespace
 	$(call e2e_suite,recovery,-E,$(E2E_IDS_RECOVERY),$(E2E_CHAINSAW_CONFIG))
 
 .PHONY: test-e2e-rollouts
-test-e2e-rollouts: chainsaw e2e-namespace
+test-e2e-rollouts: chainsaw e2e-integration-setup
 	$(call e2e_suite,argo-rollouts,-E,$(E2E_IDS_ROLLOUTS),$(E2E_CHAINSAW_CONFIG_INTEGRATION))
 
 .PHONY: test-e2e-csi
-test-e2e-csi: chainsaw e2e-namespace
+test-e2e-csi: chainsaw e2e-integration-setup
 	$(call e2e_suite,csi,-E,$(E2E_IDS_CSI),$(E2E_CHAINSAW_CONFIG_INTEGRATION))
 
 .PHONY: test-e2e-kargo
-test-e2e-kargo: chainsaw e2e-namespace
+test-e2e-kargo: chainsaw e2e-integration-setup
 	$(call e2e_suite,kargo,-E,$(E2E_IDS_KARGO),$(E2E_CHAINSAW_CONFIG_INTEGRATION))
 
 .PHONY: test-e2e-scenario

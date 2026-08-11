@@ -414,6 +414,41 @@ configuration reference.
 
 ---
 
+## T8 — The 19 Argo CD e2e scenarios are placeholders
+
+Found while implementing T4. `KICK-E2E-024` … `KICK-E2E-042` are named after
+distinct Argo CD behaviours — `outofsync-waits`, `deny-window-waits`,
+`multiple-owners-block` — but 18 of the 19 assert the same two values:
+
+```
+phase  = WaitingForOwner
+reason = OwnerUnknown
+```
+
+No scenario in `test/e2e/scenarios/` references `argoproj.io` at all, so none of
+them creates an Argo CD `Application` or `AppProject`. They exercise the
+baseline "no owner found" path and nothing else, while `check_feature_coverage`
+counts them as required e2e coverage for `KICK-FEAT-008` … `KICK-FEAT-013`.
+
+The traceability matrix is therefore reporting coverage that does not exist.
+
+**Two further gaps this exposed.**
+
+1. Argo CD's default `application.resourceTrackingMethod` is `label`, so the
+   `argocd.argoproj.io/tracking-id` annotation the provider reads is never
+   written. Against a stock Argo CD the annotation path is dead and every
+   resolution goes through the `status.resources` fallback. Scenarios must put
+   the annotation in their own manifests to exercise it.
+2. `ApplicationNamespaces` was not configurable — `cmd/main.go` hard-coded
+   `ControlPlaneNamespace: "argocd"` and left the list empty, so an Application
+   outside the Argo CD namespace could never be found. Fixed by adding
+   `--argocd-namespace` and `--argocd-application-namespaces`.
+
+**Acceptance.** Every scenario drives a real `Application` backed by the
+in-cluster Gitea, and asserts the phase and gate reason its name claims.
+
+---
+
 ## Suggested order
 
 T1 first — it is a shipped defect that makes an advertised feature a no-op.

@@ -358,12 +358,18 @@ func (r *KickRequestReconciler) evaluateFreshnessAndExecute(
 		return ctrl.Result{}, err
 	}
 
-	if res, done, err := r.handleFreshnessGate(ctx, req, request, ownerStatus, gateDecision, freshnessDecision); done || err != nil {
-		return res, err
-	}
+	// Once KICK has issued the restart, the executor owns the request. The
+	// workload is fresh precisely because of that restart, so re-running the
+	// freshness gate here would terminate the request as NoLongerRequired and
+	// discard the outcome of the rollout KICK started.
+	if !restartIssued(request) {
+		if res, done, err := r.handleFreshnessGate(ctx, req, request, ownerStatus, gateDecision, freshnessDecision); done || err != nil {
+			return res, err
+		}
 
-	if policyDryRun(matchedPolicy) {
-		return r.recordDryRun(ctx, req, request, ownerStatus, gateDecision, freshnessDecision)
+		if policyDryRun(matchedPolicy) {
+			return r.recordDryRun(ctx, req, request, ownerStatus, gateDecision, freshnessDecision)
+		}
 	}
 
 	// Transition to Executing once. The executor owns CurrentRollout.StartedAt
@@ -382,6 +388,13 @@ func (r *KickRequestReconciler) evaluateFreshnessAndExecute(
 	}
 
 	return r.finalizeRestart(ctx, req, request, ownerStatus, result)
+}
+
+// restartIssued reports whether KICK already patched the workload for this
+// request and is now only waiting for the rollout it started to settle.
+func restartIssued(request *kickv1alpha1.KickRequest) bool {
+	return request.Status.Phase == kickv1alpha1.KickRequestPhaseExecuting &&
+		request.Status.CurrentRollout.StartedAt != nil
 }
 
 // handleFreshnessGate records the terminal outcomes that require no restart

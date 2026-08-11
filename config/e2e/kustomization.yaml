@@ -1,0 +1,11 @@
+# E2E overlay: base manager configured the way the integration scenarios expect.
+# Argo CD's "apps in any namespace" feature requires both Argo CD and KICK to be
+# told which namespaces may hold Applications, so the namespaces used by those
+# scenarios are listed explicitly here.
+resources:
+- ../default
+patches:
+- path: manager_argocd_patch.yaml
+  target:
+    kind: Deployment
+    name: ".*controller-manager"

@@ -7,16 +7,32 @@
 # interpolated into a nested shell.
 
 CONTEXT="${KICK_E2E_CONTEXT:-kind-kick-dev}"
-KUBECONFIG_PATH="${KICK_E2E_KUBECONFIG:-.kubeconfig-kind-kick-dev}"
+KUBECONFIG_PATH="${KICK_E2E_KUBECONFIG:-${KUBECONFIG:-.kubeconfig-kind-kick-dev}}"
 GITEA_NS="${GITEA_NS:-kick-e2e-git}"
 GITEA_USER="${GITEA_USER:-kick-e2e}"
 GITEA_PASSWORD="${GITEA_PASSWORD:-kick-e2e-throwaway}"
+GITEA_REPO="${GITEA_REPO:-apps}"
 
 # Cluster-internal base URL. Anonymous clone works, so Argo CD needs no
 # credentials; only pushes authenticate.
 GITEA_INTERNAL_URL="http://gitea.${GITEA_NS}.svc.cluster.local:3000"
 
-kc() { kubectl --kubeconfig "$KUBECONFIG_PATH" --context "$CONTEXT" "$@"; }
+kc() { kubectl --kubeconfig "$KUBECONFIG_PATH" --context "$(gitea_context)" "$@"; }
+
+# Chainsaw hands scripts a generated kubeconfig that does not contain the kind
+# context name, so the context is resolved rather than assumed.
+gitea_context() {
+  if [[ -n "${_GITEA_CONTEXT:-}" ]]; then
+    echo "$_GITEA_CONTEXT"
+    return
+  fi
+  if kubectl --kubeconfig "$KUBECONFIG_PATH" config get-contexts -o name 2>/dev/null | grep -qx "$CONTEXT"; then
+    _GITEA_CONTEXT="$CONTEXT"
+  else
+    _GITEA_CONTEXT="$(kubectl --kubeconfig "$KUBECONFIG_PATH" config current-context)"
+  fi
+  echo "$_GITEA_CONTEXT"
+}
 
 # Run a script from stdin inside the Gitea pod with "$@" set to the extra args.
 gitea_sh() { kc -n "$GITEA_NS" exec -i deploy/gitea -- sh -s -- "$@"; }
@@ -54,27 +70,18 @@ esac
 EOF
 }
 
-# Replace <path> in <repo> with the contents of <local-dir> and push.
-#
-# The path is replaced rather than merged, so a scenario's repository state is a
-# pure function of its fixture directory regardless of what ran before it.
-gitea_commit_dir() {
-  local repo="$1" path="$2" local_dir="$3" message="$4"
-
-  gitea_sh "$repo" "$path" "$(gitea_repo_url "$repo")" <<'EOF'
+_gitea_clone() {
+  gitea_sh "$1" "$(gitea_repo_url "$1")" <<'EOF'
 set -eu
 work="/tmp/kick-e2e/$1"
 rm -rf "$work"
 mkdir -p /tmp/kick-e2e
-git clone -q "$3" "$work"
-rm -rf "${work:?}/$2"
-mkdir -p "$work/$2"
+git clone -q "$2" "$work"
 EOF
+}
 
-  tar cf - -C "$local_dir" . |
-    kc -n "$GITEA_NS" exec -i deploy/gitea -- tar xf - -C "/tmp/kick-e2e/${repo}/${path}"
-
-  gitea_sh "$repo" "$path" "$message" "$GITEA_USER" "$GITEA_PASSWORD" <<'EOF'
+_gitea_push() {
+  gitea_sh "$1" "$2" "$3" "$GITEA_USER" "$GITEA_PASSWORD" <<'EOF'
 set -eu
 cd "/tmp/kick-e2e/$1"
 git config user.email "$4@example.invalid"
@@ -90,9 +97,38 @@ echo "pushed $1/$2"
 EOF
 }
 
+# Replace <path> with the contents of <local-dir> and push.
+#
+# The path is replaced rather than merged, so a scenario's initial repository
+# state is a pure function of its fixture directory regardless of what ran
+# before it.
+gitea_seed_dir() {
+  local path="$1" local_dir="$2" message="${3:-seed $1}"
+  _gitea_clone "$GITEA_REPO"
+  gitea_sh "$GITEA_REPO" "$path" <<'EOF'
+set -eu
+work="/tmp/kick-e2e/$1"
+rm -rf "${work:?}/$2"
+mkdir -p "$work/$2"
+EOF
+  tar cf - -C "$local_dir" . |
+    kc -n "$GITEA_NS" exec -i deploy/gitea -- tar xf - -C "/tmp/kick-e2e/${GITEA_REPO}/${path}"
+  _gitea_push "$GITEA_REPO" "$path" "$message"
+}
+
+# Write a single file below <path> and push, leaving the rest of the path alone.
+# This is how a scenario simulates an operator editing one manifest in git.
+gitea_commit_file() {
+  local path="$1" local_file="$2" message="${3:-update $1}"
+  _gitea_clone "$GITEA_REPO"
+  tar cf - -C "$(dirname "$local_file")" "$(basename "$local_file")" |
+    kc -n "$GITEA_NS" exec -i deploy/gitea -- tar xf - -C "/tmp/kick-e2e/${GITEA_REPO}/${path}"
+  _gitea_push "$GITEA_REPO" "$path" "$message"
+}
+
 # Latest commit on main; used to assert a promotion wrote a commit.
 gitea_head_sha() {
-  gitea_sh "$(gitea_repo_url "$1")" <<'EOF'
+  gitea_sh "$(gitea_repo_url "${1:-$GITEA_REPO}")" <<'EOF'
 set -eu
 git ls-remote "$1" refs/heads/main | cut -f1
 EOF

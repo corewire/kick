@@ -270,6 +270,54 @@ func TestKickRequestReconcileRecoversExecutingRequest(t *testing.T) {
 	}
 }
 
+func TestKickRequestReconcileCompletesRestartItIssued(t *testing.T) {
+	// After KICK patches the workload, the live workload is fresh precisely
+	// because of that restart. Re-running the freshness gate at this point
+	// would terminate the request as NoLongerRequired and hide whether the
+	// rollout KICK started actually completed.
+	scheme := testScheme(t)
+	now := time.Date(2026, 8, 7, 12, 0, 0, 0, time.UTC)
+	startedAt := metav1.NewTime(now.Add(-time.Minute))
+
+	dep := testDeployment("team-a", "api")
+	req := testKickRequest("team-a", "api")
+	req.Status = kickv1alpha1.KickRequestStatus{
+		Phase:          kickv1alpha1.KickRequestPhaseExecuting,
+		CurrentRollout: kickv1alpha1.RolloutStatus{StartedAt: &startedAt},
+	}
+
+	c := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(&kickv1alpha1.KickRequest{}).WithObjects(dep, req).Build()
+	gate := &stubGateResolver{decision: gitops.GateDecision{Allowed: true, Reconciled: true, Reason: gitops.GateAllowed, Message: "allowed"}}
+	fresh := &stubFreshnessEvaluator{decision: freshness.FreshnessDecision{RestartRequired: false}}
+	completeExec := &completingRestartExecutor{client: c}
+
+	r := &KickRequestReconciler{
+		Client:             c,
+		Scheme:             scheme,
+		GateResolver:       gate,
+		ObservationStore:   observation.NewMemoryStore(),
+		FreshnessEvaluator: fresh,
+		RestartExecutor:    completeExec,
+		Clock:              func() time.Time { return now },
+		RequeueInterval:    30 * time.Second,
+	}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Namespace: "team-a", Name: "api"}}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if completeExec.calls != 1 {
+		t.Fatalf("executor calls = %d, want 1", completeExec.calls)
+	}
+
+	var got kickv1alpha1.KickRequest
+	if err := c.Get(context.Background(), types.NamespacedName{Namespace: "team-a", Name: "api"}, &got); err != nil {
+		t.Fatalf("get request: %v", err)
+	}
+	if got.Status.Phase != kickv1alpha1.KickRequestPhaseSucceeded {
+		t.Fatalf("phase = %s, want %s", got.Status.Phase, kickv1alpha1.KickRequestPhaseSucceeded)
+	}
+}
+
 func TestScopeDependenciesFiltersByDependencySelector(t *testing.T) {
 	scheme := testScheme(t)
 	inSecret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "in", Namespace: "team-a", Labels: map[string]string{"rotate": "true"}}}

@@ -5,6 +5,7 @@ import (
 	"flag"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	kickv1alpha1 "github.com/corewire/kick/api/v1alpha1"
@@ -50,6 +51,8 @@ func main() {
 	var otlpInsecure bool
 	var enableCSIIntegration bool
 	var enableArgoRollouts bool
+	var argocdNamespace string
+	var argocdApplicationNamespaces string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Metrics endpoint address.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Health probe address.")
 	flag.StringVar(&timelineAddr, "timeline-bind-address", ":8090", "Timeline API/UI bind address. Empty disables the timeline server.")
@@ -59,6 +62,8 @@ func main() {
 	flag.DurationVar(&requestRetention, "request-retention", 24*time.Hour, "Retention duration for terminal KickRequests before deletion.")
 	flag.BoolVar(&enableCSIIntegration, "enable-csi-integration", false, "Watch SecretProviderClassPodStatus to restart workloads when Secrets Store CSI secrets rotate. Ignored when the CRD is absent.")
 	flag.BoolVar(&enableArgoRollouts, "enable-argo-rollouts", false, "Treat argoproj.io Rollouts as restartable workloads. Ignored when the CRD is absent.")
+	flag.StringVar(&argocdNamespace, "argocd-namespace", "argocd", "Namespace holding Argo CD AppProjects.")
+	flag.StringVar(&argocdApplicationNamespaces, "argocd-application-namespaces", "", "Comma-separated namespaces to search for Argo CD Applications. Empty means the Argo CD namespace only.")
 	zapOptions := zap.Options{Development: true}
 	zapOptions.BindFlags(flag.CommandLine)
 	flag.Parse()
@@ -86,7 +91,7 @@ func main() {
 		os.Exit(1)
 	}
 	policyMatcher := &policy.DeploymentPolicyMatcher{Client: mgr.GetClient()}
-	providerRegistry := newProviderRegistry(mgr)
+	providerRegistry := newProviderRegistry(mgr, argocdNamespace, splitNamespaces(argocdApplicationNamespaces))
 	notifier := notify.NewWebhookDispatcher(mgr.GetClient(), notify.DefaultQueueSize)
 	if err := mgr.Add(notifier); err != nil {
 		os.Exit(1)
@@ -171,11 +176,26 @@ func setupObservationControllers(
 	}).SetupWithManager(mgr)
 }
 
+// splitNamespaces parses a comma-separated namespace list, ignoring blanks.
+func splitNamespaces(value string) []string {
+	var namespaces []string
+	for _, part := range strings.Split(value, ",") {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			namespaces = append(namespaces, trimmed)
+		}
+	}
+	return namespaces
+}
+
 // newProviderRegistry builds the GitOps provider registry. Kargo is only
 // registered when its CRDs exist, because a policy naming an unavailable
 // provider must fail fast rather than error on every reconcile.
-func newProviderRegistry(mgr ctrl.Manager) *gitops.Registry {
-	argocdProvider := &argocdprovider.Provider{Client: mgr.GetClient(), ControlPlaneNamespace: "argocd"}
+func newProviderRegistry(mgr ctrl.Manager, argocdNamespace string, applicationNamespaces []string) *gitops.Registry {
+	argocdProvider := &argocdprovider.Provider{
+		Client:                mgr.GetClient(),
+		ControlPlaneNamespace: argocdNamespace,
+		ApplicationNamespaces: applicationNamespaces,
+	}
 	registry := gitops.NewRegistry(
 		argocdProvider,
 		&fluxprovider.Provider{Client: mgr.GetClient()},
