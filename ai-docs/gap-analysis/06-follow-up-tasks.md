@@ -100,68 +100,145 @@ carrying `spec.restartAt`.
 
 `KICK-FEAT-023`, `024` and `025` are marked `e2e: not_applicable` in
 [traceability/features.yaml](traceability/features.yaml) on the grounds that
-each needs a third-party control plane. That rationale conflates two very
-different levels of infrastructure, and for two of the three features the
-cheaper level is sufficient.
+each needs a third-party control plane.
 
-### Two tiers
+**Decision: run the real control planes.** No hand-authored fixtures standing in
+for a third-party controller. Every scenario drives the actual product and
+asserts on state that product produced. Fixture-only tests would prove KICK is
+self-consistent, not that it works against Kargo, Argo Rollouts or the CSI
+driver — and T1 is proof that self-consistency is exactly what our current tests
+already over-attest.
 
-**Tier 1 — CRDs only.** Install the third-party CRDs, hand-author the
-third-party objects as test fixtures. No controller runs. This is not a
-watered-down test: the real CRD's OpenAPI schema validates every field name,
-type and enum, so a fixture that KICK's code agrees with is a fixture the real
-controller would also accept. It catches exactly the class of defect T1 belongs
-to — a translation KICK never performs — and it is hermetic and fast.
+This is more infrastructure than the previous draft assumed. All of it is
+verified below as published and installable.
 
-**Tier 2 — real control plane.** Install the actual controller. Only needed
-where the assertion is about the third party's *behaviour* rather than the
-object's shape.
+### Method
 
-The tier each feature needs differs, and so does the cost.
+For each integration, in order, and not skipping ahead:
 
-### FEAT-025 Kargo — Tier 1, and Tier 1 is correct
+1. **Model it.** Write down the exact state machine KICK expects from the third
+   party — which fields it reads, which transitions it must tolerate, and what
+   the correct behaviour is at each one. On paper, before any YAML.
+2. **Verify the model against the product.** Confirm every field name, type and
+   transition against the upstream source or CRD schema at a pinned version, the
+   way the version and image claims in this document were confirmed. A model
+   validated only against our own assumptions is what produced T1.
+3. **Implement in Go.** Encode the model as unit and envtest coverage, where
+   behaviour is cheap to assert exhaustively and failures point at a line.
+4. **Then the e2e**, which proves the real product actually drives that state
+   machine. It is the integration proof, not the behaviour matrix — e2e is too
+   slow to be where edge cases live.
 
-Verified: Kargo ships standalone CRD manifests at
-`charts/kargo/resources/crds/kargo.akuity.io_{stages,promotions}.yaml`
-(tag `v1.1.1`). Those are the only two kinds KICK reads.
+### Prerequisite for all three — an in-cluster Git server
 
-KICK's Kargo provider never talks to a Kargo controller. It reads
-`Stage.status.currentPromotion.name`, `Promotion.spec.stage`,
-`Promotion.status.phase`, and the `kargo.akuity.io/authorized-stage` annotation
-on an Argo CD Application. Every one of those is writable by a test.
+This is the finding that reshapes the plan.
+[render-application.sh](test/e2e/setup/argocd/render-application.sh) points
+every existing Argo CD Application at `https://github.com/corewire/kick.git` on
+the current branch. The existing suite therefore reads a **remote** repository
+and silently depends on the branch being pushed — which it currently is not, so
+those 19 scenarios are passing against a stale `main`.
 
-Running real Kargo would need cert-manager, a Git server, a container registry
-and Argo CD, to end up asserting against status fields the test could have
-written directly. Tier 2 here buys almost nothing.
+That approach cannot extend to Kargo, because a real promotion **writes** to
+Git, and e2e tests must never push to the project's own GitHub repository.
 
-**Infra:** `kubectl apply -f` two CRD files. Argo CD is already installed.
+**Infra:** a minimal git server Deployment plus Service, with bare repositories
+preseeded at startup.
 
-**Scenarios:** gate blocks on `status.currentPromotion` set; gate blocks on a
-non-terminal Promotion; gate delegates to Argo CD once the Promotion is
-`Succeeded`; gate returns `GateOwnerUnknown` for an unannotated Application;
-gate returns `GateOwnerAmbiguous` for two authorized stages.
+**Evaluated and rejected: `mcarbonne/minimal-git-server`.** It is a genuinely
+good project and fits the brief on every axis but one \u2014 actively maintained
+(v2.1.17, two weeks old), MIT, published at `ghcr.io/mcarbonne/minimal-git-server:2`,
+a repo-management CLI designed for scripting, truly minimal (Alpine plus shell).
 
-### FEAT-024 Argo Rollouts — Tier 2, and Tier 2 is cheap
+It is **SSH-only**: `config.yml` takes accounts with SSH public keys, it serves
+`git-shell` on port 22, and it offers no HTTP transport.
 
-Verified: `manifests/install.yaml` at tag `v1.7.2` exists (HTTP 200), and
-`manifests/crds` exists if a Tier 1 subset is ever wanted. All images are
-published and pullable.
+That disqualifies it, because of Kargo rather than any defect of its own.
+Kargo's own docs at v1.11.1
+(`docs/docs/40-operator-guide/40-security/40-managing-secrets.md`) state that
+support for **SSH URLs and SSH private keys is deprecated as of v1.10.0 and
+scheduled for removal in v1.13.0**, directing users to HTTPS with token-based
+credentials. Building our Kargo scenarios on SSH would mean writing new tests
+against a transport that is removed two minor releases from the version we are
+targeting. "Production-near" has to mean near the production people will
+actually be running.
 
-Tier 1 would confirm KICK writes `spec.restartAt`. But the assertion that
-actually justifies the feature — that restarting a Rollout via `spec.restartAt`
-does **not** re-run the canary or blue-green steps, which is the whole reason we
-avoided the pod-template annotation — requires the real controller to observe
-the Rollout and execute, or decline to execute, its strategy.
+It would still be the right choice if Argo CD were the only consumer \u2014 Argo CD
+supports SSH repositories with no such deprecation.
 
-**Infra:** one `install.yaml`, namespace `argo-rollouts`, plus a
-`rollout status`-equivalent wait on `deploy/argo-rollouts`.
+**Selected: Gitea `1.27.1`** (stable tag verified on Docker Hub). It serves
+authenticated smart HTTP, which is exactly the transport Kargo is standardising
+on, and it is the de-facto in-cluster git server for Kubernetes test suites.
 
-**Scenarios:** Secret change restarts a canary Rollout via `spec.restartAt` with
-the pod template byte-identical and no canary step executed; the same for
-blue-green; `ArgoRolloutComplete` gates the KickRequest until pods are actually
-replaced; a Rollout using `spec.workloadRef` is handled or explicitly rejected.
+- Headless bring-up: `GITEA__security__INSTALL_LOCK=true` to skip the web
+  installer, then `gitea admin user create --admin` in an init step.
+- **Preseeded repositories**, not repositories created by the tests: a seed Job
+  creates each bare repo and pushes a known initial commit containing the
+  workload manifests. Scenarios then start from a deterministic revision instead
+  of racing repository creation.
+- Backed by an `emptyDir`. State must not survive the suite \u2014 a git server that
+  accumulates commits across runs is a false-green generator.
 
-### FEAT-023 Secrets Store CSI — Tier 1 first, Tier 2 with OpenBao
+Credentials are part of the model, not an afterthought. Verified in Kargo
+`api/v1alpha1/labels.go:14`: Kargo reads git credentials from a Secret labelled
+`kargo.akuity.io/cred-type: git`, with `repoURL`, `username` and `password` as
+the supported keys (`pkg/credentials/credentials.go:8-11`). Argo CD needs its
+own repository Secret. Both point at the in-cluster service, and both are real
+production wiring worth covering.
+
+This also fixes the pushed-branch dependency, so the existing Argo CD scenarios
+should migrate to it. That migration is real work and should be its own task \u2014
+but it removes a latent source of false green from the suite we already have.
+
+### FEAT-024 Argo Rollouts — real controller
+
+Verified: `manifests/install.yaml` at tag `v1.7.2` returns HTTP 200 and all
+images are published.
+
+The assertion that justifies the feature is behavioural — that restarting via
+`spec.restartAt` does **not** re-run the canary or blue-green steps, which is
+the entire reason we avoided the pod-template annotation. Only the real
+controller can demonstrate that it declined to execute its strategy.
+
+**Infra:** one `install.yaml`, namespace `argo-rollouts`, readiness wait on
+`deploy/argo-rollouts`.
+
+**Scenarios:** a Secret change restarts a canary Rollout with real pause steps —
+assert the pods were replaced, `status.currentStepIndex` did not reset and no
+new revision was created; the same for blue-green, asserting no preview service
+cutover; `ArgoRolloutComplete` holds the KickRequest until the real controller
+reports the replacement finished; a Rollout using `spec.workloadRef` behaves
+correctly or is explicitly rejected.
+
+### FEAT-025 Kargo — real control plane
+
+Verified against the current release, not the stale tag in the previous draft:
+latest Kargo is **v1.11.1**. `helm show chart
+oci://ghcr.io/akuity/kargo-charts/kargo --version 1.11.1` pulls successfully
+(digest `sha256:b8cd668e…`). Every component has an `enabled` toggle, so the
+footprint can be trimmed: `controller`, `managementController` and
+`webhooksServer` on; `api`, `garbageCollector` and `externalWebhooksServer` off.
+
+cert-manager is a hard requirement, not optional: the chart documents that
+`webhooksServer.tls.selfSignedCert: true` (the default) **must** have
+cert-manager CRDs present, and there is no provision for running the webhooks
+server without TLS. `cert-manager.yaml` at `v1.16.2` returns HTTP 200.
+
+**Infra:** cert-manager → Kargo chart 1.11.1 → a Kargo `Project`, a `Warehouse`
+subscribed to the Gitea repository, and a `Stage` whose promotion template runs
+real `git-clone` / `git-commit` / `git-push` / `argocd-update` steps against an
+Argo CD Application annotated `kargo.akuity.io/authorized-stage`. Argo CD is
+already installed.
+
+**Scenarios:** a real promotion in flight blocks the gate — assert KICK observes
+`GateOwnerReconciling` while `status.currentPromotion` is set by the Kargo
+controller, not by the test; the restart proceeds only after the Promotion
+reaches `Succeeded` and Argo CD reports Synced; an unannotated Application
+yields `GateOwnerUnknown`; two authorized stages yield `GateOwnerAmbiguous`.
+
+This is the most expensive of the three and the one most likely to be flaky.
+Budget for it accordingly rather than discovering it late.
+
+### FEAT-023 Secrets Store CSI — real driver and real provider
 
 The e2e-provider really is unpublished, and the mechanism is now clear:
 `registry.k8s.io/csi-secrets-store/e2e-provider` returns `"tags":[]` where
@@ -195,35 +272,25 @@ which is precisely the semantics KICK's freshness model assumes. A no-op write
 produces no version change and so must produce no restart, and that becomes a
 directly assertable scenario.
 
-**Remaining Tier 2 cost, honestly stated:** bootstrapping OpenBao — enable KV
-v2, enable the Kubernetes auth method, create a policy and a role. Roughly
-fifteen `bao` CLI calls via `kubectl exec` against a dev-mode server, with
-`test/bats/_helpers.bash` and `test/bats/configs` in the provider repo as a
-working template. Non-trivial, but bounded and one-time, and far cheaper than
-vendoring a Go build.
+**Remaining cost, honestly stated:** bootstrapping OpenBao — enable KV v2,
+enable the Kubernetes auth method, create a policy and a role. Roughly fifteen
+`bao` CLI calls against a dev-mode server, with `test/bats/_helpers.bash` and
+`test/bats/configs` in the provider repo as a working template.
 
 Also: the driver manifest ships `--enable-secret-rotation=false` with
 `--rotation-poll-interval=2m`. Both must be patched — rotation on, interval
-well under chainsaw's 180s `exec` timeout — or the test cannot observe a
-rotation at all.
+well under the suite's `exec` timeout — or the test cannot observe a rotation at
+all.
 
-**Still do Tier 1 first.** `SecretProviderClassPodStatus` has no spec; it is
-status-only and KICK's observer reads nothing else, so a test can write
-`status.objects[].version` directly and reproduce the driver's exact signal.
-That is a two-CRD, no-controller test, and **it is what catches T1**. Tier 2
-then proves the real driver produces the status shape Tier 1 assumes — which is
-the one thing Tier 1 cannot self-verify.
+**Infra:** CSI driver (rotation enabled, short poll interval) → OpenBao in dev
+mode → the OpenBao provider DaemonSet → bootstrap script.
 
-**Infra (Tier 1):** the `SecretProviderClass` and
-`SecretProviderClassPodStatus` CRDs from the driver repo. Nothing else.
-
-**Scenarios (Tier 1):** a version change across all pods' `status.objects`
-triggers exactly one restart (fails today because of T1); mixed versions across
-pods produce zero restarts until they converge; a pod referencing the SPC
-through a CSI volume is discovered by the reverse index.
-
-**Scenarios (Tier 2):** a real `bao kv put` that changes content produces
-exactly one restart; a `bao kv put` writing identical content produces none.
+**Scenarios:** a real `bao kv put` that changes content produces exactly one
+restart, driven end to end by the driver's own rotation loop; a `bao kv put`
+writing byte-identical content produces none, because the provider's version
+HMAC is unchanged; a pod mounting the SPC through a CSI volume is discovered by
+the reverse index; a rotation observed on some pods but not yet others produces
+no restart until they converge — which requires more than one node, see below.
 
 ### Shared plumbing
 
@@ -236,8 +303,22 @@ exactly one restart; a `bao kv put` writing identical content produces none.
   list is already an unreadable 24-ID alternation; adding three more ranges is
   the point at which it should become a label or directory convention instead.
 - IDs from `KICK-E2E-060`. Each scenario owns its `kick-e2e-NNN` namespace.
-- Keep script deadlines under the 180s `exec` timeout in
-  [chainsaw-configuration.yaml](test/e2e/chainsaw-configuration.yaml).
+
+**Timeouts need their own config.** The current `exec: 180s` in
+[chainsaw-configuration.yaml](test/e2e/chainsaw-configuration.yaml) is already
+tight — KICK-E2E-057 was killed at exactly 180s during this work. A real Kargo
+promotion plus an Argo CD sync, or a driver rotation poll, will not fit. These
+suites need a separate chainsaw configuration with longer `exec` and `assert`
+budgets rather than shortened polling that produces flakes. Do not lower the
+core suite's timeouts to match.
+
+**The kind cluster needs more than one node.**
+[hack/kind-config.yaml](hack/kind-config.yaml) declares a single
+`control-plane`. The CSI driver is a DaemonSet and staged rotation across nodes
+is a real production failure mode — modelling it needs workers. The full stack
+(Argo CD, Kargo, cert-manager, Argo Rollouts, CSI driver, OpenBao, git server)
+also wants the headroom. Adding workers slows cluster creation, so it may be
+worth a separate integration kind config rather than changing the default.
 
 ### Ordering constraint that is easy to get wrong
 
@@ -339,11 +420,15 @@ T1 first — it is a shipped defect that makes an advertised feature a no-op.
 T2 and T3 are small and share the timeline test fixture, so do them together.
 T5 is fifteen minutes and closes the documentation loop.
 
-Then T4, in ascending order of infrastructure cost, which is the reverse of what
-I assumed before checking: **CSI Tier 1** (two CRDs, and it is the test that
-catches T1), then **Kargo Tier 1** (two CRDs, Argo CD already present), then
-**Argo Rollouts Tier 2** (one install manifest), then **CSI Tier 2** (driver +
-OpenBao + provider, all published images, plus an OpenBao bootstrap script).
+Then T4. The dependency order is forced rather than chosen: the **git server**
+first, because Kargo cannot promote without it; then **Argo Rollouts**, which
+needs nothing but its own install manifest and so validates the suite scaffolding
+cheaply; then **CSI**, which adds OpenBao and the multi-node cluster; then
+**Kargo**, which needs cert-manager, the git server and Argo CD together and is
+the most likely to be flaky.
+
+Each follows the method above: model, verify against the pinned upstream,
+implement in Go, then e2e.
 
 T6 and T7 are genuine but neither blocks a release. T7 is worth doing before T4
 regardless, because the startup-probe ordering it describes will otherwise bite
