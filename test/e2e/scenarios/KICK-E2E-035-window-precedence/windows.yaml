@@ -1,0 +1,30 @@
+# Both windows are active at the same time. Argo CD gives deny precedence over
+# allow, and KICK must reach the same conclusion.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: kick-e2e-035
+  namespace: argocd
+spec:
+  description: Dedicated project for KICK-E2E-035.
+  sourceRepos:
+    - "*"
+  destinations:
+    - namespace: "*"
+      server: "*"
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+  syncWindows:
+    - kind: allow
+      schedule: "* * * * *"
+      duration: 24h
+      timeZone: UTC
+      applications:
+        - kick-e2e-035
+    - kind: deny
+      schedule: "* * * * *"
+      duration: 24h
+      timeZone: UTC
+      applications:
+        - kick-e2e-035

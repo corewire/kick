@@ -1,0 +1,31 @@
+# Both windows are always active but neither selects this application: the
+# first names a different application, the second a different destination
+# namespace. With no applicable window the kick must proceed.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: kick-e2e-042
+  namespace: argocd
+spec:
+  description: Dedicated project for KICK-E2E-042.
+  sourceRepos:
+    - "*"
+  destinations:
+    - namespace: "*"
+      server: "*"
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+  syncWindows:
+    - kind: deny
+      schedule: "* * * * *"
+      duration: 24h
+      timeZone: UTC
+      applications:
+        - some-other-application
+    - kind: deny
+      schedule: "* * * * *"
+      duration: 24h
+      timeZone: UTC
+      namespaces:
+        - kick-e2e-042-elsewhere

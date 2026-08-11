@@ -12,29 +12,42 @@ spec:
   discovery:
     workloadSelector: {}
   gitOps:
-    provider: Auto
+    provider: ArgoCD
 ---
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
 metadata:
-  name: app-035
-  namespace: kick-e2e-035
+  name: kick-e2e-035
+  namespace: argocd
 spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: app-035
-  template:
-    metadata:
-      labels:
-        app: app-035
-    spec:
-      containers:
-        - name: app
-          image: registry.k8s.io/pause:3.10
-          envFrom:
-            - secretRef:
-                name: app-secret
+  description: Dedicated project for KICK-E2E-035.
+  sourceRepos:
+    - "*"
+  destinations:
+    - namespace: "*"
+      server: "*"
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kick-e2e-035
+  namespace: argocd
+spec:
+  project: kick-e2e-035
+  source:
+    repoURL: http://gitea.kick-e2e-git.svc.cluster.local:3000/kick-e2e/e2e-035.git
+    targetRevision: main
+    path: manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kick-e2e-035
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
 ---
 apiVersion: v1
 kind: Secret

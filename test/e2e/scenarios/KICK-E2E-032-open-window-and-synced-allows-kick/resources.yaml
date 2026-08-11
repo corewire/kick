@@ -12,30 +12,48 @@ spec:
   discovery:
     workloadSelector: {}
   gitOps:
-    provider: Auto
+    provider: ArgoCD
 ---
-apiVersion: apps/v1
-kind: Deployment
+# Created without sync windows so the initial deployment is never blocked; the
+# windows under test are applied in a later step.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
 metadata:
-  name: app-032
-  namespace: kick-e2e-032
+  name: kick-e2e-032
+  namespace: argocd
 spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: app-032
-  template:
-    metadata:
-      labels:
-        app: app-032
-    spec:
-      containers:
-        - name: app
-          image: registry.k8s.io/pause:3.10
-          envFrom:
-            - secretRef:
-                name: app-secret
+  description: Dedicated project for KICK-E2E-032.
+  sourceRepos:
+    - "*"
+  destinations:
+    - namespace: "*"
+      server: "*"
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
 ---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kick-e2e-032
+  namespace: argocd
+spec:
+  project: kick-e2e-032
+  source:
+    repoURL: http://gitea.kick-e2e-git.svc.cluster.local:3000/kick-e2e/e2e-032.git
+    targetRevision: main
+    path: manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kick-e2e-032
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+---
+# The Secret is applied directly rather than through Argo CD, so a closed window
+# cannot stop the dependency change from reaching the cluster. The window is
+# then the only thing that decides whether KICK restarts the workload.
 apiVersion: v1
 kind: Secret
 metadata:

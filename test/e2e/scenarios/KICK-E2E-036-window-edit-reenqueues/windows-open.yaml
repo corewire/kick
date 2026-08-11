@@ -1,0 +1,24 @@
+# Editing the window from deny to an always-active allow window must re-enqueue
+# the waiting KickRequest without any dependency change.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: kick-e2e-036
+  namespace: argocd
+spec:
+  description: Dedicated project for KICK-E2E-036.
+  sourceRepos:
+    - "*"
+  destinations:
+    - namespace: "*"
+      server: "*"
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+  syncWindows:
+    - kind: allow
+      schedule: "* * * * *"
+      duration: 24h
+      timeZone: UTC
+      applications:
+        - kick-e2e-036

@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-032
+  namespace: kick-e2e-032
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app-032
+  template:
+    metadata:
+      labels:
+        app: app-032
+    spec:
+      containers:
+        - name: app
+          image: registry.k8s.io/pause:3.10
+          envFrom:
+            - secretRef:
+                name: app-secret

@@ -1,0 +1,25 @@
+# The only allow window opens at 03:00 on 1 January for one minute, so it is
+# closed for the entire rest of the year. An allow window that exists but is not
+# active blocks the kick.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: kick-e2e-033
+  namespace: argocd
+spec:
+  description: Dedicated project for KICK-E2E-033.
+  sourceRepos:
+    - "*"
+  destinations:
+    - namespace: "*"
+      server: "*"
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+  syncWindows:
+    - kind: allow
+      schedule: "0 3 1 1 *"
+      duration: 1m
+      timeZone: UTC
+      applications:
+        - kick-e2e-033

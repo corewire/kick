@@ -1,0 +1,23 @@
+# A deny window that starts every minute and lasts a day is always active.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: kick-e2e-034
+  namespace: argocd
+spec:
+  description: Dedicated project for KICK-E2E-034.
+  sourceRepos:
+    - "*"
+  destinations:
+    - namespace: "*"
+      server: "*"
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+  syncWindows:
+    - kind: deny
+      schedule: "* * * * *"
+      duration: 24h
+      timeZone: UTC
+      applications:
+        - kick-e2e-034

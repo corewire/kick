@@ -1,0 +1,23 @@
+# Always-active deny window: the kick has to wait.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: kick-e2e-036
+  namespace: argocd
+spec:
+  description: Dedicated project for KICK-E2E-036.
+  sourceRepos:
+    - "*"
+  destinations:
+    - namespace: "*"
+      server: "*"
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+  syncWindows:
+    - kind: deny
+      schedule: "* * * * *"
+      duration: 24h
+      timeZone: UTC
+      applications:
+        - kick-e2e-036
