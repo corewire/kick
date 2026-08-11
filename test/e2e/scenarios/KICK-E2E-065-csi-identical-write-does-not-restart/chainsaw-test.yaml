@@ -1,0 +1,78 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: kick-e2e-065-csi-identical-write-does-not-restart
+spec:
+  steps:
+    - name: seed-secret-material
+      try:
+        - script:
+            content: |
+              set -eu
+              kubectl -n csi exec deploy/openbao -- \
+                bao kv put secret/kick-e2e-065 token=alpha >/dev/null
+    - name: create-fixtures
+      try:
+        - apply:
+            file: resources.yaml
+    - name: assert-identical-write-does-not-restart
+      try:
+        - script:
+            content: |
+              set -eu
+              NS=kick-e2e-065
+              deadline=$(( $(date +%s) + 420 ))
+
+              while true; do
+                ready=$(kubectl -n $NS get deployment app-065 -o jsonpath='{.status.readyReplicas}' 2>/dev/null || true)
+                versions=$(kubectl -n $NS get secretproviderclasspodstatuses -o jsonpath='{.items[*].status.objects[*].version}' 2>/dev/null || true)
+                if [ "${ready:-0}" -ge 1 ] && [ -n "$versions" ]; then
+                  break
+                fi
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "app-065 never mounted its CSI volume" >&2
+                  kubectl -n $NS describe pods >&2 || true
+                  exit 1
+                fi
+                sleep 3
+              done
+
+              # Write the same bytes again. This is a real store write: the KV
+              # engine creates version 2 and a new created_time. The provider
+              # derives the reported object version from the content, not from
+              # the store's revision, so the signal KICK observes is unchanged
+              # and the workload must not be restarted.
+              kubectl -n csi exec deploy/openbao -- \
+                bao kv put secret/kick-e2e-065 token=alpha >/dev/null
+
+              revision=$(kubectl -n csi exec deploy/openbao -- \
+                bao kv metadata get -format=json secret/kick-e2e-065 |
+                sed -n 's/.*"current_version": *\([0-9]*\).*/\1/p')
+              if [ "${revision:-0}" -lt 2 ]; then
+                echo "the store did not record a second version, so the test proves nothing" >&2
+                exit 1
+              fi
+
+              # Three rotation poll intervals plus slack: enough for the driver
+              # to have re-mounted and republished the pod status at least once.
+              sleep 90
+
+              restarted=$(kubectl -n $NS get deployment app-065 -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}' 2>/dev/null || true)
+              if [ -n "$restarted" ]; then
+                echo "byte-identical write restarted app-065" >&2
+                kubectl -n $NS get secretproviderclasspodstatuses -o yaml >&2 || true
+                kubectl -n $NS get kickrequests -o yaml >&2 || true
+                exit 1
+              fi
+    - name: cleanup
+      try:
+        - script:
+            content: |
+              set -eu
+              kubectl -n csi exec deploy/openbao -- \
+                bao kv metadata delete secret/kick-e2e-065 >/dev/null
+        - delete:
+            ref:
+              apiVersion: v1
+              kind: Namespace
+              name: kick-e2e-065

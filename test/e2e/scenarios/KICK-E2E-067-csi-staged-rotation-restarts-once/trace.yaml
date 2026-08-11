@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-067
+name: csi-staged-rotation-restarts-once
+features:
+  - KICK-FEAT-023
+provider: secrets-store-csi
+class: behavior
+required: true

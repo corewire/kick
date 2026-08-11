@@ -24,7 +24,7 @@
 | KICK-FEAT-020 | Pass | Pass | Pass | KICK-E2E-056 | PASS |
 | KICK-FEAT-021 | Pass | Optional | Pass | KICK-E2E-057 | PASS |
 | KICK-FEAT-022 | Pass | Optional | Pass | KICK-E2E-058 | PASS |
-| KICK-FEAT-023 | Pass | N/A | N/A | - | PASS |
+| KICK-FEAT-023 | Pass | N/A | Pass | KICK-E2E-064, KICK-E2E-065, KICK-E2E-066, KICK-E2E-067 | PASS |
 | KICK-FEAT-024 | Pass | N/A | Pass | KICK-E2E-060, KICK-E2E-061, KICK-E2E-062, KICK-E2E-063 | PASS |
 | KICK-FEAT-025 | Pass | N/A | N/A | - | PASS |
 | KICK-FEAT-026 | Pass | Pass | Pass | KICK-E2E-059 | PASS |

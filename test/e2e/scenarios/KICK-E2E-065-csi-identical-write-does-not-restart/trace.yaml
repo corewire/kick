@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-065
+name: csi-identical-write-does-not-restart
+features:
+  - KICK-FEAT-023
+provider: secrets-store-csi
+class: behavior
+required: true

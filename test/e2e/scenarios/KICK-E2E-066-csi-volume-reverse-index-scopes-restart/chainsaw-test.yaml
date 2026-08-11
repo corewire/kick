@@ -1,0 +1,84 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: kick-e2e-066-csi-volume-reverse-index-scopes-restart
+spec:
+  steps:
+    - name: seed-secret-material
+      try:
+        - script:
+            content: |
+              set -eu
+              kubectl -n csi exec deploy/openbao -- \
+                bao kv put secret/kick-e2e-066-rotated token=alpha >/dev/null
+              kubectl -n csi exec deploy/openbao -- \
+                bao kv put secret/kick-e2e-066-untouched token=alpha >/dev/null
+    - name: create-fixtures
+      try:
+        - apply:
+            file: resources.yaml
+    - name: assert-only-the-mounting-workload-restarts
+      try:
+        - script:
+            content: |
+              set -eu
+              NS=kick-e2e-066
+              deadline=$(( $(date +%s) + 420 ))
+
+              while true; do
+                consumer=$(kubectl -n $NS get deployment consumer-066 -o jsonpath='{.status.readyReplicas}' 2>/dev/null || true)
+                bystander=$(kubectl -n $NS get deployment bystander-066 -o jsonpath='{.status.readyReplicas}' 2>/dev/null || true)
+                if [ "${consumer:-0}" -ge 1 ] && [ "${bystander:-0}" -ge 1 ]; then
+                  break
+                fi
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "not every workload mounted its CSI volume" >&2
+                  kubectl -n $NS describe pods >&2 || true
+                  exit 1
+                fi
+                sleep 3
+              done
+
+              # Only the material behind rotated-066 changes. The workload link
+              # is reconstructed from the pod template's CSI volume attributes,
+              # so the class the change belongs to decides who is restarted.
+              kubectl -n csi exec deploy/openbao -- \
+                bao kv put secret/kick-e2e-066-rotated token=bravo >/dev/null
+
+              while true; do
+                restarted=$(kubectl -n $NS get deployment consumer-066 -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}' 2>/dev/null || true)
+                if [ -n "$restarted" ]; then
+                  break
+                fi
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "rotation did not restart consumer-066" >&2
+                  kubectl -n $NS get secretproviderclasspodstatuses -o yaml >&2 || true
+                  kubectl -n $NS get kickrequests -o yaml >&2 || true
+                  exit 1
+                fi
+                sleep 3
+              done
+
+              # Give a mis-scoped restart time to appear before declaring the
+              # bystander untouched.
+              sleep 45
+              bystander_restarted=$(kubectl -n $NS get deployment bystander-066 -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}' 2>/dev/null || true)
+              if [ -n "$bystander_restarted" ]; then
+                echo "a change to rotated-066 restarted bystander-066" >&2
+                kubectl -n $NS get kickrequests -o yaml >&2 || true
+                exit 1
+              fi
+    - name: cleanup
+      try:
+        - script:
+            content: |
+              set -eu
+              kubectl -n csi exec deploy/openbao -- \
+                bao kv metadata delete secret/kick-e2e-066-rotated >/dev/null
+              kubectl -n csi exec deploy/openbao -- \
+                bao kv metadata delete secret/kick-e2e-066-untouched >/dev/null
+        - delete:
+            ref:
+              apiVersion: v1
+              kind: Namespace
+              name: kick-e2e-066

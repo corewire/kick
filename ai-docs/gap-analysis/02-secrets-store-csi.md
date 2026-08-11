@@ -131,7 +131,7 @@ Two possible workload links:
   started yet has no status object.
 - **Via workload pod template** (proposed, direct): index each workload's
   `spec.template.spec.volumes[].csi` entries where
-  `driver == secrets-store.csi.x-k8s.io`, reading
+  `driver == secrets-store.csi.k8s.io`, reading
   `volumeAttributes.secretProviderClass`. This gives a namespace-scoped
   `SecretProviderClass` → workloads map with no Pod involvement, exactly the
   "direct map" Reloader's notes call for.
@@ -147,7 +147,8 @@ The proposed approach fits KICK's existing structure: it is another
   `APIVersion: secrets-store.csi.x-k8s.io/v1`.
 - Extend `volumeRefs` in [internal/dependency/extractor.go](internal/dependency/extractor.go#L81-L103)
   to emit a ref for each `volume.CSI` whose `Driver` is
-  `secrets-store.csi.x-k8s.io`, using
+  `secrets-store.csi.k8s.io` (the CSI driver name; note the API group of the
+  CRDs is the different `secrets-store.csi.x-k8s.io`), using
   `volume.CSI.VolumeAttributes["secretProviderClass"]` as the name.
 - New field index `kick.corewire.io/secretProviderClassReferences` in
   [internal/dependency/index.go](internal/dependency/index.go#L11-L14), and a
@@ -184,20 +185,44 @@ Decide whether `KickPolicy.spec.discovery.dependencySelector` applies. A
 but the *changed thing* is really the provider-side object, not the CR. Simplest
 consistent rule: match the selector against the `SecretProviderClass` labels.
 
+## Verified against a real driver
+
+The e2e suite installs the real stack — Secrets Store CSI driver 1.4.6 with
+`enableSecretRotation=true` and a 15s rotation poll, OpenBao 2.6.1 in dev mode,
+and the OpenBao CSI provider v2.0.3 — via
+[test/e2e/setup/csi/install-csi.sh](test/e2e/setup/csi/install-csi.sh). Facts
+confirmed on the cluster, not from memory:
+
+- The version reported in `status.objects[].version` is an HMAC over the object
+  configuration and its **content**, not a store-side revision counter. Writing
+  a byte-identical value therefore produces a new store revision but an
+  unchanged version, and KICK correctly does not restart (`KICK-E2E-065`).
+- The provider derives that HMAC from a Kubernetes Secret it creates in its own
+  namespace. If it cannot read or create that Secret it logs a warning and
+  reports **an empty version for every object**, which makes rotation invisible
+  to any consumer. The upstream deployment manifest omits
+  `metadata.namespace` on its `Role` and `RoleBinding`, so applying it without
+  an explicit `-n` puts them in the wrong namespace and triggers exactly this
+  failure mode. `KICK-E2E-064` asserts a non-empty version before rotating, so
+  the suite fails loudly instead of passing vacuously.
+- One `SecretProviderClassPodStatus` exists per Pod. They collapse onto the
+  `SecretProviderClass` observation, and a fingerprint is only accepted once all
+  Pods agree, so a staged rotation yields exactly one rollout
+  (`KICK-E2E-067`).
+
 ## Traceability
 
 | ID | Name | Unit | Envtest | E2E |
 |---|---|---|---|---|
-| KICK-FEAT-023 | `SecretProviderClass` reference discovery from CSI volumes | required | required | required |
-| KICK-FEAT-024 | `SecretProviderClassPodStatus` change observation | required | required | required |
+| KICK-FEAT-023 | Secrets Store CSI rotation detection | required | not applicable | required |
 | KICK-FEAT-025 | CSI integration is opt-in and CRD-gated | required | required | optional |
 
 | ID | Scenario |
 |---|---|
-| KICK-E2E-060 | Provider secret rotated → SPCPS version changes → exactly one rollout |
-| KICK-E2E-061 | Multiple Pods of one workload report SPCPS changes → still exactly one rollout |
-| KICK-E2E-062 | CSI integration disabled → SPCPS change causes no rollout |
-| KICK-E2E-063 | CSI CRDs absent → operator starts healthy, no error loop |
+| KICK-E2E-064 | Provider secret rotated → SPCPS version changes → exactly one rollout |
+| KICK-E2E-065 | Byte-identical rewrite → version unchanged → no rollout |
+| KICK-E2E-066 | Only the workload mounting the rotated class restarts |
+| KICK-E2E-067 | Multiple Pods report the rotation → still exactly one rollout |
 
 E2E needs a real driver plus a provider. Reloader's suite uses Vault with the
 CSI driver installed in kind (`scripts/e2e-cluster-setup.sh`); the same shape

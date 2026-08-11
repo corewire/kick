@@ -1,0 +1,96 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: kick-e2e-064-csi-rotation-restarts-workload
+spec:
+  steps:
+    # The workload cannot mount a secret that does not exist yet, so the
+    # material is written before the fixtures are applied.
+    - name: seed-secret-material
+      try:
+        - script:
+            content: |
+              set -eu
+              kubectl -n csi exec deploy/openbao -- \
+                bao kv put secret/kick-e2e-064 token=alpha >/dev/null
+    - name: create-fixtures
+      try:
+        - apply:
+            file: resources.yaml
+    - name: assert-rotation-restarts-workload
+      try:
+        - script:
+            content: |
+              set -eu
+              NS=kick-e2e-064
+              deadline=$(( $(date +%s) + 420 ))
+
+              # 1. A ready replica proves the CSI mount succeeded, which means
+              #    the driver called the provider and wrote a
+              #    SecretProviderClassPodStatus carrying the object version.
+              while true; do
+                ready=$(kubectl -n $NS get deployment app-064 -o jsonpath='{.status.readyReplicas}' 2>/dev/null || true)
+                versions=$(kubectl -n $NS get secretproviderclasspodstatuses -o jsonpath='{.items[*].status.objects[*].version}' 2>/dev/null || true)
+                if [ "${ready:-0}" -ge 1 ] && [ -n "$versions" ]; then
+                  break
+                fi
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "app-064 never mounted its CSI volume" >&2
+                  kubectl -n $NS get pods -o wide >&2 || true
+                  kubectl -n $NS describe pods >&2 || true
+                  exit 1
+                fi
+                sleep 3
+              done
+
+              # Correctness: discovering the class must not restart a workload
+              # whose pods already started from the current content.
+              before=$(kubectl -n $NS get deployment app-064 -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}' 2>/dev/null || true)
+              if [ -n "$before" ]; then
+                echo "baseline unexpectedly restarted app-064" >&2
+                kubectl -n $NS get kickrequests -o yaml >&2 || true
+                exit 1
+              fi
+
+              # 2. Rotate the secret in OpenBao. Nothing in Kubernetes changes:
+              #    the driver's own rotation loop has to notice, re-mount, and
+              #    publish a new object version.
+              kubectl -n csi exec deploy/openbao -- \
+                bao kv put secret/kick-e2e-064 token=bravo >/dev/null
+
+              # 3. The rotation MUST restart the workload.
+              while true; do
+                after=$(kubectl -n $NS get deployment app-064 -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}' 2>/dev/null || true)
+                if [ -n "$after" ]; then
+                  break
+                fi
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "provider rotation did not restart app-064" >&2
+                  kubectl -n $NS get secretproviderclasspodstatuses -o yaml >&2 || true
+                  kubectl -n $NS get kickrequests -o yaml >&2 || true
+                  exit 1
+                fi
+                sleep 3
+              done
+
+              # 4. Exactly one restart: the rotation is re-observed on every
+              #    poll, and a stable fingerprint must not produce a second one.
+              sleep 60
+              settled=$(kubectl -n $NS get deployment app-064 -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}')
+              if [ "$settled" != "$after" ]; then
+                echo "app-064 restarted more than once: $after then $settled" >&2
+                kubectl -n $NS get kickrequests -o yaml >&2 || true
+                exit 1
+              fi
+    - name: cleanup
+      try:
+        - script:
+            content: |
+              set -eu
+              kubectl -n csi exec deploy/openbao -- \
+                bao kv metadata delete secret/kick-e2e-064 >/dev/null
+        - delete:
+            ref:
+              apiVersion: v1
+              kind: Namespace
+              name: kick-e2e-064

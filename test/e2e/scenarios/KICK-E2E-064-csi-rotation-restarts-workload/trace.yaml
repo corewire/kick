@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-064
+name: csi-rotation-restarts-workload
+features:
+  - KICK-FEAT-023
+provider: secrets-store-csi
+class: behavior
+required: true

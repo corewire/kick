@@ -393,6 +393,30 @@ scenarios:
     status: required
     features:
       - KICK-FEAT-024
+  - id: KICK-E2E-064
+    name: csi rotation restarts workload
+    directory: test/e2e/scenarios/KICK-E2E-064-csi-rotation-restarts-workload
+    status: required
+    features:
+      - KICK-FEAT-023
+  - id: KICK-E2E-065
+    name: csi identical write does not restart
+    directory: test/e2e/scenarios/KICK-E2E-065-csi-identical-write-does-not-restart
+    status: required
+    features:
+      - KICK-FEAT-023
+  - id: KICK-E2E-066
+    name: csi volume reverse index scopes restart
+    directory: test/e2e/scenarios/KICK-E2E-066-csi-volume-reverse-index-scopes-restart
+    status: required
+    features:
+      - KICK-FEAT-023
+  - id: KICK-E2E-067
+    name: csi staged rotation restarts once
+    directory: test/e2e/scenarios/KICK-E2E-067-csi-staged-rotation-restarts-once
+    status: required
+    features:
+      - KICK-FEAT-023
   - id: KICK-E2E-072
     name: notificationpolicy reports readiness
     directory: test/e2e/scenarios/KICK-E2E-072-notificationpolicy-reports-readiness

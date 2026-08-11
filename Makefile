@@ -113,6 +113,11 @@ e2e-argocd-config:
 e2e-rollouts:
 	KICK_E2E_KUBECONFIG=$(KIND_KUBECONFIG) test/e2e/setup/rollouts/install-rollouts.sh
 
+# Installs the Secrets Store CSI driver, OpenBao and the OpenBao CSI provider.
+.PHONY: e2e-csi
+e2e-csi:
+	KICK_E2E_KUBECONFIG=$(KIND_KUBECONFIG) test/e2e/setup/csi/install-csi.sh
+
 # Shared prerequisites of every integration suite. Optional integration CRDs are
 # installed by the per-suite targets before e2e-install starts the manager.
 .PHONY: e2e-base-setup
@@ -123,6 +128,9 @@ e2e-integration-setup: e2e-base-setup e2e-install
 
 .PHONY: e2e-rollouts-setup
 e2e-rollouts-setup: e2e-base-setup e2e-rollouts e2e-install
+
+.PHONY: e2e-csi-setup
+e2e-csi-setup: e2e-base-setup e2e-csi e2e-install
 
 .PHONY: test-e2e
 test-e2e: chainsaw e2e-namespace
@@ -145,7 +153,7 @@ test-e2e-rollouts: chainsaw e2e-rollouts-setup
 	$(call e2e_suite,argo-rollouts,-E,$(E2E_IDS_ROLLOUTS),$(E2E_CHAINSAW_CONFIG_INTEGRATION))
 
 .PHONY: test-e2e-csi
-test-e2e-csi: chainsaw e2e-integration-setup
+test-e2e-csi: chainsaw e2e-csi-setup
 	$(call e2e_suite,csi,-E,$(E2E_IDS_CSI),$(E2E_CHAINSAW_CONFIG_INTEGRATION))
 
 .PHONY: test-e2e-kargo

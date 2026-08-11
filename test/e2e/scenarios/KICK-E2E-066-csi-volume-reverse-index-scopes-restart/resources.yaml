@@ -1,0 +1,105 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kick-e2e-066
+---
+apiVersion: kick.corewire.io/v1alpha1
+kind: KickPolicy
+metadata:
+  name: default
+  namespace: kick-e2e-066
+spec:
+  discovery:
+    workloadSelector: {}
+---
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: rotated-066
+  namespace: kick-e2e-066
+spec:
+  provider: openbao
+  parameters:
+    roleName: kick-e2e
+    baoAddress: http://openbao.csi.svc.cluster.local:8200
+    objects: |
+      - objectName: token
+        secretPath: secret/data/kick-e2e-066-rotated
+        secretKey: token
+---
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: untouched-066
+  namespace: kick-e2e-066
+spec:
+  provider: openbao
+  parameters:
+    roleName: kick-e2e
+    baoAddress: http://openbao.csi.svc.cluster.local:8200
+    objects: |
+      - objectName: token
+        secretPath: secret/data/kick-e2e-066-untouched
+        secretKey: token
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: consumer-066
+  namespace: kick-e2e-066
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: consumer-066
+  template:
+    metadata:
+      labels:
+        app: consumer-066
+    spec:
+      containers:
+        - name: app
+          image: registry.k8s.io/pause:3.10
+          volumeMounts:
+            - name: app-secret
+              mountPath: /mnt/secrets-store
+              readOnly: true
+      volumes:
+        - name: app-secret
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: rotated-066
+---
+# Mounts the driver the same way, through a different class. It must not be
+# reached by a change to rotated-066.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bystander-066
+  namespace: kick-e2e-066
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bystander-066
+  template:
+    metadata:
+      labels:
+        app: bystander-066
+    spec:
+      containers:
+        - name: app
+          image: registry.k8s.io/pause:3.10
+          volumeMounts:
+            - name: app-secret
+              mountPath: /mnt/secrets-store
+              readOnly: true
+      volumes:
+        - name: app-secret
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: untouched-066

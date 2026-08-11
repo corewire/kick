@@ -385,7 +385,7 @@ features:
   tests:
     unit: required
     envtest: not_applicable
-    e2e: not_applicable
+    e2e: required
   coverage:
     unit:
     - internal/dependency/csi_test.go
@@ -394,9 +394,11 @@ features:
     envtest: The SecretProviderClass and SecretProviderClassPodStatus CRDs belong to
       the Secrets Store CSI driver, are not part of this repository, and are handled
       as unstructured objects, so envtest would only assert upstream schemas.
-    e2e: Exercising rotation requires the Secrets Store CSI driver plus a real secret
-      store provider, neither of which is installed in the e2e kind cluster.
-  e2e: []
+  e2e:
+  - KICK-E2E-064
+  - KICK-E2E-065
+  - KICK-E2E-066
+  - KICK-E2E-067
 - id: KICK-FEAT-024
   name: Argo Rollout workload restarts
   spec: ai-docs/gap-analysis/04-reloader-parity-gaps.md

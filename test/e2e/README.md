@@ -12,7 +12,7 @@ scenario to the features it covers.
 | `make test-e2e-argocd` | 024-042 | Gitea, Argo CD |
 | `make test-e2e-recovery` | 048-051 | KICK only |
 | `make test-e2e-rollouts` | 060-063 | Argo Rollouts |
-| `make test-e2e-csi` | 064-067 | Secrets Store CSI driver |
+| `make test-e2e-csi` | 064-067 | Secrets Store CSI driver, OpenBao + its CSI provider |
 | `make test-e2e-kargo` | 068-071 | cert-manager, Kargo |
 | `make test-e2e` | all of the above | all of the above |
 

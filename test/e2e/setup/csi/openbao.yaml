@@ -1,0 +1,95 @@
+# OpenBao in dev mode, backing the Secrets Store CSI provider used by the CSI
+# e2e suite.
+#
+# Dev mode keeps everything in memory and unseals automatically. That is the
+# point: the store must not survive the suite, because a secret store that
+# accumulates state across runs is a false-green generator. It also means a
+# restarted pod loses every mount path the scenarios bootstrapped, so the
+# install script is idempotent and re-runnable.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: csi
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: openbao
+  namespace: csi
+---
+# The Kubernetes auth method validates the service-account JWT the provider
+# mints for the mounting pod, which is a TokenReview call.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: openbao-auth-delegator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+  - kind: ServiceAccount
+    name: openbao
+    namespace: csi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openbao
+  namespace: csi
+spec:
+  selector:
+    app.kubernetes.io/name: openbao
+  ports:
+    - name: http
+      port: 8200
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openbao
+  namespace: csi
+  labels:
+    app.kubernetes.io/name: openbao
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: openbao
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: openbao
+    spec:
+      serviceAccountName: openbao
+      containers:
+        - name: openbao
+          image: openbao/openbao:2.6.1
+          args:
+            - server
+            - -dev
+            - -dev-listen-address=0.0.0.0:8200
+          env:
+            # A throwaway root token for an in-memory dev server that is
+            # reachable only from inside this kind cluster. It is also how the
+            # install script and the scenarios authenticate their `bao` calls.
+            - name: BAO_DEV_ROOT_TOKEN_ID
+              value: kick-e2e-throwaway
+            - name: BAO_TOKEN
+              value: kick-e2e-throwaway
+            - name: BAO_ADDR
+              value: http://127.0.0.1:8200
+          ports:
+            - name: http
+              containerPort: 8200
+          readinessProbe:
+            httpGet:
+              path: /v1/sys/health
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 2
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
