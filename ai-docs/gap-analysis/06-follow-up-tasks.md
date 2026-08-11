@@ -161,38 +161,69 @@ the pod template byte-identical and no canary step executed; the same for
 blue-green; `ArgoRolloutComplete` gates the KickRequest until pods are actually
 replaced; a Rollout using `spec.workloadRef` is handled or explicitly rejected.
 
-### FEAT-023 Secrets Store CSI — Tier 1 now, Tier 2 later
+### FEAT-023 Secrets Store CSI — Tier 1 first, Tier 2 with OpenBao
 
-Verified, and this is the finding that changes the plan: the driver itself is a
-published manifest (`deploy/secrets-store-csi-driver.yaml` at `v1.4.6`, HTTP
-200), but the **e2e-provider has no published image**.
-`registry.k8s.io/csi-secrets-store/e2e-provider` returns `"tags":[]`, and the
-upstream installer at `test/e2eprovider/e2e-provider-installer.yaml` literally
-carries `image: replace/this/image/at/build/time`. Upstream builds it from
-source in-repo (`make e2e-provider-container`). Tier 2 therefore means vendoring
-a Go build of a third-party test fixture, building an image, and `kind load`ing
-it — per developer and in CI.
+The e2e-provider really is unpublished, and the mechanism is now clear:
+`registry.k8s.io/csi-secrets-store/e2e-provider` returns `"tags":[]` where
+`csi-secrets-store/driver` and `sig-storage/livenessprobe` return populated
+manifests, so the empty result is real and not an artefact of the registry API.
+The staging registry `gcr.io/k8s-staging-csi-secrets-store/e2e-provider` is
+empty too. Upstream's Makefile explains why: line 388 is
+`kind load docker-image`, never a push. It is a build-time-only fixture.
 
-Two further Tier 2 costs: the driver defaults to
-`--enable-secret-rotation=false` with `--rotation-poll-interval=2m`, so the
-manifest must be patched to enable rotation and shorten the interval well below
-chainsaw's 180s `exec` timeout, or the test cannot observe a rotation at all.
+**But that never mattered, because the provider is interchangeable.** Verified
+in the driver's `pkg/secrets-store/nodeserver.go:249`: the **driver** calls
+`createOrUpdateSecretProviderClassPodStatus(..., objectVersions)`, where
+`objectVersions` is whatever the provider returned over gRPC. KICK reads only
+that driver-authored status. So any conforming provider works, and we should
+pick one with published images rather than build the upstream test fixture.
 
-Tier 1 is unusually strong here. `SecretProviderClassPodStatus` has **no spec** —
-it is status-only, and KICK's observer reads nothing else. A test can create the
-CRD and write `status.objects[].version` directly, which is precisely the signal
-the driver would have produced. **This is the tier that catches T1.**
+**OpenBao is that provider.** All artifacts verified published:
+
+| Component | Artifact | Verified |
+|---|---|---|
+| CSI driver | `deploy/secrets-store-csi-driver.yaml` @ `v1.4.6` | HTTP 200 |
+| OpenBao provider | `openbao/openbao-csi-provider:2.0.3` | Docker Hub + ghcr.io, multi-arch |
+| Provider manifest | `deployment/openbao-csi-provider.yaml` @ `v2.0.3` | complete DaemonSet, namespace `csi` |
+| OpenBao server | `openbao/openbao:2.6.1` | Docker Hub |
+
+One property makes OpenBao a better fixture than the upstream e2e-provider for
+our purposes. `internal/provider/provider.go:193` computes the reported version
+as an HMAC of the secret content, not a KV revision number. The version string
+therefore changes exactly when the content changes — a content fingerprint,
+which is precisely the semantics KICK's freshness model assumes. A no-op write
+produces no version change and so must produce no restart, and that becomes a
+directly assertable scenario.
+
+**Remaining Tier 2 cost, honestly stated:** bootstrapping OpenBao — enable KV
+v2, enable the Kubernetes auth method, create a policy and a role. Roughly
+fifteen `bao` CLI calls via `kubectl exec` against a dev-mode server, with
+`test/bats/_helpers.bash` and `test/bats/configs` in the provider repo as a
+working template. Non-trivial, but bounded and one-time, and far cheaper than
+vendoring a Go build.
+
+Also: the driver manifest ships `--enable-secret-rotation=false` with
+`--rotation-poll-interval=2m`. Both must be patched — rotation on, interval
+well under chainsaw's 180s `exec` timeout — or the test cannot observe a
+rotation at all.
+
+**Still do Tier 1 first.** `SecretProviderClassPodStatus` has no spec; it is
+status-only and KICK's observer reads nothing else, so a test can write
+`status.objects[].version` directly and reproduce the driver's exact signal.
+That is a two-CRD, no-controller test, and **it is what catches T1**. Tier 2
+then proves the real driver produces the status shape Tier 1 assumes — which is
+the one thing Tier 1 cannot self-verify.
 
 **Infra (Tier 1):** the `SecretProviderClass` and
 `SecretProviderClassPodStatus` CRDs from the driver repo. Nothing else.
 
-**Scenarios (Tier 1):** a version change on all pods' `status.objects` triggers
-exactly one restart (fails today because of T1); mixed versions across pods
-produce zero restarts until they converge; a pod referencing the SPC through a
-CSI volume is discovered by the reverse index.
+**Scenarios (Tier 1):** a version change across all pods' `status.objects`
+triggers exactly one restart (fails today because of T1); mixed versions across
+pods produce zero restarts until they converge; a pod referencing the SPC
+through a CSI volume is discovered by the reverse index.
 
-**Tier 2 later** if we ever need to prove the driver's real rotation behaviour.
-Record it as a known limitation rather than pretending Tier 1 covers it.
+**Scenarios (Tier 2):** a real `bao kv put` that changes content produces
+exactly one restart; a `bao kv put` writing identical content produces none.
 
 ### Shared plumbing
 
@@ -311,9 +342,8 @@ T5 is fifteen minutes and closes the documentation loop.
 Then T4, in ascending order of infrastructure cost, which is the reverse of what
 I assumed before checking: **CSI Tier 1** (two CRDs, and it is the test that
 catches T1), then **Kargo Tier 1** (two CRDs, Argo CD already present), then
-**Argo Rollouts Tier 2** (one install manifest). CSI Tier 2 is deferred
-indefinitely — it requires building an unpublished third-party image from
-source, which is not worth it for the marginal coverage over Tier 1.
+**Argo Rollouts Tier 2** (one install manifest), then **CSI Tier 2** (driver +
+OpenBao + provider, all published images, plus an OpenBao bootstrap script).
 
 T6 and T7 are genuine but neither blocks a release. T7 is worth doing before T4
 regardless, because the startup-probe ordering it describes will otherwise bite
