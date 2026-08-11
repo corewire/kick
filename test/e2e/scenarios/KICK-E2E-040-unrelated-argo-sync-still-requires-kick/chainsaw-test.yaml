@@ -4,41 +4,86 @@ metadata:
   name: kick-e2e-040-unrelated-argo-sync-still-requires-kick
 spec:
   steps:
+    - name: seed-repository
+      try:
+        - script:
+            content: ../../setup/gitea/seed.sh e2e-040 manifests manifests
     - name: create-fixtures
       try:
         - apply:
             file: resources.yaml
-    - name: assert-request-created
+    - name: wait-for-initial-sync
+      try:
+        - assert:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Application
+              metadata:
+                name: kick-e2e-040
+                namespace: argocd
+              status:
+                sync:
+                  status: Synced
+                health:
+                  status: Healthy
+        - assert:
+            resource:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: app-040
+                namespace: kick-e2e-040
+                generation: 1
+              status:
+                availableReplicas: 1
+    - name: commit-unrelated-and-consumed-change
+      try:
+        - script:
+            content: ../../setup/gitea/seed.sh e2e-040 manifests updated "bump unrelated ConfigMap and rotate the consumed Secret"
+        - script:
+            content: kubectl -n argocd annotate application kick-e2e-040 argocd.argoproj.io/refresh=hard --overwrite
+    - name: assert-kick-still-restarts-the-workload
+      try:
+        - assert:
+            resource:
+              apiVersion: kick.corewire.io/v1alpha1
+              kind: KickRequest
+              metadata:
+                name: deployment-app-040
+                namespace: kick-e2e-040
+              status:
+                phase: Succeeded
+                gate:
+                  reason: Allowed
+        - assert:
+            resource:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: app-040
+                namespace: kick-e2e-040
+                generation: 2
+        - script:
+            content: |
+              restarted_at=$(kubectl -n kick-e2e-040 get deployment app-040 \
+                -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}')
+              if [ -z "$restarted_at" ]; then
+                echo "the rollout did not come from KICK"
+                exit 1
+              fi
+    - name: assert-no-kick-request-for-the-unrelated-configmap
       try:
         - script:
             content: |
-              set -eu
-              deadline=$(( $(date +%s) + 120 ))
-              while true; do
-                count=$(kubectl -n kick-e2e-040 get kickrequests --no-headers 2>/dev/null | wc -l | tr -d ' ')
-                phase=$(kubectl -n kick-e2e-040 get kickrequest deployment-app-040 -o jsonpath='{.status.phase}' 2>/dev/null || true)
-                reason=$(kubectl -n kick-e2e-040 get kickrequest deployment-app-040 -o jsonpath='{.status.gate.reason}' 2>/dev/null || true)
-                latest=$(kubectl -n kick-e2e-040 get kickrequest deployment-app-040 -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
-                if [ "$count" = "1" ] && [ "$phase" = "WaitingForOwner" ] && [ "$reason" = "OwnerUnknown" ]; then
-                  break
-                fi
-                if [ "$(date +%s)" -ge "$deadline" ]; then
-                  echo "expected one WaitingForOwner request for app-040" >&2
-                  kubectl -n kick-e2e-040 get kickrequests -o yaml >&2 || true
-                  exit 1
-                fi
-                sleep 2
-              done
-
-                            phase=$(kubectl -n kick-e2e-040 get kickrequest deployment-app-040 -o jsonpath='{.status.phase}')
-                            reason=$(kubectl -n kick-e2e-040 get kickrequest deployment-app-040 -o jsonpath='{.status.gate.reason}')
-                            if [ "$phase" != "WaitingForOwner" ] || [ "$reason" != "OwnerUnknown" ]; then
-                              echo "expected stable OwnerUnknown gate for baseline scenario" >&2
-                              kubectl -n kick-e2e-040 get kickrequest deployment-app-040 -o yaml >&2 || true
-                              exit 1
-                            fi
+              names=$(kubectl -n kick-e2e-040 get kickrequests -o name)
+              if [ "$names" != "kickrequest.kick.corewire.io/deployment-app-040" ]; then
+                echo "unexpected KickRequests: $names"
+                exit 1
+              fi
     - name: cleanup
       try:
+        - script:
+            content: kubectl -n argocd delete application kick-e2e-040 --ignore-not-found
         - delete:
             ref:
               apiVersion: v1

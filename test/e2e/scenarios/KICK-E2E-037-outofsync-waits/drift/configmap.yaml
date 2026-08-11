@@ -1,0 +1,9 @@
+# Editing a git-managed resource in the cluster puts the Application into a
+# stable OutOfSync state because self-heal is disabled.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: drift-037
+  namespace: kick-e2e-037
+data:
+  value: edited-in-cluster

@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-041
+  namespace: kick-e2e-041
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app-041
+  template:
+    metadata:
+      labels:
+        app: app-041
+    spec:
+      containers:
+        - name: app
+          image: registry.k8s.io/pause:3.10
+          envFrom:
+            - secretRef:
+                name: app-secret
+---
+# This workload never becomes available, which drives the Application health to
+# Degraded while its sync status stays Synced. It consumes no dependencies, so
+# KICK never creates a request for it.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: broken-041
+  namespace: kick-e2e-041
+spec:
+  replicas: 1
+  progressDeadlineSeconds: 30
+  selector:
+    matchLabels:
+      app: broken-041
+  template:
+    metadata:
+      labels:
+        app: broken-041
+    spec:
+      containers:
+        - name: app
+          image: registry.k8s.io/pause:3.10
+          command: ["/no-such-binary"]

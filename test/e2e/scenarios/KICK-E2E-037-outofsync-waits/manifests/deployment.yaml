@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-037
+  namespace: kick-e2e-037
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app-037
+  template:
+    metadata:
+      labels:
+        app: app-037
+    spec:
+      containers:
+        - name: app
+          image: registry.k8s.io/pause:3.10
+          envFrom:
+            - secretRef:
+                name: app-secret
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: drift-037
+  namespace: kick-e2e-037
+data:
+  value: from-git

@@ -12,35 +12,23 @@ spec:
   discovery:
     workloadSelector: {}
   gitOps:
-    provider: Auto
+    provider: ArgoCD
 ---
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: argoproj.io/v1alpha1
+kind: Application
 metadata:
-  name: app-039
-  namespace: kick-e2e-039
+  name: kick-e2e-039
+  namespace: argocd
 spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: app-039
-  template:
-    metadata:
-      labels:
-        app: app-039
-    spec:
-      containers:
-        - name: app
-          image: registry.k8s.io/pause:3.10
-          envFrom:
-            - secretRef:
-                name: app-secret
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: app-secret
-  namespace: kick-e2e-039
-type: Opaque
-stringData:
-  token: alpha
+  project: default
+  source:
+    repoURL: http://gitea.kick-e2e-git.svc.cluster.local:3000/kick-e2e/e2e-039.git
+    targetRevision: main
+    path: manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kick-e2e-039
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

@@ -1,0 +1,35 @@
+# The same commit rotates the Secret and changes the pod template. Argo CD's
+# own sync therefore rolls the workload out, and KICK must recognise the
+# workload as already fresh instead of restarting it a second time.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secret
+  namespace: kick-e2e-039
+type: Opaque
+stringData:
+  token: beta
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-039
+  namespace: kick-e2e-039
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app-039
+  template:
+    metadata:
+      labels:
+        app: app-039
+      annotations:
+        release: r2
+    spec:
+      containers:
+        - name: app
+          image: registry.k8s.io/pause:3.10
+          envFrom:
+            - secretRef:
+                name: app-secret

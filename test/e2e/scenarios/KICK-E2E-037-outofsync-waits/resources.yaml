@@ -12,30 +12,32 @@ spec:
   discovery:
     workloadSelector: {}
   gitOps:
-    provider: Auto
+    provider: ArgoCD
 ---
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: argoproj.io/v1alpha1
+kind: Application
 metadata:
-  name: app-037
-  namespace: kick-e2e-037
+  name: kick-e2e-037
+  namespace: argocd
 spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: app-037
-  template:
-    metadata:
-      labels:
-        app: app-037
-    spec:
-      containers:
-        - name: app
-          image: registry.k8s.io/pause:3.10
-          envFrom:
-            - secretRef:
-                name: app-secret
+  project: default
+  source:
+    repoURL: http://gitea.kick-e2e-git.svc.cluster.local:3000/kick-e2e/e2e-037.git
+    targetRevision: main
+    path: manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kick-e2e-037
+  syncPolicy:
+    # Automated but without self-heal: Argo CD syncs new commits, yet leaves
+    # in-cluster drift alone. That lets the test park the Application in a
+    # stable OutOfSync state.
+    automated:
+      prune: false
+      selfHeal: false
 ---
+# The consumed Secret is not managed by Argo CD, so rotating it cannot change
+# the Application's sync status.
 apiVersion: v1
 kind: Secret
 metadata:

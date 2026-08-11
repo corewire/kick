@@ -1,0 +1,41 @@
+# The commit touches a ConfigMap the workload does not consume and the Secret
+# it does consume, but leaves the pod template untouched. Argo CD's sync
+# therefore does not roll the workload, so KICK still has to.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secret
+  namespace: kick-e2e-040
+type: Opaque
+stringData:
+  token: beta
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: unrelated-040
+  namespace: kick-e2e-040
+data:
+  value: v2
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-040
+  namespace: kick-e2e-040
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app-040
+  template:
+    metadata:
+      labels:
+        app: app-040
+    spec:
+      containers:
+        - name: app
+          image: registry.k8s.io/pause:3.10
+          envFrom:
+            - secretRef:
+                name: app-secret

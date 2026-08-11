@@ -12,30 +12,29 @@ spec:
   discovery:
     workloadSelector: {}
   gitOps:
-    provider: Auto
+    provider: ArgoCD
 ---
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: argoproj.io/v1alpha1
+kind: Application
 metadata:
-  name: app-041
-  namespace: kick-e2e-041
+  name: kick-e2e-041
+  namespace: argocd
 spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: app-041
-  template:
-    metadata:
-      labels:
-        app: app-041
-    spec:
-      containers:
-        - name: app
-          image: registry.k8s.io/pause:3.10
-          envFrom:
-            - secretRef:
-                name: app-secret
+  project: default
+  source:
+    repoURL: http://gitea.kick-e2e-git.svc.cluster.local:3000/kick-e2e/e2e-041.git
+    targetRevision: main
+    path: manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kick-e2e-041
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
 ---
+# Rotated in the cluster, not in git, so the Application stays Synced while the
+# broken sibling workload keeps it Degraded.
 apiVersion: v1
 kind: Secret
 metadata:
