@@ -45,6 +45,11 @@ Features without e2e coverage carry a rationale in
 [traceability/features.yaml](traceability/features.yaml) and are covered by unit
 tests instead.
 
+## Follow-up
+
+[06-follow-up-tasks.md](06-follow-up-tasks.md) records what remains, including
+one defect that makes the CSI integration a no-op end to end.
+
 ## Evidence index
 
 Upstream references are file paths in the respective repositories; they were
