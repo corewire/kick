@@ -17,4 +17,6 @@ kc apply -n "$ARGOCD_NS" \
 kc -n "$ARGOCD_NS" rollout status deploy/argocd-repo-server --timeout=300s
 kc -n "$ARGOCD_NS" rollout status statefulset/argocd-application-controller --timeout=300s
 
+"$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/configure-argocd.sh"
+
 echo "Argo CD ${ARGOCD_VERSION} installed in namespace ${ARGOCD_NS}"

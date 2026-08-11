@@ -1,0 +1,19 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: kick-e2e
+  namespace: argocd
+spec:
+  description: Project for KICK integration scenarios.
+  sourceRepos:
+    - "*"
+  destinations:
+    - namespace: "*"
+      server: "*"
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+  # Required for KICK-E2E-025, which keeps its Application next to the workload
+  # instead of in the Argo CD namespace.
+  sourceNamespaces:
+    - "kick-e2e-*"

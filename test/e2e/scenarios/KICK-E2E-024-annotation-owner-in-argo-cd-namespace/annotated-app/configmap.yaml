@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: annotated-marker
+  namespace: kick-e2e-024
+data:
+  # This Application deliberately manages nothing the workload consumes, so its
+  # status.resources never lists app-024.
+  marker: "kick-e2e-024-annotated"

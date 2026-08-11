@@ -1,0 +1,50 @@
+# Unparseable tracking-id: no separators at all.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-026-malformed
+  namespace: kick-e2e-026
+  annotations:
+    argocd.argoproj.io/tracking-id: "not-a-valid-tracking-id"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app-026-malformed
+  template:
+    metadata:
+      labels:
+        app: app-026-malformed
+    spec:
+      containers:
+        - name: app
+          image: registry.k8s.io/pause:3.10
+          envFrom:
+            - secretRef:
+                name: app-secret
+---
+# Well-formed tracking-id that describes a different object, so it must be
+# rejected by the identity check and fall through to the status.resources scan.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-026-mismatched
+  namespace: kick-e2e-026
+  annotations:
+    argocd.argoproj.io/tracking-id: "kick-e2e-026:apps/Deployment:kick-e2e-026/some-other-workload"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app-026-mismatched
+  template:
+    metadata:
+      labels:
+        app: app-026-mismatched
+    spec:
+      containers:
+        - name: app
+          image: registry.k8s.io/pause:3.10
+          envFrom:
+            - secretRef:
+                name: app-secret

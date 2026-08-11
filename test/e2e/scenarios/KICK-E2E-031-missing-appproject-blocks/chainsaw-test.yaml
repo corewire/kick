@@ -8,37 +8,52 @@ spec:
       try:
         - apply:
             file: resources.yaml
-    - name: assert-request-created
+    - name: wait-for-initial-state
       try:
-        - script:
-            content: |
-              set -eu
-              deadline=$(( $(date +%s) + 120 ))
-              while true; do
-                count=$(kubectl -n kick-e2e-031 get kickrequests --no-headers 2>/dev/null | wc -l | tr -d ' ')
-                phase=$(kubectl -n kick-e2e-031 get kickrequest deployment-app-031 -o jsonpath='{.status.phase}' 2>/dev/null || true)
-                reason=$(kubectl -n kick-e2e-031 get kickrequest deployment-app-031 -o jsonpath='{.status.gate.reason}' 2>/dev/null || true)
-                latest=$(kubectl -n kick-e2e-031 get kickrequest deployment-app-031 -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
-                if [ "$count" = "1" ] && [ "$phase" = "WaitingForOwner" ] && [ "$reason" = "OwnerUnknown" ]; then
-                  break
-                fi
-                if [ "$(date +%s)" -ge "$deadline" ]; then
-                  echo "expected one WaitingForOwner request for app-031" >&2
-                  kubectl -n kick-e2e-031 get kickrequests -o yaml >&2 || true
-                  exit 1
-                fi
-                sleep 2
-              done
-
-                            phase=$(kubectl -n kick-e2e-031 get kickrequest deployment-app-031 -o jsonpath='{.status.phase}')
-                            reason=$(kubectl -n kick-e2e-031 get kickrequest deployment-app-031 -o jsonpath='{.status.gate.reason}')
-                            if [ "$phase" != "WaitingForOwner" ] || [ "$reason" != "OwnerUnknown" ]; then
-                              echo "expected stable OwnerUnknown gate for baseline scenario" >&2
-                              kubectl -n kick-e2e-031 get kickrequest deployment-app-031 -o yaml >&2 || true
-                              exit 1
-                            fi
+        - assert:
+            resource:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: app-031
+                namespace: kick-e2e-031
+                generation: 1
+              status:
+                availableReplicas: 1
+    - name: rotate-secret
+      try:
+        - apply:
+            file: updated/secret.yaml
+    - name: assert-missing-project-blocks
+      try:
+        - assert:
+            resource:
+              apiVersion: kick.corewire.io/v1alpha1
+              kind: KickRequest
+              metadata:
+                name: deployment-app-031
+                namespace: kick-e2e-031
+              status:
+                phase: WaitingForGate
+                owner:
+                  provider: argocd
+                  kind: Application
+                  namespace: argocd
+                  name: kick-e2e-031
+                gate:
+                  reason: ProjectUnknown
+        - assert:
+            resource:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: app-031
+                namespace: kick-e2e-031
+                generation: 1
     - name: cleanup
       try:
+        - script:
+            content: kubectl -n argocd delete application kick-e2e-031 --ignore-not-found
         - delete:
             ref:
               apiVersion: v1

@@ -12,35 +12,42 @@ spec:
   discovery:
     workloadSelector: {}
   gitOps:
-    provider: Auto
+    provider: ArgoCD
 ---
-apiVersion: apps/v1
-kind: Deployment
+# A project that is not `default`, living in the Argo CD namespace. KICK must
+# look the AppProject up there; if it looked in the workload namespace the gate
+# would report ProjectUnknown instead of allowing the kick.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
 metadata:
-  name: app-030
-  namespace: kick-e2e-030
+  name: kick-e2e-030
+  namespace: argocd
 spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: app-030
-  template:
-    metadata:
-      labels:
-        app: app-030
-    spec:
-      containers:
-        - name: app
-          image: registry.k8s.io/pause:3.10
-          envFrom:
-            - secretRef:
-                name: app-secret
+  description: Dedicated project for KICK-E2E-030.
+  sourceRepos:
+    - "*"
+  destinations:
+    - namespace: "*"
+      server: "*"
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
 ---
-apiVersion: v1
-kind: Secret
+apiVersion: argoproj.io/v1alpha1
+kind: Application
 metadata:
-  name: app-secret
-  namespace: kick-e2e-030
-type: Opaque
-stringData:
-  token: alpha
+  name: kick-e2e-030
+  namespace: argocd
+spec:
+  project: kick-e2e-030
+  source:
+    repoURL: http://gitea.kick-e2e-git.svc.cluster.local:3000/kick-e2e/e2e-030.git
+    targetRevision: main
+    path: manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kick-e2e-030
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

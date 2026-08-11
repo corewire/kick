@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-024
+  namespace: kick-e2e-024
+  annotations:
+    # Points at the other Application on purpose: the fallback scan would
+    # resolve kick-e2e-024, so an owner of kick-e2e-024-annotated can only come
+    # from this annotation.
+    argocd.argoproj.io/tracking-id: "kick-e2e-024-annotated:apps/Deployment:kick-e2e-024/app-024"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app-024
+  template:
+    metadata:
+      labels:
+        app: app-024
+    spec:
+      containers:
+        - name: app
+          image: registry.k8s.io/pause:3.10
+          envFrom:
+            - secretRef:
+                name: app-secret

@@ -98,8 +98,13 @@ e2e-install: manifests kustomize
 e2e-git-server:
 	KICK_E2E_KUBECONFIG=$(KIND_KUBECONFIG) test/e2e/setup/gitea/install-gitea.sh
 
+# Applies the Argo CD settings the integration scenarios depend on.
+.PHONY: e2e-argocd-config
+e2e-argocd-config:
+	KICK_E2E_KUBECONFIG=$(KIND_KUBECONFIG) test/e2e/setup/argocd/configure-argocd.sh
+
 .PHONY: e2e-integration-setup
-e2e-integration-setup: e2e-namespace e2e-install e2e-git-server
+e2e-integration-setup: e2e-namespace e2e-install e2e-git-server e2e-argocd-config
 
 .PHONY: test-e2e
 test-e2e: chainsaw e2e-namespace

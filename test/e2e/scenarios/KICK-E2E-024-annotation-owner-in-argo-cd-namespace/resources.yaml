@@ -12,35 +12,47 @@ spec:
   discovery:
     workloadSelector: {}
   gitOps:
-    provider: Auto
+    provider: ArgoCD
 ---
-apiVersion: apps/v1
-kind: Deployment
+# The Application that actually deploys the workload. Its status.resources lists
+# app-024, so owner resolution by fallback would pick this one.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
 metadata:
-  name: app-024
-  namespace: kick-e2e-024
+  name: kick-e2e-024
+  namespace: argocd
 spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: app-024
-  template:
-    metadata:
-      labels:
-        app: app-024
-    spec:
-      containers:
-        - name: app
-          image: registry.k8s.io/pause:3.10
-          envFrom:
-            - secretRef:
-                name: app-secret
+  project: default
+  source:
+    repoURL: http://gitea.kick-e2e-git.svc.cluster.local:3000/kick-e2e/e2e-024.git
+    targetRevision: main
+    path: manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kick-e2e-024
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
 ---
-apiVersion: v1
-kind: Secret
+# The workload's tracking-id annotation points here instead. This Application
+# never lists app-024 in status.resources, so resolving to it proves the
+# annotation took precedence over the status.resources scan.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
 metadata:
-  name: app-secret
-  namespace: kick-e2e-024
-type: Opaque
-stringData:
-  token: alpha
+  name: kick-e2e-024-annotated
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: http://gitea.kick-e2e-git.svc.cluster.local:3000/kick-e2e/e2e-024.git
+    targetRevision: main
+    path: annotated-app
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kick-e2e-024
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

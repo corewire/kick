@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Seed a scenario's manifests into the shared `apps` repository.
+# Seed a scenario's manifests into its own repository.
 #
-# Usage: seed.sh <repo-path> <local-dir> [message]
+# Usage: seed.sh <repo> <repo-path> <local-dir> [message]
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

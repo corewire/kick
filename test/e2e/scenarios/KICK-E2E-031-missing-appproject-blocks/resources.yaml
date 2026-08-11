@@ -12,13 +12,33 @@ spec:
   discovery:
     workloadSelector: {}
   gitOps:
-    provider: Auto
+    provider: ArgoCD
+---
+# The referenced AppProject does not exist, so Argo CD refuses to sync and never
+# publishes status.resources. Ownership therefore has to come from the tracking
+# annotation, which is exactly the path that reaches the project lookup.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kick-e2e-031
+  namespace: argocd
+spec:
+  project: kick-e2e-031-missing
+  source:
+    repoURL: http://gitea.kick-e2e-git.svc.cluster.local:3000/kick-e2e/e2e-031.git
+    targetRevision: main
+    path: manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kick-e2e-031
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: app-031
   namespace: kick-e2e-031
+  annotations:
+    argocd.argoproj.io/tracking-id: "kick-e2e-031:apps/Deployment:kick-e2e-031/app-031"
 spec:
   replicas: 1
   selector:

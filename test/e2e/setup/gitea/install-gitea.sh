@@ -22,10 +22,4 @@ kc -n "$GITEA_NS" rollout status deploy/gitea --timeout=300s
 
 gitea_ensure_admin
 
-# `apps` holds manifests Argo CD renders. `promotions` is the repository Kargo
-# writes to during a promotion; keeping them apart stops a Kargo push from
-# racing an Argo CD scenario.
-gitea_create_repo apps
-gitea_create_repo promotions
-
 echo "Gitea installed in namespace ${GITEA_NS} at ${GITEA_INTERNAL_URL}"

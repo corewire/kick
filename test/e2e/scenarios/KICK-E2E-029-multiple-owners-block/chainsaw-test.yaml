@@ -4,41 +4,91 @@ metadata:
   name: kick-e2e-029-multiple-owners-block
 spec:
   steps:
+    - name: seed-repository
+      try:
+        - script:
+            content: ../../setup/gitea/seed.sh e2e-029 manifests manifests
     - name: create-fixtures
       try:
         - apply:
             file: resources.yaml
-    - name: assert-request-created
+    - name: wait-for-two-claimants
+      try:
+        - assert:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Application
+              metadata:
+                name: kick-e2e-029-a
+                namespace: argocd
+              status:
+                sync:
+                  status: Synced
+        - assert:
+            resource:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: app-029
+                namespace: kick-e2e-029
+                generation: 1
+              status:
+                availableReplicas: 1
+        # Both Applications must list the Deployment before the ownership scan
+        # can be ambiguous.
+        - assert:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Application
+              metadata:
+                name: kick-e2e-029-b
+                namespace: argocd
+              status:
+                (resources[?kind == 'Deployment' && name == 'app-029'] | length(@)): 1
+    - name: change-secret-in-git
+      try:
+        - script:
+            content: ../../setup/gitea/commit-file.sh e2e-029 manifests updated/secret.yaml "rotate app-secret"
+        - script:
+            content: |
+              kubectl -n argocd annotate application kick-e2e-029-a \
+                argocd.argoproj.io/refresh=hard --overwrite
+        - assert:
+            resource:
+              apiVersion: v1
+              kind: Secret
+              metadata:
+                name: app-secret
+                namespace: kick-e2e-029
+              data:
+                # base64 of "beta"
+                token: YmV0YQ==
+    - name: assert-ambiguous-owner-blocks
+      try:
+        - assert:
+            resource:
+              apiVersion: kick.corewire.io/v1alpha1
+              kind: KickRequest
+              metadata:
+                name: deployment-app-029
+                namespace: kick-e2e-029
+              status:
+                phase: WaitingForOwner
+                gate:
+                  reason: AmbiguousOwner
+        - assert:
+            resource:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: app-029
+                namespace: kick-e2e-029
+                generation: 1
+    - name: cleanup
       try:
         - script:
             content: |
-              set -eu
-              deadline=$(( $(date +%s) + 120 ))
-              while true; do
-                count=$(kubectl -n kick-e2e-029 get kickrequests --no-headers 2>/dev/null | wc -l | tr -d ' ')
-                phase=$(kubectl -n kick-e2e-029 get kickrequest deployment-app-029 -o jsonpath='{.status.phase}' 2>/dev/null || true)
-                reason=$(kubectl -n kick-e2e-029 get kickrequest deployment-app-029 -o jsonpath='{.status.gate.reason}' 2>/dev/null || true)
-                latest=$(kubectl -n kick-e2e-029 get kickrequest deployment-app-029 -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
-                if [ "$count" = "1" ] && [ "$phase" = "WaitingForOwner" ] && [ "$reason" = "OwnerUnknown" ]; then
-                  break
-                fi
-                if [ "$(date +%s)" -ge "$deadline" ]; then
-                  echo "expected one WaitingForOwner request for app-029" >&2
-                  kubectl -n kick-e2e-029 get kickrequests -o yaml >&2 || true
-                  exit 1
-                fi
-                sleep 2
-              done
-
-                            phase=$(kubectl -n kick-e2e-029 get kickrequest deployment-app-029 -o jsonpath='{.status.phase}')
-                            reason=$(kubectl -n kick-e2e-029 get kickrequest deployment-app-029 -o jsonpath='{.status.gate.reason}')
-                            if [ "$phase" != "WaitingForOwner" ] || [ "$reason" != "OwnerUnknown" ]; then
-                              echo "expected stable OwnerUnknown gate for baseline scenario" >&2
-                              kubectl -n kick-e2e-029 get kickrequest deployment-app-029 -o yaml >&2 || true
-                              exit 1
-                            fi
-    - name: cleanup
-      try:
+              kubectl -n argocd delete application kick-e2e-029-a kick-e2e-029-b --ignore-not-found
         - delete:
             ref:
               apiVersion: v1

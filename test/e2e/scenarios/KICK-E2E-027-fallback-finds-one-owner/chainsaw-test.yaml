@@ -7,7 +7,7 @@ spec:
     - name: seed-repository
       try:
         - script:
-            content: ../../setup/gitea/seed.sh scenarios/027 manifests
+            content: ../../setup/gitea/seed.sh e2e-027 manifests manifests
     - name: create-fixtures
       try:
         - apply:
@@ -40,7 +40,7 @@ spec:
     - name: change-secret-in-git
       try:
         - script:
-            content: ../../setup/gitea/commit-file.sh scenarios/027 updated/secret.yaml "rotate app-secret"
+            content: ../../setup/gitea/commit-file.sh e2e-027 manifests updated/secret.yaml "rotate app-secret"
         - script:
             content: |
               kubectl -n argocd annotate application kick-e2e-027 \

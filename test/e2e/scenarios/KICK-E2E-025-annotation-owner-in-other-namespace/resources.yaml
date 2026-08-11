@@ -12,35 +12,48 @@ spec:
   discovery:
     workloadSelector: {}
   gitOps:
-    provider: Auto
+    provider: ArgoCD
 ---
-apiVersion: apps/v1
-kind: Deployment
+# "Apps in any namespace": both Applications live next to the workload instead
+# of in the Argo CD namespace. The manager is started with
+# --argocd-application-namespaces=argocd,kick-e2e-025 (see config/e2e).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
 metadata:
-  name: app-025
+  name: kick-e2e-025
   namespace: kick-e2e-025
 spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: app-025
-  template:
-    metadata:
-      labels:
-        app: app-025
-    spec:
-      containers:
-        - name: app
-          image: registry.k8s.io/pause:3.10
-          envFrom:
-            - secretRef:
-                name: app-secret
+  project: kick-e2e
+  source:
+    repoURL: http://gitea.kick-e2e-git.svc.cluster.local:3000/kick-e2e/e2e-025.git
+    targetRevision: main
+    path: manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kick-e2e-025
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
 ---
-apiVersion: v1
-kind: Secret
+# The workload's tracking-id annotation points here. This Application never
+# lists app-025 in status.resources, so resolving to it proves the annotation
+# was honoured outside the Argo CD namespace.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
 metadata:
-  name: app-secret
+  name: kick-e2e-025-annotated
   namespace: kick-e2e-025
-type: Opaque
-stringData:
-  token: alpha
+spec:
+  project: kick-e2e
+  source:
+    repoURL: http://gitea.kick-e2e-git.svc.cluster.local:3000/kick-e2e/e2e-025.git
+    targetRevision: main
+    path: annotated-app
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kick-e2e-025
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

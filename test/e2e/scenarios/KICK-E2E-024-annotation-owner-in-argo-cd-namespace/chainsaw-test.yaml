@@ -4,41 +4,101 @@ metadata:
   name: kick-e2e-024-annotation-owner-in-argo-cd-namespace
 spec:
   steps:
+    - name: seed-repository
+      try:
+        - script:
+            content: ../../setup/gitea/seed.sh e2e-024 manifests manifests
+        - script:
+            content: ../../setup/gitea/seed.sh e2e-024 annotated-app annotated-app
     - name: create-fixtures
       try:
         - apply:
             file: resources.yaml
-    - name: assert-request-created
+    - name: wait-for-initial-sync
+      try:
+        - assert:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Application
+              metadata:
+                name: kick-e2e-024
+                namespace: argocd
+              status:
+                sync:
+                  status: Synced
+                health:
+                  status: Healthy
+        - assert:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Application
+              metadata:
+                name: kick-e2e-024-annotated
+                namespace: argocd
+              status:
+                sync:
+                  status: Synced
+                health:
+                  status: Healthy
+        # generation 1 proves the pod template has not been touched yet.
+        - assert:
+            resource:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: app-024
+                namespace: kick-e2e-024
+                generation: 1
+              status:
+                availableReplicas: 1
+    - name: change-secret-in-git
+      try:
+        - script:
+            content: ../../setup/gitea/commit-file.sh e2e-024 manifests updated/secret.yaml "rotate app-secret"
+        - script:
+            content: |
+              kubectl -n argocd annotate application kick-e2e-024 \
+                argocd.argoproj.io/refresh=hard --overwrite
+        - assert:
+            resource:
+              apiVersion: v1
+              kind: Secret
+              metadata:
+                name: app-secret
+                namespace: kick-e2e-024
+              data:
+                # base64 of "beta"
+                token: YmV0YQ==
+    - name: assert-annotated-owner-restarts
+      try:
+        - assert:
+            resource:
+              apiVersion: kick.corewire.io/v1alpha1
+              kind: KickRequest
+              metadata:
+                name: deployment-app-024
+                namespace: kick-e2e-024
+              status:
+                phase: Succeeded
+                owner:
+                  provider: argocd
+                  kind: Application
+                  namespace: argocd
+                  name: kick-e2e-024-annotated
+        # Exactly one rollout: generation 2, not 3.
+        - assert:
+            resource:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: app-024
+                namespace: kick-e2e-024
+                generation: 2
+    - name: cleanup
       try:
         - script:
             content: |
-              set -eu
-              deadline=$(( $(date +%s) + 120 ))
-              while true; do
-                count=$(kubectl -n kick-e2e-024 get kickrequests --no-headers 2>/dev/null | wc -l | tr -d ' ')
-                phase=$(kubectl -n kick-e2e-024 get kickrequest deployment-app-024 -o jsonpath='{.status.phase}' 2>/dev/null || true)
-                reason=$(kubectl -n kick-e2e-024 get kickrequest deployment-app-024 -o jsonpath='{.status.gate.reason}' 2>/dev/null || true)
-                latest=$(kubectl -n kick-e2e-024 get kickrequest deployment-app-024 -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
-                if [ "$count" = "1" ] && [ "$phase" = "WaitingForOwner" ] && [ "$reason" = "OwnerUnknown" ]; then
-                  break
-                fi
-                if [ "$(date +%s)" -ge "$deadline" ]; then
-                  echo "expected one WaitingForOwner request for app-024" >&2
-                  kubectl -n kick-e2e-024 get kickrequests -o yaml >&2 || true
-                  exit 1
-                fi
-                sleep 2
-              done
-
-                            phase=$(kubectl -n kick-e2e-024 get kickrequest deployment-app-024 -o jsonpath='{.status.phase}')
-                            reason=$(kubectl -n kick-e2e-024 get kickrequest deployment-app-024 -o jsonpath='{.status.gate.reason}')
-                            if [ "$phase" != "WaitingForOwner" ] || [ "$reason" != "OwnerUnknown" ]; then
-                              echo "expected stable OwnerUnknown gate for baseline scenario" >&2
-                              kubectl -n kick-e2e-024 get kickrequest deployment-app-024 -o yaml >&2 || true
-                              exit 1
-                            fi
-    - name: cleanup
-      try:
+              kubectl -n argocd delete application kick-e2e-024 kick-e2e-024-annotated --ignore-not-found
         - delete:
             ref:
               apiVersion: v1

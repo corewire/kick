@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: annotated-marker
+  namespace: kick-e2e-025
+data:
+  marker: "kick-e2e-025-annotated"

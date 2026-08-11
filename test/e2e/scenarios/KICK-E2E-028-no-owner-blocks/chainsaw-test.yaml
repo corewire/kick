@@ -4,41 +4,68 @@ metadata:
   name: kick-e2e-028-no-owner-blocks
 spec:
   steps:
+    - name: seed-repository
+      try:
+        - script:
+            content: ../../setup/gitea/seed.sh e2e-028 unrelated-app unrelated-app
     - name: create-fixtures
       try:
         - apply:
             file: resources.yaml
-    - name: assert-request-created
+    - name: wait-for-initial-state
       try:
-        - script:
-            content: |
-              set -eu
-              deadline=$(( $(date +%s) + 120 ))
-              while true; do
-                count=$(kubectl -n kick-e2e-028 get kickrequests --no-headers 2>/dev/null | wc -l | tr -d ' ')
-                phase=$(kubectl -n kick-e2e-028 get kickrequest deployment-app-028 -o jsonpath='{.status.phase}' 2>/dev/null || true)
-                reason=$(kubectl -n kick-e2e-028 get kickrequest deployment-app-028 -o jsonpath='{.status.gate.reason}' 2>/dev/null || true)
-                latest=$(kubectl -n kick-e2e-028 get kickrequest deployment-app-028 -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
-                if [ "$count" = "1" ] && [ "$phase" = "WaitingForOwner" ] && [ "$reason" = "OwnerUnknown" ]; then
-                  break
-                fi
-                if [ "$(date +%s)" -ge "$deadline" ]; then
-                  echo "expected one WaitingForOwner request for app-028" >&2
-                  kubectl -n kick-e2e-028 get kickrequests -o yaml >&2 || true
-                  exit 1
-                fi
-                sleep 2
-              done
-
-                            phase=$(kubectl -n kick-e2e-028 get kickrequest deployment-app-028 -o jsonpath='{.status.phase}')
-                            reason=$(kubectl -n kick-e2e-028 get kickrequest deployment-app-028 -o jsonpath='{.status.gate.reason}')
-                            if [ "$phase" != "WaitingForOwner" ] || [ "$reason" != "OwnerUnknown" ]; then
-                              echo "expected stable OwnerUnknown gate for baseline scenario" >&2
-                              kubectl -n kick-e2e-028 get kickrequest deployment-app-028 -o yaml >&2 || true
-                              exit 1
-                            fi
+        - assert:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Application
+              metadata:
+                name: kick-e2e-028-unrelated
+                namespace: argocd
+              status:
+                sync:
+                  status: Synced
+                health:
+                  status: Healthy
+        - assert:
+            resource:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: app-028
+                namespace: kick-e2e-028
+                generation: 1
+              status:
+                availableReplicas: 1
+    - name: rotate-secret
+      try:
+        - apply:
+            file: updated/secret.yaml
+    - name: assert-owner-unknown-blocks
+      try:
+        - assert:
+            resource:
+              apiVersion: kick.corewire.io/v1alpha1
+              kind: KickRequest
+              metadata:
+                name: deployment-app-028
+                namespace: kick-e2e-028
+              status:
+                phase: WaitingForOwner
+                gate:
+                  reason: OwnerUnknown
+        # The gate never opens, so the pod template is never touched.
+        - assert:
+            resource:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: app-028
+                namespace: kick-e2e-028
+                generation: 1
     - name: cleanup
       try:
+        - script:
+            content: kubectl -n argocd delete application kick-e2e-028-unrelated --ignore-not-found
         - delete:
             ref:
               apiVersion: v1

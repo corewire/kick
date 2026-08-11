@@ -11,7 +11,6 @@ KUBECONFIG_PATH="${KICK_E2E_KUBECONFIG:-${KUBECONFIG:-.kubeconfig-kind-kick-dev}
 GITEA_NS="${GITEA_NS:-kick-e2e-git}"
 GITEA_USER="${GITEA_USER:-kick-e2e}"
 GITEA_PASSWORD="${GITEA_PASSWORD:-kick-e2e-throwaway}"
-GITEA_REPO="${GITEA_REPO:-apps}"
 
 # Cluster-internal base URL. Anonymous clone works, so Argo CD needs no
 # credentials; only pushes authenticate.
@@ -97,38 +96,40 @@ echo "pushed $1/$2"
 EOF
 }
 
-# Replace <path> with the contents of <local-dir> and push.
+# Replace <path> in <repo> with the contents of <local-dir> and push.
 #
-# The path is replaced rather than merged, so a scenario's initial repository
-# state is a pure function of its fixture directory regardless of what ran
-# before it.
+# Every scenario owns its repository, so parallel scenarios never share a clone
+# directory or race each other's pushes on main. The path is replaced rather
+# than merged, so a scenario's initial repository state is a pure function of
+# its fixture directory regardless of what ran before it.
 gitea_seed_dir() {
-  local path="$1" local_dir="$2" message="${3:-seed $1}"
-  _gitea_clone "$GITEA_REPO"
-  gitea_sh "$GITEA_REPO" "$path" <<'EOF'
+  local repo="$1" path="$2" local_dir="$3" message="${4:-seed $2}"
+  gitea_create_repo "$repo" >/dev/null
+  _gitea_clone "$repo"
+  gitea_sh "$repo" "$path" <<'EOF'
 set -eu
 work="/tmp/kick-e2e/$1"
 rm -rf "${work:?}/$2"
 mkdir -p "$work/$2"
 EOF
   tar cf - -C "$local_dir" . |
-    kc -n "$GITEA_NS" exec -i deploy/gitea -- tar xf - -C "/tmp/kick-e2e/${GITEA_REPO}/${path}"
-  _gitea_push "$GITEA_REPO" "$path" "$message"
+    kc -n "$GITEA_NS" exec -i deploy/gitea -- tar xf - -C "/tmp/kick-e2e/${repo}/${path}"
+  _gitea_push "$repo" "$path" "$message"
 }
 
 # Write a single file below <path> and push, leaving the rest of the path alone.
 # This is how a scenario simulates an operator editing one manifest in git.
 gitea_commit_file() {
-  local path="$1" local_file="$2" message="${3:-update $1}"
-  _gitea_clone "$GITEA_REPO"
+  local repo="$1" path="$2" local_file="$3" message="${4:-update $2}"
+  _gitea_clone "$repo"
   tar cf - -C "$(dirname "$local_file")" "$(basename "$local_file")" |
-    kc -n "$GITEA_NS" exec -i deploy/gitea -- tar xf - -C "/tmp/kick-e2e/${GITEA_REPO}/${path}"
-  _gitea_push "$GITEA_REPO" "$path" "$message"
+    kc -n "$GITEA_NS" exec -i deploy/gitea -- tar xf - -C "/tmp/kick-e2e/${repo}/${path}"
+  _gitea_push "$repo" "$path" "$message"
 }
 
 # Latest commit on main; used to assert a promotion wrote a commit.
 gitea_head_sha() {
-  gitea_sh "$(gitea_repo_url "${1:-$GITEA_REPO}")" <<'EOF'
+  gitea_sh "$(gitea_repo_url "$1")" <<'EOF'
 set -eu
 git ls-remote "$1" refs/heads/main | cut -f1
 EOF

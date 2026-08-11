@@ -12,8 +12,31 @@ spec:
   discovery:
     workloadSelector: {}
   gitOps:
-    provider: Auto
+    provider: ArgoCD
 ---
+# An Argo CD Application is present in the same namespace but manages something
+# else entirely. The status.resources scan therefore runs and still finds no
+# owner for app-028, which is stronger than testing against an empty cluster.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kick-e2e-028-unrelated
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: http://gitea.kick-e2e-git.svc.cluster.local:3000/kick-e2e/e2e-028.git
+    targetRevision: main
+    path: unrelated-app
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kick-e2e-028
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+---
+# Applied straight to the cluster, so no Application ever claims it.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

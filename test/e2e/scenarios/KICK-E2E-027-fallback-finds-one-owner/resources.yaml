@@ -24,9 +24,9 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: http://gitea.kick-e2e-git.svc.cluster.local:3000/kick-e2e/apps.git
+    repoURL: http://gitea.kick-e2e-git.svc.cluster.local:3000/kick-e2e/e2e-027.git
     targetRevision: main
-    path: scenarios/027
+    path: manifests
   destination:
     server: https://kubernetes.default.svc
     namespace: kick-e2e-027
