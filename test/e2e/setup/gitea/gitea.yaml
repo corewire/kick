@@ -1,0 +1,98 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kick-e2e-git
+---
+# Throwaway credentials for an ephemeral, in-cluster test fixture. The Gitea
+# instance is backed by emptyDir, is never exposed outside the kind cluster and
+# is recreated by every run of the integration suites.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gitea-admin
+  namespace: kick-e2e-git
+type: Opaque
+stringData:
+  username: kick-e2e
+  password: kick-e2e-throwaway
+  email: kick-e2e@example.invalid
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gitea
+  namespace: kick-e2e-git
+spec:
+  selector:
+    app: gitea
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gitea
+  namespace: kick-e2e-git
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: gitea
+  template:
+    metadata:
+      labels:
+        app: gitea
+    spec:
+      containers:
+        - name: gitea
+          image: gitea/gitea:1.27.1
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            - name: USER_UID
+              value: "1000"
+            - name: USER_GID
+              value: "1000"
+            # Skip the interactive installer; the instance is fully configured
+            # from environment variables.
+            - name: GITEA__security__INSTALL_LOCK
+              value: "true"
+            - name: GITEA__database__DB_TYPE
+              value: sqlite3
+            - name: GITEA__database__PATH
+              value: /data/gitea/gitea.db
+            - name: GITEA__server__HTTP_PORT
+              value: "3000"
+            - name: GITEA__server__DOMAIN
+              value: gitea.kick-e2e-git.svc.cluster.local
+            - name: GITEA__server__ROOT_URL
+              value: http://gitea.kick-e2e-git.svc.cluster.local:3000/
+            # HTTPS token authentication only. Kargo removed SSH support in
+            # v1.13.0, so no scenario may depend on the git SSH transport.
+            - name: GITEA__server__DISABLE_SSH
+              value: "true"
+            - name: GITEA__service__DISABLE_REGISTRATION
+              value: "true"
+            - name: GITEA__repository__DEFAULT_BRANCH
+              value: main
+            - name: GITEA__security__ALLOWED_HOST_LIST
+              value: "*"
+          readinessProbe:
+            httpGet:
+              path: /api/healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        # State must not survive a suite. Every run starts from an empty
+        # instance and re-seeds deterministic repository content.
+        - name: data
+          emptyDir: {}

@@ -74,6 +74,11 @@ lint: golangci-lint
 static-check: golangci-lint
 	$(GOLANGCI_LINT) run --config .golangci.static.yml
 
+.PHONY: shellcheck
+shellcheck:
+	@command -v shellcheck >/dev/null || { echo "shellcheck not installed"; exit 1; }
+	shellcheck -x $$(find hack test -name '*.sh')
+
 .PHONY: test
 test: setup-envtest
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $(PKGS) -coverprofile cover.out
@@ -208,7 +213,7 @@ $(KAMERA): $(LOCALBIN)
 	GOBIN=$(LOCALBIN) GOTOOLCHAIN=local go install github.com/tgoodwin/kamera/cmd/kamera@$(KAMERA_VERSION)
 
 .PHONY: verify
-verify: fmt vet lint static-check test helm-lint helm-template docs-gen-check feature-coverage
+verify: fmt vet lint static-check shellcheck test helm-lint helm-template docs-gen-check feature-coverage
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE)
