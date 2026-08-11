@@ -19,7 +19,7 @@ spec:
                 phase=$(kubectl -n kick-e2e-014 get kickrequest deployment-app-014 -o jsonpath='{.status.phase}' 2>/dev/null || true)
                 reason=$(kubectl -n kick-e2e-014 get kickrequest deployment-app-014 -o jsonpath='{.status.gate.reason}' 2>/dev/null || true)
                 latest=$(kubectl -n kick-e2e-014 get kickrequest deployment-app-014 -o jsonpath='{.status.latestObservedDependencyChange}' 2>/dev/null || true)
-                if [ "$count" = "1" ] && [ "$phase" = "WaitingForOwner" ] && [ "$reason" = "OwnerUnknown" ]; then
+                if [ "$count" = "1" ] && [ "$phase" = "WaitingForOwner" ] && [ "$reason" = "OwnerUnknown" ] && [ -n "$latest" ]; then
                   break
                 fi
                 if [ "$(date +%s)" -ge "$deadline" ]; then
@@ -30,7 +30,7 @@ spec:
                 sleep 2
               done
 
-              initial=$(kubectl -n kick-e2e-014 get kickrequest deployment-app-014 -o jsonpath='{.status.latestObservedDependencyChange}')
+              initial=$latest
               kubectl -n kick-e2e-014 apply -f - <<'EOF'
               apiVersion: v1
               kind: Secret

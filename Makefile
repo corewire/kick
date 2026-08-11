@@ -88,9 +88,14 @@ e2e-namespace:
 	@KUBECONFIG=$(KIND_KUBECONFIG) $(KUBECTL) --context $(KIND_CONTEXT) create namespace $(E2E_NAMESPACE) --dry-run=client -o yaml | KUBECONFIG=$(KIND_KUBECONFIG) $(KUBECTL) --context $(KIND_CONTEXT) apply -f - >/dev/null
 
 # Deploys the manager with the flags the integration scenarios rely on.
+#
+# The manager probes the optional integration CRDs once at startup, so the
+# rollout is always restarted: installing a CRD after the manager started would
+# otherwise leave the integration silently inactive.
 .PHONY: e2e-install
 e2e-install: manifests kustomize
 	$(KUSTOMIZE) build config/e2e | $(KUBECTL) --kubeconfig $(KIND_KUBECONFIG) --context $(KIND_CONTEXT) apply -f -
+	$(KUBECTL) --kubeconfig $(KIND_KUBECONFIG) --context $(KIND_CONTEXT) -n kick-system rollout restart deployment/kick-controller-manager
 	$(KUBECTL) --kubeconfig $(KIND_KUBECONFIG) --context $(KIND_CONTEXT) -n kick-system rollout status deployment/kick-controller-manager --timeout=180s
 
 # Installs the in-cluster Git server the GitOps scenarios sync from.
@@ -103,8 +108,21 @@ e2e-git-server:
 e2e-argocd-config:
 	KICK_E2E_KUBECONFIG=$(KIND_KUBECONFIG) test/e2e/setup/argocd/configure-argocd.sh
 
+# Installs the Argo Rollouts controller and its CRDs.
+.PHONY: e2e-rollouts
+e2e-rollouts:
+	KICK_E2E_KUBECONFIG=$(KIND_KUBECONFIG) test/e2e/setup/rollouts/install-rollouts.sh
+
+# Shared prerequisites of every integration suite. Optional integration CRDs are
+# installed by the per-suite targets before e2e-install starts the manager.
+.PHONY: e2e-base-setup
+e2e-base-setup: e2e-namespace e2e-git-server e2e-argocd-config
+
 .PHONY: e2e-integration-setup
-e2e-integration-setup: e2e-namespace e2e-install e2e-git-server e2e-argocd-config
+e2e-integration-setup: e2e-base-setup e2e-install
+
+.PHONY: e2e-rollouts-setup
+e2e-rollouts-setup: e2e-base-setup e2e-rollouts e2e-install
 
 .PHONY: test-e2e
 test-e2e: chainsaw e2e-namespace
@@ -123,7 +141,7 @@ test-e2e-recovery: chainsaw e2e-namespace
 	$(call e2e_suite,recovery,-E,$(E2E_IDS_RECOVERY),$(E2E_CHAINSAW_CONFIG))
 
 .PHONY: test-e2e-rollouts
-test-e2e-rollouts: chainsaw e2e-integration-setup
+test-e2e-rollouts: chainsaw e2e-rollouts-setup
 	$(call e2e_suite,argo-rollouts,-E,$(E2E_IDS_ROLLOUTS),$(E2E_CHAINSAW_CONFIG_INTEGRATION))
 
 .PHONY: test-e2e-csi
@@ -134,15 +152,18 @@ test-e2e-csi: chainsaw e2e-integration-setup
 test-e2e-kargo: chainsaw e2e-integration-setup
 	$(call e2e_suite,kargo,-E,$(E2E_IDS_KARGO),$(E2E_CHAINSAW_CONFIG_INTEGRATION))
 
+# Runs a single scenario by ID or directory-name fragment. Uses the integration
+# timeout budget so it works for both core and integration scenarios; the
+# suite prerequisites are not installed, so run the matching setup target first.
 .PHONY: test-e2e-scenario
 test-e2e-scenario: chainsaw e2e-namespace
-	@if [[ -z "$(E2E)" ]]; then echo "E2E is required, e.g. make test-e2e-scenario E2E=KICK-E2E-032"; exit 1; fi
-	@scenario_dir="$$(find test/e2e/scenarios -mindepth 1 -maxdepth 1 -type d | grep -i '/$(E2E)\b' | head -n 1)"; \
+	@if [[ -z "$(E2E)" ]]; then echo "E2E is required, e.g. make test-e2e-scenario E2E=032"; exit 1; fi
+	@scenario_dir="$$(find test/e2e/scenarios -mindepth 1 -maxdepth 1 -type d | grep -i '/KICK-E2E-$(E2E)\|/$(E2E)' | head -n 1)"; \
 	if [[ -z "$$scenario_dir" ]]; then \
 		echo "no scenario directory matches E2E=$(E2E)"; \
 		exit 1; \
 	fi; \
-	KUBECONFIG=$(KIND_KUBECONFIG) $(CHAINSAW) test --config test/e2e/chainsaw-configuration.yaml --kube-context $(KIND_CONTEXT) "$$scenario_dir"
+	KUBECONFIG=$(KIND_KUBECONFIG) $(CHAINSAW) test --config $(E2E_CHAINSAW_CONFIG_INTEGRATION) --kube-context $(KIND_CONTEXT) "$$scenario_dir"
 
 .PHONY: test-e2e-render
 test-e2e-render: chainsaw

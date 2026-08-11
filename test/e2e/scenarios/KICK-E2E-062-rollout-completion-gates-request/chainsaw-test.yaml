@@ -1,0 +1,130 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: kick-e2e-062-rollout-completion-gates-request
+spec:
+  steps:
+    - name: create-dependency
+      try:
+        - apply:
+            file: resources.yaml
+    - name: wait-for-the-dependency-baseline
+      # KICK keeps its observation baseline in a Lease. Waiting for that Lease
+      # before the workload exists makes the rotation below the only dependency
+      # change this namespace ever produces.
+      try:
+        - assert:
+            resource:
+              apiVersion: coordination.k8s.io/v1
+              kind: Lease
+              metadata:
+                namespace: kick-e2e-062
+                annotations:
+                  kick.corewire.io/kind: Secret
+                  kick.corewire.io/objectName: app-secret
+    - name: create-workload
+      try:
+        - apply:
+            file: workload.yaml
+    - name: wait-for-initial-revision
+      # Argo Rollouts skips the canary steps for the first revision, so the
+      # workload settles without a pause.
+      try:
+        - assert:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Rollout
+              metadata:
+                name: app-062
+                namespace: kick-e2e-062
+              status:
+                phase: Healthy
+                updatedReplicas: 2
+                readyReplicas: 2
+    - name: start-a-second-revision
+      try:
+        - apply:
+            file: updated/workload.yaml
+    - name: wait-for-the-rollout-to-pause
+      # The pause step keeps the rollout incomplete for a minute. This is the
+      # in-flight rollout that KICK must not interrupt.
+      try:
+        - assert:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Rollout
+              metadata:
+                name: app-062
+                namespace: kick-e2e-062
+              status:
+                # The freshness evaluator treats every phase but Healthy as an
+                # incomplete rollout.
+                (phase != 'Healthy'): true
+                (length(pauseConditions || `[]`)): 1
+    - name: rotate-secret
+      try:
+        - apply:
+            file: updated/secret.yaml
+    - name: assert-request-waits-for-the-rollout
+      try:
+        - assert:
+            resource:
+              apiVersion: kick.corewire.io/v1alpha1
+              kind: KickRequest
+              metadata:
+                name: rollout-app-062
+                namespace: kick-e2e-062
+              status:
+                phase: WaitingForRollout
+        - script:
+            content: |
+              restart_at=$(kubectl -n kick-e2e-062 get rollout app-062 -o jsonpath='{.spec.restartAt}')
+              if [ -n "$restart_at" ]; then
+                echo "KICK restarted the rollout while it was still progressing: $restart_at"
+                exit 1
+              fi
+    - name: assert-request-succeeds-after-the-rollout
+      # Once the pause elapses the rollout completes on its own, and only then
+      # does KICK issue the restart the rotated Secret requires.
+      try:
+        - assert:
+            timeout: 4m
+            resource:
+              apiVersion: kick.corewire.io/v1alpha1
+              kind: KickRequest
+              metadata:
+                name: rollout-app-062
+                namespace: kick-e2e-062
+              status:
+                phase: Succeeded
+        - assert:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Rollout
+              metadata:
+                name: app-062
+                namespace: kick-e2e-062
+              status:
+                phase: Healthy
+                readyReplicas: 2
+        - script:
+            content: |
+              restart_at=$(kubectl -n kick-e2e-062 get rollout app-062 -o jsonpath='{.spec.restartAt}')
+              if [ -z "$restart_at" ]; then
+                echo "KICK did not use spec.restartAt"
+                exit 1
+              fi
+              revisions=$(kubectl -n kick-e2e-062 get replicaset \
+                -l app=app-062 -o name | wc -l | tr -d ' ')
+              if [ "$revisions" != "2" ]; then
+                echo "expected the two revisions the test created, found $revisions"
+                kubectl -n kick-e2e-062 get replicaset -l app=app-062
+                exit 1
+              fi
+    - name: cleanup
+      try:
+        - delete:
+            ref:
+              apiVersion: v1
+              kind: Namespace
+              name: kick-e2e-062

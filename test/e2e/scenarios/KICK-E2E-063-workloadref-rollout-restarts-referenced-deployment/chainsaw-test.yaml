@@ -1,0 +1,113 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: kick-e2e-063-workloadref-rollout-restarts-referenced-deployment
+spec:
+  steps:
+    - name: create-dependency
+      try:
+        - apply:
+            file: resources.yaml
+    - name: wait-for-the-dependency-baseline
+      # KICK keeps its observation baseline in a Lease. Waiting for that Lease
+      # before the workload exists makes the rotation below the only dependency
+      # change this namespace ever produces.
+      try:
+        - assert:
+            resource:
+              apiVersion: coordination.k8s.io/v1
+              kind: Lease
+              metadata:
+                namespace: kick-e2e-063
+                annotations:
+                  kick.corewire.io/kind: Secret
+                  kick.corewire.io/objectName: app-secret
+    - name: create-workload
+      try:
+        - apply:
+            file: workload.yaml
+    - name: wait-for-initial-revision
+      try:
+        - assert:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Rollout
+              metadata:
+                name: app-063-rollout
+                namespace: kick-e2e-063
+              status:
+                phase: Healthy
+                readyReplicas: 2
+    - name: rotate-secret
+      try:
+        - apply:
+            file: updated/secret.yaml
+    - name: assert-referenced-deployment-is-restarted
+      try:
+        - assert:
+            resource:
+              apiVersion: kick.corewire.io/v1alpha1
+              kind: KickRequest
+              metadata:
+                name: deployment-app-063
+                namespace: kick-e2e-063
+              spec:
+                targetRef:
+                  apiVersion: apps/v1
+                  kind: Deployment
+                  name: app-063
+              status:
+                phase: Succeeded
+        - script:
+            content: |
+              restarted_at=$(kubectl -n kick-e2e-063 get deployment app-063 \
+                -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}')
+              if [ -z "$restarted_at" ]; then
+                echo "the referenced Deployment was not restarted"
+                exit 1
+              fi
+    - name: assert-rollout-itself-is-not-targeted
+      # A Rollout that uses workloadRef has no inline pod template, so it
+      # consumes no dependency of its own and must not get its own KickRequest.
+      try:
+        - error:
+            resource:
+              apiVersion: kick.corewire.io/v1alpha1
+              kind: KickRequest
+              metadata:
+                name: rollout-app-063-rollout
+                namespace: kick-e2e-063
+    - name: assert-rollout-adopts-the-restarted-template
+      # Restarting the referenced Deployment changes the pod template the
+      # Rollout copies, so the Rollout runs its full strategy for the change.
+      try:
+        - assert:
+            timeout: 4m
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Rollout
+              metadata:
+                name: app-063-rollout
+                namespace: kick-e2e-063
+              status:
+                phase: Healthy
+                readyReplicas: 2
+        - script:
+            content: |
+              restarted_at=$(kubectl -n kick-e2e-063 get deployment app-063 \
+                -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}')
+              adopted=$(kubectl -n kick-e2e-063 get replicaset -l rollouts-pod-template-hash \
+                -o jsonpath='{range .items[*]}{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}{"\n"}{end}' \
+                | grep -c -x -- "$restarted_at")
+              if [ "$adopted" -lt 1 ]; then
+                echo "the Rollout did not adopt the restarted pod template"
+                kubectl -n kick-e2e-063 get replicaset -l rollouts-pod-template-hash
+                exit 1
+              fi
+    - name: cleanup
+      try:
+        - delete:
+            ref:
+              apiVersion: v1
+              kind: Namespace
+              name: kick-e2e-063

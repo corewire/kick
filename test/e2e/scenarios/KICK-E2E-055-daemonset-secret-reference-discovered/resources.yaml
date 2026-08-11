@@ -12,6 +12,19 @@ spec:
   discovery:
     workloadSelector: {}
 ---
+# The secret is declared before the workload so that it provably exists before
+# the DaemonSet is created. A source that only appears afterwards is a source
+# the running pods never had, which KICK restarts for on purpose (KICK-E2E-010),
+# and this scenario is about discovery and rotation instead.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secret
+  namespace: kick-e2e-055
+type: Opaque
+stringData:
+  token: alpha
+---
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -32,12 +45,3 @@ spec:
           envFrom:
             - secretRef:
                 name: app-secret
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: app-secret
-  namespace: kick-e2e-055
-type: Opaque
-stringData:
-  token: alpha

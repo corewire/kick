@@ -188,7 +188,10 @@ func TestKickRequestStatusRoundTripEnvtest(t *testing.T) {
 	if err := c.Get(ctx, types.NamespacedName{Namespace: "team-c", Name: "api"}, &got); err != nil {
 		t.Fatalf("get kickrequest before status update: %v", err)
 	}
-	latest := metav1.NewTime(time.Date(2026, 8, 6, 12, 1, 0, 0, time.UTC))
+	// The sub-second component is load-bearing: rollout timestamps have second
+	// granularity, so a change stored without it looks like it happened before a
+	// rollout that it actually followed.
+	latest := metav1.NewMicroTime(time.Date(2026, 8, 6, 12, 1, 0, 954963000, time.UTC))
 	requeueAt := metav1.NewTime(time.Date(2026, 8, 6, 12, 2, 0, 0, time.UTC))
 	startedAt := metav1.NewTime(time.Date(2026, 8, 6, 12, 3, 0, 0, time.UTC))
 	got.Status = kickv1alpha1.KickRequestStatus{

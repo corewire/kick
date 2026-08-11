@@ -33,6 +33,7 @@ func TestLeaseStorePersistsAcrossObserverInstances(t *testing.T) {
 	if res1.Kind != BaselineEstablished {
 		t.Fatalf("baseline kind = %s", res1.Kind)
 	}
+	commit(t, observer1, res1)
 
 	observer2 := NewObserver(store, nil)
 	res2, err := observer2.ObserveConfigMap(ctx, nil, testConfigMap("ns", "cfg", "2", map[string]string{"a": "1"}), at.Add(time.Minute))

@@ -404,7 +404,7 @@ features:
   tests:
     unit: required
     envtest: not_applicable
-    e2e: not_applicable
+    e2e: required
   coverage:
     unit:
     - internal/rollout/argorollout_test.go
@@ -413,9 +413,11 @@ features:
   rationale:
     envtest: The Rollout CRD is owned by Argo Rollouts and is not vendored here, so
       envtest would assert an upstream schema rather than KICK behavior.
-    e2e: Observing a Rollout restart requires the Argo Rollouts controller, which is
-      not installed in the e2e kind cluster.
-  e2e: []
+  e2e:
+  - KICK-E2E-060
+  - KICK-E2E-061
+  - KICK-E2E-062
+  - KICK-E2E-063
 - id: KICK-FEAT-025
   name: Kargo stage promotion gate
   spec: ai-docs/gap-analysis/04-reloader-parity-gaps.md

@@ -33,7 +33,7 @@ func NewCoalescer(c client.Client, retention RetentionConfig) *Coalescer {
 // EnsureActiveRequest creates or updates one active KickRequest for a target.
 func (c *Coalescer) EnsureActiveRequest(ctx context.Context, namespace string, target kickv1alpha1.ObjectReference, policyName string, latestObservedChange time.Time) (*kickv1alpha1.KickRequest, error) {
 	key := types.NamespacedName{Namespace: namespace, Name: requestNameForTarget(target)}
-	if err := c.ensureRequestObject(ctx, key, target, policyName); err != nil {
+	if err := c.ensureRequestObject(ctx, key, target, policyName, latestObservedChange); err != nil {
 		return nil, err
 	}
 
@@ -50,7 +50,7 @@ func (c *Coalescer) EnsureActiveRequest(ctx context.Context, namespace string, t
 
 // ensureRequestObject creates the request when absent, otherwise re-roots its
 // trace if a new restart cycle is starting.
-func (c *Coalescer) ensureRequestObject(ctx context.Context, key types.NamespacedName, target kickv1alpha1.ObjectReference, policyName string) error {
+func (c *Coalescer) ensureRequestObject(ctx context.Context, key types.NamespacedName, target kickv1alpha1.ObjectReference, policyName string, latestObservedChange time.Time) error {
 	var request kickv1alpha1.KickRequest
 	err := c.Get(ctx, key, &request)
 	if apierrors.IsNotFound(err) {
@@ -61,6 +61,9 @@ func (c *Coalescer) ensureRequestObject(ctx context.Context, key types.Namespace
 	}
 
 	if request.Status.Phase != "" && !isTerminalPhase(request.Status.Phase) {
+		return nil
+	}
+	if !startsNewCycle(&request, latestObservedChange) {
 		return nil
 	}
 	return c.rerootTrace(ctx, &request)
@@ -106,6 +109,14 @@ func (c *Coalescer) updateStatusWithRetry(ctx context.Context, key types.Namespa
 			return err
 		}
 
+		// Hand-off from the observer is at-least-once: an observation is only
+		// forgotten once it has been enqueued, so the same change can arrive
+		// twice. Re-opening the request for a change it already recorded would
+		// throw away the outcome KICK reached for exactly that change.
+		if !startsNewCycle(&request, latestObservedChange) {
+			return nil
+		}
+
 		if request.Status.Phase == "" || isTerminalPhase(request.Status.Phase) {
 			request.Status.Phase = kickv1alpha1.KickRequestPhasePending
 			// Clear the prior rollout so the executor issues a fresh restart for
@@ -113,13 +124,18 @@ func (c *Coalescer) updateStatusWithRetry(ctx context.Context, key types.Namespa
 			request.Status.CurrentRollout = kickv1alpha1.RolloutStatus{}
 		}
 
-		if request.Status.LatestObservedDependencyChange == nil || latestObservedChange.After(request.Status.LatestObservedDependencyChange.Time) {
-			t := metav1.NewTime(latestObservedChange.UTC())
-			request.Status.LatestObservedDependencyChange = &t
-		}
+		t := metav1.NewMicroTime(latestObservedChange.UTC())
+		request.Status.LatestObservedDependencyChange = &t
 
 		return c.Status().Update(ctx, &request)
 	})
+}
+
+// startsNewCycle reports whether the observed change is newer than the one the
+// request already carries, and therefore opens a new restart cycle.
+func startsNewCycle(request *kickv1alpha1.KickRequest, latestObservedChange time.Time) bool {
+	known := request.Status.LatestObservedDependencyChange
+	return known == nil || latestObservedChange.After(known.Time)
 }
 
 func isTerminalPhase(phase kickv1alpha1.KickRequestPhase) bool {

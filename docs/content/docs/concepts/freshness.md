@@ -23,9 +23,27 @@ The decision is a strict comparison:
 KICK always **re-reads live state** immediately before restarting, so a rollout
 that started in the meantime is never restarted twice.
 
-## Initial-baseline limitation
+## Initial baseline
 
-Freshness needs an authoritative change timestamp. The first time KICK observes
-a dependency it records a baseline anchored to the source's creation time — it
-cannot infer drift that happened *before* observation began. From that baseline
+Freshness needs an authoritative change timestamp, and the first observation of
+a dependency never witnessed the change that produced the content it finds. KICK
+therefore dates that content from what the API server recorded: the source's
+creation time, or the last write any field manager made to it, whichever is
+later.
+
+- A source untouched since creation carries exactly what the workload picked up
+  when it rolled out, so it is fresh and adopting a workload never restarts it.
+- A source written after its creation is dated to that write, exactly as the API
+  server recorded it. Kubernetes' own timestamps are second-granular, so KICK
+  keeps its change times at sub-second precision: a change made in the same
+  second as a rollout is still recognised as newer.
+
+Drift that the API server did not record - a write by a client that does not use
+server-side field management - still cannot be inferred. From the baseline
 onward, every relevant change advances Λ and is compared normally.
+
+Evaluation is driven by observed changes, including the first observation of a
+source. A workload created after all of its dependencies already exist is fresh
+by construction — its Pods started from the current content of every source — so
+no `KickRequest` is created for it. The next relevant change to one of its
+sources triggers evaluation as usual.

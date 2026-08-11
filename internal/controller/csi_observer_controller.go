@@ -76,7 +76,7 @@ func (r *SecretProviderClassObservationReconciler) Reconcile(ctx context.Context
 		return ctrl.Result{RequeueAfter: csiInconsistentRequeue}, nil
 	}
 	if result.Kind != observation.RelevantChange {
-		return ctrl.Result{}, nil
+		return ctrl.Result{}, r.Observer.Commit(ctx, result)
 	}
 
 	consumers, err := dependency.LookupConsumingWorkloads(ctx, r.Client, dependency.DependencyRef{
@@ -89,9 +89,12 @@ func (r *SecretProviderClassObservationReconciler) Reconcile(ctx context.Context
 		return ctrl.Result{}, err
 	}
 	if len(consumers) == 0 {
-		return ctrl.Result{}, nil
+		return ctrl.Result{}, r.Observer.Commit(ctx, result)
 	}
-	return ctrl.Result{}, r.Enqueuer.EnqueueForConsumers(ctx, result.Identity, r.classLabels(ctx, req.Namespace, req.Name), consumers, observedAt)
+	if err := r.Enqueuer.EnqueueForConsumers(ctx, result.Identity, r.classLabels(ctx, req.Namespace, req.Name), consumers, result.ChangeTime()); err != nil {
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{}, r.Observer.Commit(ctx, result)
 }
 
 // classLabels returns the labels of the SecretProviderClass so dependency

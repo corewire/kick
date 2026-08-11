@@ -177,6 +177,13 @@ spec:
                     type: string
                 type: object
               latestObservedDependencyChange:
+                description: |-
+                  LatestObservedDependencyChange is the moment of the newest relevant
+                  source change this request was opened for. It is a MicroTime because the
+                  request is compared against rollout timestamps that the API server
+                  records with second granularity: truncating this field to seconds too
+                  would make a change that happened within the same second as the rollout
+                  look like it preceded it.
                 format: date-time
                 type: string
               owner:

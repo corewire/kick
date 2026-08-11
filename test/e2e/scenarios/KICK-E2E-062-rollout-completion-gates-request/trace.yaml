@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-062
+name: rollout-completion-gates-request
+features:
+  - KICK-FEAT-024
+provider: argo-rollouts
+class: behavior
+required: true

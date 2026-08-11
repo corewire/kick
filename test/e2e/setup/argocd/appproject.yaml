@@ -17,3 +17,21 @@ spec:
   # instead of in the Argo CD namespace.
   sourceNamespaces:
     - "kick-e2e-*"
+---
+# Scenarios that do not exercise project semantics use Argo CD's built-in
+# `default` project. Argo CD only creates it on a fresh install, so the suite
+# declares it as well and no longer depends on the state of a shared cluster.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: default
+  namespace: argocd
+spec:
+  sourceRepos:
+    - "*"
+  destinations:
+    - namespace: "*"
+      server: "*"
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"

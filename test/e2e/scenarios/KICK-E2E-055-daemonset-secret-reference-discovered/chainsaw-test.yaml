@@ -16,16 +16,22 @@ spec:
               NS=kick-e2e-055
               deadline=$(( $(date +%s) + 150 ))
 
-              # 1. Baseline: KICK discovers the dependency and settles the request
-              #    terminal by adopting the workload's initial rollout.
+              # 1. Baseline: the secret exists before the workload, so the pods
+              #    start from its current content and KICK must leave them alone.
+              #    KICK evaluates a workload when it observes a change to one of
+              #    its sources, so a workload created after all of its sources are
+              #    already observed is fresh by construction and gets no
+              #    KickRequest at all. Wait until the workload runs and KICK has
+              #    recorded its observation of the secret (one Lease per source).
               while true; do
-                phase=$(kubectl -n $NS get kickrequest daemonset-app-055 -o jsonpath='{.status.phase}' 2>/dev/null || true)
-                if [ "$phase" = "Succeeded" ] || [ "$phase" = "NoLongerRequired" ]; then
+                ready=$(kubectl -n $NS get daemonset app-055 -o jsonpath='{.status.numberReady}' 2>/dev/null || true)
+                observed=$(kubectl -n $NS get leases -o name 2>/dev/null | wc -l)
+                if [ "${ready:-0}" -ge 1 ] && [ "$observed" -ge 1 ]; then
                   break
                 fi
                 if [ "$(date +%s)" -ge "$deadline" ]; then
-                  echo "baseline KickRequest daemonset-app-055 never settled" >&2
-                  kubectl -n $NS get kickrequests -o yaml >&2 || true
+                  echo "baseline for app-055 never settled" >&2
+                  kubectl -n $NS get daemonsets,leases,kickrequests -o yaml >&2 || true
                   exit 1
                 fi
                 sleep 3

@@ -1,0 +1,29 @@
+# A canary Rollout with a real pause step. Restarting through the pod template
+# would re-run the strategy from step 0 and create a second ReplicaSet, so this
+# workload only stays healthy if KICK uses spec.restartAt.
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: app-060
+  namespace: kick-e2e-060
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: app-060
+  template:
+    metadata:
+      labels:
+        app: app-060
+    spec:
+      containers:
+        - name: app
+          image: registry.k8s.io/pause:3.10
+          envFrom:
+            - secretRef:
+                name: app-secret
+  strategy:
+    canary:
+      steps:
+        - setWeight: 50
+        - pause: {}

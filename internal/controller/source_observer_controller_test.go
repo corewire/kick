@@ -19,12 +19,14 @@ import (
 )
 
 type captureEnqueuer struct {
-	calls int
-	seen  map[string]struct{}
+	calls      int
+	seen       map[string]struct{}
+	lastChange time.Time
 }
 
-func (e *captureEnqueuer) EnqueueForConsumers(_ context.Context, _ observation.SourceIdentity, _ map[string]string, consumers []dependency.ConsumerTarget, _ time.Time) error {
+func (e *captureEnqueuer) EnqueueForConsumers(_ context.Context, _ observation.SourceIdentity, _ map[string]string, consumers []dependency.ConsumerTarget, changedAt time.Time) error {
 	e.calls++
+	e.lastChange = changedAt
 	if e.seen == nil {
 		e.seen = map[string]struct{}{}
 	}
@@ -32,6 +34,32 @@ func (e *captureEnqueuer) EnqueueForConsumers(_ context.Context, _ observation.S
 		e.seen[c.Namespace+"/"+c.Name+"/"+c.Kind] = struct{}{}
 	}
 	return nil
+}
+
+// withWorkloadIndexes registers the reverse indexes the observation reconciler
+// relies on, mirroring RegisterWorkloadReverseIndexes for the fake client.
+func withWorkloadIndexes(b *fake.ClientBuilder) *fake.ClientBuilder {
+	b = b.WithIndex(&appsv1.Deployment{}, dependency.SecretReferenceIndexField, func(raw client.Object) []string {
+		return indexedRefs(raw, dependency.Secret)
+	})
+	b = b.WithIndex(&appsv1.Deployment{}, dependency.ConfigMapReferenceIndexField, func(raw client.Object) []string {
+		return indexedRefs(raw, dependency.ConfigMap)
+	})
+	b = b.WithIndex(&appsv1.StatefulSet{}, dependency.SecretReferenceIndexField, func(client.Object) []string { return nil })
+	b = b.WithIndex(&appsv1.StatefulSet{}, dependency.ConfigMapReferenceIndexField, func(client.Object) []string { return nil })
+	b = b.WithIndex(&appsv1.DaemonSet{}, dependency.SecretReferenceIndexField, func(client.Object) []string { return nil })
+	return b.WithIndex(&appsv1.DaemonSet{}, dependency.ConfigMapReferenceIndexField, func(client.Object) []string { return nil })
+}
+
+func indexedRefs(raw client.Object, kind dependency.Kind) []string {
+	deps := dependency.ExtractDependenciesForObject(raw)
+	out := make([]string, 0, len(deps))
+	for _, d := range deps {
+		if d.Kind == kind {
+			out = append(out, d.Namespace+"/"+d.Name)
+		}
+	}
+	return out
 }
 
 func TestSourceObserverRelevantAndMetadataOnlyBehavior(t *testing.T) {
@@ -60,31 +88,7 @@ func TestSourceObserverRelevantAndMetadataOnlyBehavior(t *testing.T) {
 
 	indexer := fake.NewClientBuilder().WithScheme(scheme)
 	indexer = indexer.WithObjects(deployment, secret)
-	indexer = indexer.WithIndex(&appsv1.Deployment{}, dependency.SecretReferenceIndexField, func(raw client.Object) []string {
-		deps := dependency.ExtractDependencies(raw.(*appsv1.Deployment))
-		out := make([]string, 0, len(deps))
-		for _, d := range deps {
-			if d.Kind == dependency.Secret {
-				out = append(out, d.Namespace+"/"+d.Name)
-			}
-		}
-		return out
-	})
-	indexer = indexer.WithIndex(&appsv1.Deployment{}, dependency.ConfigMapReferenceIndexField, func(raw client.Object) []string {
-		deps := dependency.ExtractDependencies(raw.(*appsv1.Deployment))
-		out := make([]string, 0, len(deps))
-		for _, d := range deps {
-			if d.Kind == dependency.ConfigMap {
-				out = append(out, d.Namespace+"/"+d.Name)
-			}
-		}
-		return out
-	})
-	indexer = indexer.WithIndex(&appsv1.StatefulSet{}, dependency.SecretReferenceIndexField, func(client.Object) []string { return nil })
-	indexer = indexer.WithIndex(&appsv1.StatefulSet{}, dependency.ConfigMapReferenceIndexField, func(client.Object) []string { return nil })
-	indexer = indexer.WithIndex(&appsv1.DaemonSet{}, dependency.SecretReferenceIndexField, func(client.Object) []string { return nil })
-	indexer = indexer.WithIndex(&appsv1.DaemonSet{}, dependency.ConfigMapReferenceIndexField, func(client.Object) []string { return nil })
-	c := indexer.Build()
+	c := withWorkloadIndexes(indexer).Build()
 
 	enqueuer := &captureEnqueuer{}
 	r := &SourceObservationReconciler{
@@ -136,5 +140,58 @@ func TestSourceObserverRelevantAndMetadataOnlyBehavior(t *testing.T) {
 	}
 	if enqueuer.calls != 2 {
 		t.Fatalf("relevant change should enqueue, calls = %d", enqueuer.calls)
+	}
+}
+
+// A baseline is anchored to the source's last recorded write, and the request
+// opened for it has to carry that same time. Enqueuing the wall-clock moment
+// KICK happened to see the source would make an unchanged dependency look newer
+// than the workload's rollout and trigger a restart the observation store
+// itself does not justify.
+func TestSourceObserverEnqueuesBaselineChangeTime(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatalf("add kube scheme: %v", err)
+	}
+
+	createdAt := time.Now().UTC().Add(-time.Hour).Truncate(time.Second)
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{Name: "app", Namespace: "ns"},
+		Spec: appsv1.DeploymentSpec{
+			Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "x"}},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "x"}},
+				Spec: corev1.PodSpec{Containers: []corev1.Container{{
+					Name:  "app",
+					Image: "registry.k8s.io/pause:3.10",
+					EnvFrom: []corev1.EnvFromSource{{
+						SecretRef: &corev1.SecretEnvSource{LocalObjectReference: corev1.LocalObjectReference{Name: "s1"}},
+					}},
+				}}},
+			},
+		},
+	}
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "s1", Namespace: "ns", ResourceVersion: "1", CreationTimestamp: metav1.NewTime(createdAt)},
+		Data:       map[string][]byte{"k": []byte("v1")},
+	}
+
+	c := withWorkloadIndexes(fake.NewClientBuilder().WithScheme(scheme).WithObjects(deployment, secret)).Build()
+	enqueuer := &captureEnqueuer{}
+	r := &SourceObservationReconciler{
+		Client:   c,
+		Scheme:   scheme,
+		Observer: observation.NewObserver(observation.NewMemoryStore(), nil),
+		Enqueuer: enqueuer,
+	}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Namespace: "ns", Name: "s1"}}); err != nil {
+		t.Fatalf("reconcile baseline: %v", err)
+	}
+	if enqueuer.calls != 1 {
+		t.Fatalf("baseline enqueue calls = %d, want 1", enqueuer.calls)
+	}
+	if !enqueuer.lastChange.Equal(createdAt) {
+		t.Fatalf("enqueued change time = %s, want the source's last write time %s", enqueuer.lastChange, createdAt)
 	}
 }

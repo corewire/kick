@@ -369,3 +369,27 @@ scenarios:
     status: required
     features:
       - KICK-FEAT-026
+  - id: KICK-E2E-060
+    name: canary restart does not rerun steps
+    directory: test/e2e/scenarios/KICK-E2E-060-canary-restart-does-not-rerun-steps
+    status: required
+    features:
+      - KICK-FEAT-024
+  - id: KICK-E2E-061
+    name: blue green restart keeps active service
+    directory: test/e2e/scenarios/KICK-E2E-061-blue-green-restart-keeps-active-service
+    status: required
+    features:
+      - KICK-FEAT-024
+  - id: KICK-E2E-062
+    name: rollout completion gates request
+    directory: test/e2e/scenarios/KICK-E2E-062-rollout-completion-gates-request
+    status: required
+    features:
+      - KICK-FEAT-024
+  - id: KICK-E2E-063
+    name: workloadref rollout restarts referenced deployment
+    directory: test/e2e/scenarios/KICK-E2E-063-workloadref-rollout-restarts-referenced-deployment
+    status: required
+    features:
+      - KICK-FEAT-024

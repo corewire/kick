@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-060
+name: canary-restart-does-not-rerun-steps
+features:
+  - KICK-FEAT-024
+provider: argo-rollouts
+class: behavior
+required: true

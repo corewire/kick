@@ -1,0 +1,105 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: kick-e2e-060-canary-restart-does-not-rerun-steps
+spec:
+  steps:
+    - name: create-dependency
+      try:
+        - apply:
+            file: resources.yaml
+    - name: wait-for-the-dependency-baseline
+      # KICK keeps its observation baseline in a Lease. Waiting for that Lease
+      # before the workload exists makes the rotation below the only dependency
+      # change this namespace ever produces, so every restart asserted further
+      # down is unambiguously caused by it.
+      try:
+        - assert:
+            resource:
+              apiVersion: coordination.k8s.io/v1
+              kind: Lease
+              metadata:
+                namespace: kick-e2e-060
+                annotations:
+                  kick.corewire.io/kind: Secret
+                  kick.corewire.io/objectName: app-secret
+    - name: create-workload
+      try:
+        - apply:
+            file: workload.yaml
+    - name: wait-for-initial-revision
+      # The first revision of a Rollout is never put through the canary steps,
+      # so a healthy Rollout here already sits at the last step.
+      try:
+        - assert:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Rollout
+              metadata:
+                name: app-060
+                namespace: kick-e2e-060
+              status:
+                phase: Healthy
+                currentStepIndex: 2
+                readyReplicas: 2
+    - name: rotate-secret
+      try:
+        - apply:
+            file: updated/secret.yaml
+    - name: assert-restart-completed
+      try:
+        - assert:
+            resource:
+              apiVersion: kick.corewire.io/v1alpha1
+              kind: KickRequest
+              metadata:
+                name: rollout-app-060
+                namespace: kick-e2e-060
+              spec:
+                targetRef:
+                  apiVersion: argoproj.io/v1alpha1
+                  kind: Rollout
+                  name: app-060
+              status:
+                phase: Succeeded
+        - assert:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Rollout
+              metadata:
+                name: app-060
+                namespace: kick-e2e-060
+              status:
+                phase: Healthy
+                # The strategy did not restart from step 0.
+                currentStepIndex: 2
+                readyReplicas: 2
+    - name: assert-restart-used-restartat-and-no-new-revision
+      try:
+        - script:
+            content: |
+              restart_at=$(kubectl -n kick-e2e-060 get rollout app-060 -o jsonpath='{.spec.restartAt}')
+              if [ -z "$restart_at" ]; then
+                echo "KICK did not use spec.restartAt"
+                exit 1
+              fi
+              template_annotation=$(kubectl -n kick-e2e-060 get rollout app-060 \
+                -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}')
+              if [ -n "$template_annotation" ]; then
+                echo "KICK patched the pod template of a Rollout"
+                exit 1
+              fi
+              revisions=$(kubectl -n kick-e2e-060 get replicaset \
+                -l app=app-060 -o name | wc -l | tr -d ' ')
+              if [ "$revisions" != "1" ]; then
+                echo "expected a single ReplicaSet, found $revisions"
+                kubectl -n kick-e2e-060 get replicaset -l app=app-060
+                exit 1
+              fi
+    - name: cleanup
+      try:
+        - delete:
+            ref:
+              apiVersion: v1
+              kind: Namespace
+              name: kick-e2e-060

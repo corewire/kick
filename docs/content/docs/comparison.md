@@ -64,12 +64,14 @@ change against the running rollout's start time, so a restart somebody else
 already performed satisfies the condition, and restarting the operator does not
 re-trigger anything. See [Freshness](../concepts/freshness/).
 
-**Adoption does not restart anything.** The first time KICK sees a Secret or
-ConfigMap it anchors the baseline to that object's `creationTimestamp`, which is
-older than the running rollout. Installing KICK over a healthy cluster therefore
-performs no restarts, and it needs no mutating webhook to achieve that. The
-trade-off is that configuration which was already stale before KICK was
-installed is not detected retroactively — the next real change picks it up.
+**Adoption does not restart what is already fresh.** The first time KICK sees a
+Secret or ConfigMap it anchors the baseline to the last write the API server
+recorded for it, unmodified. A source untouched since its creation is older than
+the running rollout, so installing KICK over a healthy cluster performs no
+restarts, and it needs no mutating webhook to achieve that. A source that *was*
+written after the workload last rolled out is genuinely stale, and KICK restarts
+it once. Drift the API server did not record is not detected retroactively — the
+next real change picks it up.
 
 **Every restart is a durable object.** A `KickRequest` records why a restart was
 wanted, what blocked it, and what finally happened. `spec.dryRun` on a

@@ -1,0 +1,106 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: kick-e2e-061-blue-green-restart-keeps-active-service
+spec:
+  steps:
+    - name: create-dependency
+      try:
+        - apply:
+            file: resources.yaml
+    - name: wait-for-the-dependency-baseline
+      # KICK keeps its observation baseline in a Lease. Waiting for that Lease
+      # before the workload exists makes the rotation below the only dependency
+      # change this namespace ever produces.
+      try:
+        - assert:
+            resource:
+              apiVersion: coordination.k8s.io/v1
+              kind: Lease
+              metadata:
+                namespace: kick-e2e-061
+                annotations:
+                  kick.corewire.io/kind: Secret
+                  kick.corewire.io/objectName: app-secret
+    - name: create-workload
+      try:
+        - apply:
+            file: workload.yaml
+    - name: wait-for-active-revision
+      # The first revision is promoted immediately, so a healthy Rollout already
+      # serves the active Service from its only ReplicaSet.
+      try:
+        - assert:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Rollout
+              metadata:
+                name: app-061
+                namespace: kick-e2e-061
+              status:
+                phase: Healthy
+                readyReplicas: 2
+        - assert:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Rollout
+              metadata:
+                name: app-061
+                namespace: kick-e2e-061
+              (status.blueGreen.activeSelector == status.currentPodHash): true
+    - name: rotate-secret
+      try:
+        - apply:
+            file: updated/secret.yaml
+    - name: assert-restart-completed
+      try:
+        - assert:
+            resource:
+              apiVersion: kick.corewire.io/v1alpha1
+              kind: KickRequest
+              metadata:
+                name: rollout-app-061
+                namespace: kick-e2e-061
+              spec:
+                targetRef:
+                  apiVersion: argoproj.io/v1alpha1
+                  kind: Rollout
+                  name: app-061
+              status:
+                phase: Succeeded
+    - name: assert-no-preview-cutover
+      # A pod-template patch would spin up a preview ReplicaSet and park the
+      # Rollout in Paused waiting for a manual promotion.
+      try:
+        - assert:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Rollout
+              metadata:
+                name: app-061
+                namespace: kick-e2e-061
+              status:
+                phase: Healthy
+                readyReplicas: 2
+              (status.blueGreen.activeSelector == status.currentPodHash): true
+              (length(status.pauseConditions || `[]`)): 0
+        - script:
+            content: |
+              restart_at=$(kubectl -n kick-e2e-061 get rollout app-061 -o jsonpath='{.spec.restartAt}')
+              if [ -z "$restart_at" ]; then
+                echo "KICK did not use spec.restartAt"
+                exit 1
+              fi
+              revisions=$(kubectl -n kick-e2e-061 get replicaset -l app=app-061 -o name | wc -l | tr -d ' ')
+              if [ "$revisions" != "1" ]; then
+                echo "expected a single ReplicaSet, found $revisions"
+                kubectl -n kick-e2e-061 get replicaset -l app=app-061
+                exit 1
+              fi
+    - name: cleanup
+      try:
+        - delete:
+            ref:
+              apiVersion: v1
+              kind: Namespace
+              name: kick-e2e-061

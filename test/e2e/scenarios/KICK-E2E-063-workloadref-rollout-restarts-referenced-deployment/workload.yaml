@@ -1,0 +1,45 @@
+# The Deployment holds the pod template; the Rollout only references it.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-063
+  namespace: kick-e2e-063
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: app-063
+  template:
+    metadata:
+      labels:
+        app: app-063
+    spec:
+      containers:
+        - name: app
+          image: registry.k8s.io/pause:3.10
+          envFrom:
+            - secretRef:
+                name: app-secret
+---
+# A Rollout without an inline pod template. It consumes no Secret of its own, so
+# KICK must target the referenced Deployment instead of the Rollout.
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: app-063-rollout
+  namespace: kick-e2e-063
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: app-063
+  workloadRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: app-063
+  strategy:
+    canary:
+      steps:
+        - setWeight: 50
+        - pause:
+            duration: 10s

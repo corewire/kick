@@ -73,10 +73,16 @@ type KickRequestSpec struct {
 // KickRequestStatus is diagnostic and audit state. Live state remains authoritative.
 type KickRequestStatus struct {
 	// +kubebuilder:validation:Enum=Pending;WaitingForGate;WaitingForOwner;WaitingForApplicationSync;WaitingForRollout;Executing;Succeeded;NoLongerRequired;Failed;DryRun
-	Phase                          KickRequestPhase   `json:"phase,omitempty"`
-	Owner                          GitOpsOwnerStatus  `json:"owner,omitempty"`
-	Gate                           GateStatus         `json:"gate,omitempty"`
-	LatestObservedDependencyChange *metav1.Time       `json:"latestObservedDependencyChange,omitempty"`
+	Phase KickRequestPhase  `json:"phase,omitempty"`
+	Owner GitOpsOwnerStatus `json:"owner,omitempty"`
+	Gate  GateStatus        `json:"gate,omitempty"`
+	// LatestObservedDependencyChange is the moment of the newest relevant
+	// source change this request was opened for. It is a MicroTime because the
+	// request is compared against rollout timestamps that the API server
+	// records with second granularity: truncating this field to seconds too
+	// would make a change that happened within the same second as the rollout
+	// look like it preceded it.
+	LatestObservedDependencyChange *metav1.MicroTime  `json:"latestObservedDependencyChange,omitempty"`
 	CurrentRollout                 RolloutStatus      `json:"currentRollout,omitempty"`
 	Conditions                     []metav1.Condition `json:"conditions,omitempty"`
 }

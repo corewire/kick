@@ -32,12 +32,14 @@ func RegisterDeploymentReverseIndexes(ctx context.Context, indexer client.FieldI
 }
 
 // RegisterWorkloadReverseIndexes installs field indexes for the built-in
-// workload kinds plus any optional CRD-backed kinds. Index values are
-// <namespace>/<name>.
+// workload kinds. Index values are <namespace>/<name>.
 //
-// Only pass optional kinds whose CRD is installed: controller-runtime fails at
-// startup when an index is registered for an unknown kind.
-func RegisterWorkloadReverseIndexes(ctx context.Context, indexer client.FieldIndexer, optional ...WorkloadKind) error {
+// Optional CRD-backed kinds are deliberately not indexed. A controller-runtime
+// manager does not cache unstructured objects by default, so an index on them
+// is registered but never consulted, and the field selector is instead sent to
+// the API server, which rejects it. Those kinds are filtered in
+// LookupConsumingWorkloads instead.
+func RegisterWorkloadReverseIndexes(ctx context.Context, indexer client.FieldIndexer, _ ...WorkloadKind) error {
 	indexByKind := func(kind Kind) client.IndexerFunc {
 		return func(raw client.Object) []string {
 			refs := ExtractDependenciesForObject(raw)
@@ -60,7 +62,7 @@ func RegisterWorkloadReverseIndexes(ctx context.Context, indexer client.FieldInd
 		{SecretProviderClassReferenceIndexField, indexByKind(SecretProviderClass)},
 	}
 
-	for _, obj := range indexableObjects(optional) {
+	for _, obj := range []client.Object{&appsv1.Deployment{}, &appsv1.StatefulSet{}, &appsv1.DaemonSet{}} {
 		for _, field := range fields {
 			if err := indexer.IndexField(ctx, obj, field.name, field.fn); err != nil {
 				return err
@@ -69,17 +71,6 @@ func RegisterWorkloadReverseIndexes(ctx context.Context, indexer client.FieldInd
 	}
 
 	return nil
-}
-
-// indexableObjects returns one prototype object per indexed workload kind.
-func indexableObjects(optional []WorkloadKind) []client.Object {
-	objects := []client.Object{&appsv1.Deployment{}, &appsv1.StatefulSet{}, &appsv1.DaemonSet{}}
-	for _, kind := range optional {
-		obj := &unstructured.Unstructured{}
-		obj.SetGroupVersionKind(kind.GroupVersionKind())
-		objects = append(objects, obj)
-	}
-	return objects
 }
 
 // LookupConsumingDeployments returns deployment keys consuming a given source.
@@ -98,8 +89,9 @@ func LookupConsumingDeployments(ctx context.Context, c client.Client, ref Depend
 }
 
 // LookupConsumingWorkloads returns all workload kinds consuming a given source
-// reference. Optional kinds must match the ones passed to
-// RegisterWorkloadReverseIndexes, otherwise the lookup fails on a missing index.
+// reference. Built-in kinds are resolved through the reverse index; optional
+// CRD-backed kinds are listed in the source's namespace and filtered here,
+// because they are not indexed.
 func LookupConsumingWorkloads(ctx context.Context, c client.Client, ref DependencyRef, optional ...WorkloadKind) ([]ConsumerTarget, error) {
 	field := indexFieldFor(ref.Kind)
 	if field == "" {
@@ -134,10 +126,13 @@ func LookupConsumingWorkloads(ctx context.Context, c client.Client, ref Dependen
 	for _, kind := range optional {
 		var list unstructured.UnstructuredList
 		list.SetGroupVersionKind(kind.GroupVersionKind().GroupVersion().WithKind(kind.Kind + "List"))
-		if err := c.List(ctx, &list, client.InNamespace(ref.Namespace), match); err != nil {
+		if err := c.List(ctx, &list, client.InNamespace(ref.Namespace)); err != nil {
 			return nil, err
 		}
 		for i := range list.Items {
+			if !referencesSource(&list.Items[i], ref) {
+				continue
+			}
 			targets = append(targets, ConsumerTarget{APIVersion: kind.APIVersion, Kind: kind.Kind, Namespace: list.Items[i].GetNamespace(), Name: list.Items[i].GetName()})
 		}
 	}
@@ -152,6 +147,18 @@ func LookupConsumingWorkloads(ctx context.Context, c client.Client, ref Dependen
 		return targets[i].Name < targets[j].Name
 	})
 	return targets, nil
+}
+
+// referencesSource reports whether a workload consumes the given source. It
+// mirrors the index key the built-in kinds are matched on: kind plus
+// namespace/name.
+func referencesSource(obj client.Object, ref DependencyRef) bool {
+	for _, candidate := range ExtractDependenciesForObject(obj) {
+		if candidate.Kind == ref.Kind && candidate.Namespace == ref.Namespace && candidate.Name == ref.Name {
+			return true
+		}
+	}
+	return false
 }
 
 func indexFieldFor(kind Kind) string {

@@ -1,0 +1,35 @@
+# The canary strategy pauses for a minute after the first step. Rolling out a
+# second revision therefore opens a deterministic window in which the workload
+# is mid-rollout, which is when the scenario rotates the dependency.
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: app-062
+  namespace: kick-e2e-062
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: app-062
+  template:
+    metadata:
+      labels:
+        app: app-062
+    spec:
+      containers:
+        - name: app
+          image: registry.k8s.io/pause:3.10
+          env:
+            # Bumping this value is what starts the second revision. It keeps the
+            # image unchanged so the test never depends on an image pull.
+            - name: REVISION
+              value: "1"
+          envFrom:
+            - secretRef:
+                name: app-secret
+  strategy:
+    canary:
+      steps:
+        - setWeight: 50
+        - pause:
+            duration: 60s

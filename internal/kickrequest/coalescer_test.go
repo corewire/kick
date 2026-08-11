@@ -84,6 +84,56 @@ func TestEnsureActiveRequestReopensTerminal(t *testing.T) {
 	}
 }
 
+// The observer only forgets a dependency change once it has been enqueued, so
+// a retried hand-off replays the same change. Re-opening the terminal request
+// would discard the restart KICK already completed for it.
+func TestEnsureActiveRequestKeepsTerminalPhaseForAlreadyRecordedChange(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatalf("add kube scheme: %v", err)
+	}
+	if err := kickv1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatalf("add kick scheme: %v", err)
+	}
+
+	changedAt := time.Date(2026, 8, 6, 10, 0, 0, 0, time.UTC)
+	recorded := metav1.NewMicroTime(changedAt)
+	seeded := &kickv1alpha1.KickRequest{
+		ObjectMeta: metav1.ObjectMeta{Name: "deployment-api", Namespace: "team-a"},
+		Spec:       kickv1alpha1.KickRequestSpec{TargetRef: kickv1alpha1.ObjectReference{APIVersion: "apps/v1", Kind: "Deployment", Name: "api"}},
+		Status: kickv1alpha1.KickRequestStatus{
+			Phase:                          kickv1alpha1.KickRequestPhaseSucceeded,
+			LatestObservedDependencyChange: &recorded,
+		},
+	}
+	client := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(&kickv1alpha1.KickRequest{}).WithObjects(seeded).Build()
+	coalescer := NewCoalescer(client, RetentionConfig{})
+
+	target := kickv1alpha1.ObjectReference{APIVersion: "apps/v1", Kind: "Deployment", Name: "api"}
+	if _, err := coalescer.EnsureActiveRequest(context.Background(), "team-a", target, "", changedAt); err != nil {
+		t.Fatalf("replayed ensure: %v", err)
+	}
+
+	var got kickv1alpha1.KickRequest
+	if err := client.Get(context.Background(), types.NamespacedName{Namespace: "team-a", Name: "deployment-api"}, &got); err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.Status.Phase != kickv1alpha1.KickRequestPhaseSucceeded {
+		t.Fatalf("phase = %s, want %s", got.Status.Phase, kickv1alpha1.KickRequestPhaseSucceeded)
+	}
+
+	newer := changedAt.Add(time.Minute)
+	if _, err := coalescer.EnsureActiveRequest(context.Background(), "team-a", target, "", newer); err != nil {
+		t.Fatalf("newer ensure: %v", err)
+	}
+	if err := client.Get(context.Background(), types.NamespacedName{Namespace: "team-a", Name: "deployment-api"}, &got); err != nil {
+		t.Fatalf("get after newer change: %v", err)
+	}
+	if got.Status.Phase != kickv1alpha1.KickRequestPhasePending {
+		t.Fatalf("phase after newer change = %s, want %s", got.Status.Phase, kickv1alpha1.KickRequestPhasePending)
+	}
+}
+
 func TestEnsureActiveRequestNamesStatefulSetRequest(t *testing.T) {
 	scheme := runtime.NewScheme()
 	if err := clientgoscheme.AddToScheme(scheme); err != nil {

@@ -39,10 +39,16 @@ type stubFreshnessEvaluator struct {
 	decision freshness.FreshnessDecision
 	err      error
 	calls    int
+	// onEvaluate runs while the decision is being made, which is where a
+	// concurrent observer update lands in production.
+	onEvaluate func()
 }
 
 func (s *stubFreshnessEvaluator) Evaluate(context.Context, client.Object, []dependency.DependencyRef, map[dependency.DependencyRef]time.Time) (freshness.FreshnessDecision, error) {
 	s.calls++
+	if s.onEvaluate != nil {
+		s.onEvaluate()
+	}
 	return s.decision, s.err
 }
 
@@ -173,6 +179,187 @@ func TestKickRequestReconcileOpenGateNoLongerRequired(t *testing.T) {
 	}
 	if got.Status.Phase != kickv1alpha1.KickRequestPhaseNoLongerRequired {
 		t.Fatalf("phase = %s, want %s", got.Status.Phase, kickv1alpha1.KickRequestPhaseNoLongerRequired)
+	}
+}
+
+// A dependency change observed while the freshness decision is being made must
+// not be discarded by the terminal NoLongerRequired write: nothing re-opens a
+// terminal request without a further event, so the workload would stay stale.
+func TestKickRequestReconcileKeepsRequestOpenOnConcurrentDependencyChange(t *testing.T) {
+	scheme := testScheme(t)
+	known := metav1.NewMicroTime(time.Date(2026, 8, 7, 12, 0, 0, 0, time.UTC))
+	later := metav1.NewMicroTime(known.Add(time.Minute))
+
+	dep := testDeployment("team-a", "api")
+	req := testKickRequest("team-a", "api")
+	req.Status.LatestObservedDependencyChange = &known
+
+	c := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(&kickv1alpha1.KickRequest{}).WithObjects(dep, req).Build()
+	gate := &stubGateResolver{decision: gitops.GateDecision{Allowed: true, Reconciled: true, Reason: gitops.GateAllowed, Message: "allowed"}}
+	exec := &stubRestartExecutor{}
+	// The workload rolled out after the change the request carries, so the live
+	// check finds nothing left to do.
+	fresh := &stubFreshnessEvaluator{decision: freshness.FreshnessDecision{RestartRequired: false, RolloutStarted: later.Add(time.Hour)}}
+	fresh.onEvaluate = func() {
+		var live kickv1alpha1.KickRequest
+		key := types.NamespacedName{Namespace: "team-a", Name: "api"}
+		if err := c.Get(context.Background(), key, &live); err != nil {
+			t.Fatalf("get request: %v", err)
+		}
+		live.Status.LatestObservedDependencyChange = &later
+		if err := c.Status().Update(context.Background(), &live); err != nil {
+			t.Fatalf("update request: %v", err)
+		}
+	}
+
+	r := &KickRequestReconciler{
+		Client:             c,
+		Scheme:             scheme,
+		GateResolver:       gate,
+		ObservationStore:   observation.NewMemoryStore(),
+		FreshnessEvaluator: fresh,
+		RestartExecutor:    exec,
+		Clock:              func() time.Time { return known.Time },
+		RequeueInterval:    30 * time.Second,
+	}
+
+	result, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Namespace: "team-a", Name: "api"}})
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if result.RequeueAfter == 0 {
+		t.Fatal("expected a requeue so the new dependency change is evaluated")
+	}
+
+	var got kickv1alpha1.KickRequest
+	if err := c.Get(context.Background(), types.NamespacedName{Namespace: "team-a", Name: "api"}, &got); err != nil {
+		t.Fatalf("get request: %v", err)
+	}
+	if got.Status.Phase == kickv1alpha1.KickRequestPhaseNoLongerRequired {
+		t.Fatal("request was terminated despite a newer dependency change")
+	}
+	if !got.Status.LatestObservedDependencyChange.Equal(&later) {
+		t.Fatalf("latest observed change = %v, want %v", got.Status.LatestObservedDependencyChange, later)
+	}
+}
+
+// The observation store is written only after the change has been handed to the
+// request, so a reconcile can race that write and still read the previous
+// baseline. The change recorded on the request must win, or the request would
+// terminate as fresh for the very change that opened it.
+func TestKickRequestReconcileTrustsRecordedChangeOverStaleObservation(t *testing.T) {
+	scheme := testScheme(t)
+	staleBaseline := time.Date(2026, 8, 7, 12, 0, 0, 0, time.UTC)
+	rolloutStarted := staleBaseline.Add(time.Minute)
+	recorded := metav1.NewMicroTime(rolloutStarted.Add(time.Minute))
+
+	dep := testDeployment("team-a", "api")
+	req := testKickRequest("team-a", "api")
+	req.Status.LatestObservedDependencyChange = &recorded
+
+	c := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(&kickv1alpha1.KickRequest{}).WithObjects(dep, req).Build()
+	gate := &stubGateResolver{decision: gitops.GateDecision{Allowed: true, Reconciled: true, Reason: gitops.GateAllowed, Message: "allowed"}}
+	fresh := &stubFreshnessEvaluator{decision: freshness.FreshnessDecision{RestartRequired: false, LatestChange: &staleBaseline, RolloutStarted: rolloutStarted}}
+	exec := &stubRestartExecutor{}
+
+	r := &KickRequestReconciler{
+		Client:             c,
+		Scheme:             scheme,
+		GateResolver:       gate,
+		ObservationStore:   observation.NewMemoryStore(),
+		FreshnessEvaluator: fresh,
+		RestartExecutor:    exec,
+		Clock:              func() time.Time { return time.Now().UTC() },
+		RequeueInterval:    30 * time.Second,
+	}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Namespace: "team-a", Name: "api"}}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if exec.calls != 1 {
+		t.Fatalf("executor calls = %d, want 1", exec.calls)
+	}
+
+	var got kickv1alpha1.KickRequest
+	if err := c.Get(context.Background(), types.NamespacedName{Namespace: "team-a", Name: "api"}, &got); err != nil {
+		t.Fatalf("get request: %v", err)
+	}
+	if got.Status.Phase != kickv1alpha1.KickRequestPhaseExecuting {
+		t.Fatalf("phase = %s, want %s", got.Status.Phase, kickv1alpha1.KickRequestPhaseExecuting)
+	}
+	if !got.Status.LatestObservedDependencyChange.Equal(&recorded) {
+		t.Fatalf("latest observed change = %v, want %v", got.Status.LatestObservedDependencyChange, recorded)
+	}
+}
+
+// A request that waited for a rollout it did not start records that rollout in
+// status.currentRollout. The executor reads a set startedAt as "the restart was
+// already issued", so the transition to Executing has to drop it; otherwise the
+// request reports success for someone else's rollout and the workload never
+// restarts.
+// The API server records rollout timestamps with second granularity. A change
+// that lands later in that same second is therefore newer than the rollout, and
+// dropping its sub-second part would silently report the workload as fresh.
+func TestMergeRecordedChangeWithinRolloutSecondRequiresRestart(t *testing.T) {
+	rolloutStarted := time.Date(2026, 8, 11, 14, 49, 21, 0, time.UTC)
+	recorded := metav1.NewMicroTime(rolloutStarted.Add(954 * time.Millisecond))
+
+	got := mergeRecordedChange(freshness.FreshnessDecision{RolloutStarted: rolloutStarted}, &recorded)
+
+	if !got.RestartRequired {
+		t.Fatalf("restart required = false for a change at %s after a rollout at %s, want true", recorded, rolloutStarted)
+	}
+}
+
+// A request that waited for a rollout it did not start records that rollout in
+// status.currentRollout. The executor reads a set startedAt as "the restart was
+// already issued", so the transition to Executing has to drop it; otherwise the
+// request reports success for someone else's rollout and the workload never
+// restarts.
+func TestKickRequestReconcileClearsForeignRolloutBeforeExecuting(t *testing.T) {
+	scheme := testScheme(t)
+	changedAt := time.Date(2026, 8, 7, 12, 0, 0, 0, time.UTC)
+	foreignRollout := metav1.NewTime(changedAt.Add(-time.Minute))
+	recorded := metav1.NewMicroTime(changedAt)
+
+	dep := testDeployment("team-a", "api")
+	req := testKickRequest("team-a", "api")
+	req.Status.Phase = kickv1alpha1.KickRequestPhaseWaitingForRollout
+	req.Status.CurrentRollout = kickv1alpha1.RolloutStatus{StartedAt: &foreignRollout}
+	req.Status.LatestObservedDependencyChange = &recorded
+
+	c := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(&kickv1alpha1.KickRequest{}).WithObjects(dep, req).Build()
+	gate := &stubGateResolver{decision: gitops.GateDecision{Allowed: true, Reconciled: true, Reason: gitops.GateAllowed, Message: "allowed"}}
+	fresh := &stubFreshnessEvaluator{decision: freshness.FreshnessDecision{RestartRequired: true, LatestChange: &changedAt, RolloutStarted: foreignRollout.Time}}
+	exec := &stubRestartExecutor{}
+
+	r := &KickRequestReconciler{
+		Client:             c,
+		Scheme:             scheme,
+		GateResolver:       gate,
+		ObservationStore:   observation.NewMemoryStore(),
+		FreshnessEvaluator: fresh,
+		RestartExecutor:    exec,
+		Clock:              func() time.Time { return time.Now().UTC() },
+		RequeueInterval:    30 * time.Second,
+	}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: types.NamespacedName{Namespace: "team-a", Name: "api"}}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if exec.calls != 1 {
+		t.Fatalf("executor calls = %d, want 1", exec.calls)
+	}
+
+	var got kickv1alpha1.KickRequest
+	if err := c.Get(context.Background(), types.NamespacedName{Namespace: "team-a", Name: "api"}, &got); err != nil {
+		t.Fatalf("get request: %v", err)
+	}
+	if got.Status.Phase != kickv1alpha1.KickRequestPhaseExecuting {
+		t.Fatalf("phase = %s, want %s", got.Status.Phase, kickv1alpha1.KickRequestPhaseExecuting)
+	}
+	if got.Status.CurrentRollout.StartedAt != nil {
+		t.Fatalf("currentRollout.startedAt = %v, want the executor to own it", got.Status.CurrentRollout.StartedAt)
 	}
 }
 

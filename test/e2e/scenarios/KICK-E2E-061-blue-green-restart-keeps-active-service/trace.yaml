@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-061
+name: blue-green-restart-keeps-active-service
+features:
+  - KICK-FEAT-024
+provider: argo-rollouts
+class: behavior
+required: true

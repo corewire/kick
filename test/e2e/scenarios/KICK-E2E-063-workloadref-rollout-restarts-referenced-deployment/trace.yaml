@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-063
+name: workloadref-rollout-restarts-referenced-deployment
+features:
+  - KICK-FEAT-024
+provider: argo-rollouts
+class: behavior
+required: true

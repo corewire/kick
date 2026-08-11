@@ -1,0 +1,29 @@
+# A blue-green Rollout with manual promotion. A pod-template patch would create a
+# preview ReplicaSet and park the Rollout in a Paused state waiting for a human;
+# spec.restartAt must instead recycle the pods of the active ReplicaSet.
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: app-061
+  namespace: kick-e2e-061
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: app-061
+  template:
+    metadata:
+      labels:
+        app: app-061
+    spec:
+      containers:
+        - name: app
+          image: registry.k8s.io/pause:3.10
+          envFrom:
+            - secretRef:
+                name: app-secret
+  strategy:
+    blueGreen:
+      activeService: app-061-active
+      previewService: app-061-preview
+      autoPromotionEnabled: false

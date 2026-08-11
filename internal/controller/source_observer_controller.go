@@ -85,7 +85,7 @@ func (r *SourceObservationReconciler) reconcileSecret(ctx context.Context, req c
 		return true, err
 	}
 	if result.Kind != observation.RelevantChange && result.Kind != observation.BaselineEstablished {
-		return true, nil
+		return true, r.Observer.Commit(ctx, result)
 	}
 	consumers, err := dependency.LookupConsumingWorkloads(ctx, r.Client, dependency.DependencyRef{
 		APIVersion: "v1",
@@ -97,11 +97,14 @@ func (r *SourceObservationReconciler) reconcileSecret(ctx context.Context, req c
 		return true, err
 	}
 	if len(consumers) == 0 {
-		return true, nil
+		return true, r.Observer.Commit(ctx, result)
 	}
 	// Baseline and relevant changes both enqueue; baseline only reaches here when
 	// consumers already reference a previously missing optional source.
-	return true, r.enqueueDependencyChange(ctx, result.Identity, secret.GetLabels(), consumers, observedAt)
+	if err := r.enqueueDependencyChange(ctx, result.Identity, secret.GetLabels(), consumers, result.ChangeTime()); err != nil {
+		return true, err
+	}
+	return true, r.Observer.Commit(ctx, result)
 }
 
 func (r *SourceObservationReconciler) reconcileConfigMap(ctx context.Context, req ctrl.Request) (bool, error) {
@@ -116,7 +119,7 @@ func (r *SourceObservationReconciler) reconcileConfigMap(ctx context.Context, re
 		return true, err
 	}
 	if result.Kind != observation.RelevantChange && result.Kind != observation.BaselineEstablished {
-		return true, nil
+		return true, r.Observer.Commit(ctx, result)
 	}
 	consumers, err := dependency.LookupConsumingWorkloads(ctx, r.Client, dependency.DependencyRef{
 		APIVersion: "v1",
@@ -128,9 +131,12 @@ func (r *SourceObservationReconciler) reconcileConfigMap(ctx context.Context, re
 		return true, err
 	}
 	if len(consumers) == 0 {
-		return true, nil
+		return true, r.Observer.Commit(ctx, result)
 	}
-	return true, r.enqueueDependencyChange(ctx, result.Identity, configMap.GetLabels(), consumers, observedAt)
+	if err := r.enqueueDependencyChange(ctx, result.Identity, configMap.GetLabels(), consumers, result.ChangeTime()); err != nil {
+		return true, err
+	}
+	return true, r.Observer.Commit(ctx, result)
 }
 
 func (r *SourceObservationReconciler) SetupWithManager(mgr ctrl.Manager) error {

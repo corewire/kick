@@ -357,6 +357,7 @@ func (r *KickRequestReconciler) evaluateFreshnessAndExecute(
 		observeControllerError("kickrequest", "FreshnessEvaluate")
 		return ctrl.Result{}, err
 	}
+	freshnessDecision = mergeRecordedChange(freshnessDecision, request.Status.LatestObservedDependencyChange)
 
 	// Once KICK has issued the restart, the executor owns the request. The
 	// workload is fresh precisely because of that restart, so re-running the
@@ -397,6 +398,28 @@ func restartIssued(request *kickv1alpha1.KickRequest) bool {
 		request.Status.CurrentRollout.StartedAt != nil
 }
 
+// mergeRecordedChange folds the change the request was opened with into the
+// live freshness decision.
+//
+// The observation store is written only after the change has been handed to the
+// request, so a reconcile can run while the store still holds the previous
+// baseline. Trusting the store alone would then terminate the request as fresh
+// for the very change that opened it.
+func mergeRecordedChange(decision freshness.FreshnessDecision, recorded *metav1.MicroTime) freshness.FreshnessDecision {
+	if recorded == nil {
+		return decision
+	}
+	if decision.LatestChange == nil || recorded.After(*decision.LatestChange) {
+		latest := recorded.UTC()
+		decision.LatestChange = &latest
+	}
+	// An incomplete rollout blocks the request regardless of the change time.
+	if decision.BlockingReason == "" {
+		decision.RestartRequired = decision.LatestChange.After(decision.RolloutStarted)
+	}
+	return decision
+}
+
 // handleFreshnessGate records the terminal outcomes that require no restart
 // (rollout still in progress, or already fresh). The boolean return is true
 // when it produced a result the caller should return.
@@ -406,7 +429,7 @@ func (r *KickRequestReconciler) handleFreshnessGate(ctx context.Context, req ctr
 			status.Owner = ownerStatus
 			status.Gate = gateToStatus(gateDecision)
 			status.CurrentRollout = rolloutToStatus(freshnessDecision)
-			status.LatestObservedDependencyChange = toMetav1TimePtr(freshnessDecision.LatestChange)
+			advanceObservedChange(status, freshnessDecision.LatestChange)
 			setPhase(status, kickv1alpha1.KickRequestPhaseWaitingForRollout, freshnessDecision.BlockingReason, "workload rollout is still in progress")
 		}); err != nil {
 			observeControllerError("kickrequest", "UpdateStatus")
@@ -417,21 +440,43 @@ func (r *KickRequestReconciler) handleFreshnessGate(ctx context.Context, req ctr
 	}
 
 	if !freshnessDecision.RestartRequired {
-		if err := r.updateRequestStatus(ctx, req.NamespacedName, func(status *kickv1alpha1.KickRequestStatus) {
+		knownChange := request.Status.LatestObservedDependencyChange
+		applied, err := r.updateRequestStatusIf(ctx, req.NamespacedName, func(status *kickv1alpha1.KickRequestStatus) bool {
+			// The observer can coalesce a new dependency change into this request
+			// while the decision above is being made. Terminating the request now
+			// would discard that change for good, because nothing re-opens a
+			// terminal request without a further event.
+			if changeObservedSince(knownChange, status.LatestObservedDependencyChange) {
+				return false
+			}
 			status.Owner = ownerStatus
 			status.Gate = gateToStatus(gateDecision)
 			status.CurrentRollout = rolloutToStatus(freshnessDecision)
-			status.LatestObservedDependencyChange = toMetav1TimePtr(freshnessDecision.LatestChange)
+			advanceObservedChange(status, freshnessDecision.LatestChange)
 			setPhase(status, kickv1alpha1.KickRequestPhaseNoLongerRequired, "Fresh", "live workload is already fresh")
-		}); err != nil {
+			return true
+		})
+		if err != nil {
 			observeControllerError("kickrequest", "UpdateStatus")
 			return ctrl.Result{}, true, err
+		}
+		if !applied {
+			return ctrl.Result{RequeueAfter: time.Second}, true, nil
 		}
 		r.recordTransition(request, kickv1alpha1.KickRequestPhaseNoLongerRequired, "Fresh", "live workload is already fresh", ownerStatus.Provider)
 		return ctrl.Result{}, true, nil
 	}
 
 	return ctrl.Result{}, false, nil
+}
+
+// changeObservedSince reports whether latest records a dependency change that
+// was not yet known when the current reconcile started.
+func changeObservedSince(known, latest *metav1.MicroTime) bool {
+	if latest == nil {
+		return false
+	}
+	return known == nil || latest.After(known.Time)
 }
 
 // recordDryRun terminates a request that would have restarted the workload, but
@@ -442,7 +487,7 @@ func (r *KickRequestReconciler) recordDryRun(ctx context.Context, req ctrl.Reque
 		status.Owner = ownerStatus
 		status.Gate = gateToStatus(gateDecision)
 		status.CurrentRollout = rolloutToStatus(freshnessDecision)
-		status.LatestObservedDependencyChange = toMetav1TimePtr(freshnessDecision.LatestChange)
+		advanceObservedChange(status, freshnessDecision.LatestChange)
 		setPhase(status, kickv1alpha1.KickRequestPhaseDryRun, "DryRun", message)
 	}); err != nil {
 		observeControllerError("kickrequest", "UpdateStatus")
@@ -457,7 +502,13 @@ func (r *KickRequestReconciler) markExecuting(ctx context.Context, req ctrl.Requ
 	if err := r.updateRequestStatus(ctx, req.NamespacedName, func(status *kickv1alpha1.KickRequestStatus) {
 		status.Owner = ownerStatus
 		status.Gate = gateToStatus(gateDecision)
-		status.LatestObservedDependencyChange = toMetav1TimePtr(freshnessDecision.LatestChange)
+		// CurrentRollout describes the rollout KICK issues for this request, and
+		// the executor treats a set StartedAt as "already patched". While the
+		// request waited for a rollout it did not start, that field held the
+		// foreign rollout; keeping it would make the executor skip the restart
+		// and report success for someone else's rollout.
+		status.CurrentRollout = kickv1alpha1.RolloutStatus{}
+		advanceObservedChange(status, freshnessDecision.LatestChange)
 		setPhase(status, kickv1alpha1.KickRequestPhaseExecuting, "RestartRequired", "restart required after live freshness check")
 	}); err != nil {
 		observeControllerError("kickrequest", "UpdateStatus")
@@ -683,14 +734,29 @@ func terminalPhaseTransitionTime(request *kickv1alpha1.KickRequest) time.Time {
 }
 
 func (r *KickRequestReconciler) updateRequestStatus(ctx context.Context, key types.NamespacedName, mutate func(*kickv1alpha1.KickRequestStatus)) error {
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+	_, err := r.updateRequestStatusIf(ctx, key, func(status *kickv1alpha1.KickRequestStatus) bool {
+		mutate(status)
+		return true
+	})
+	return err
+}
+
+// updateRequestStatusIf writes the mutated status back only when mutate returns
+// true, and reports whether the write happened.
+func (r *KickRequestReconciler) updateRequestStatusIf(ctx context.Context, key types.NamespacedName, mutate func(*kickv1alpha1.KickRequestStatus) bool) (bool, error) {
+	applied := false
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		var request kickv1alpha1.KickRequest
 		if err := r.Get(ctx, key, &request); err != nil {
 			return err
 		}
-		mutate(&request.Status)
+		applied = mutate(&request.Status)
+		if !applied {
+			return nil
+		}
 		return r.Status().Update(ctx, &request)
 	})
+	return applied, err
 }
 
 func (r *KickRequestReconciler) latestRelevantChanges(ctx context.Context, deps []dependency.DependencyRef) (map[dependency.DependencyRef]time.Time, error) {
@@ -864,12 +930,27 @@ func ownerToStatus(owner gitops.Owner) kickv1alpha1.GitOpsOwnerStatus {
 	}
 }
 
-func toMetav1TimePtr(v *time.Time) *metav1.Time {
+func toMicroTimePtr(v *time.Time) *metav1.MicroTime {
 	if v == nil {
 		return nil
 	}
-	t := metav1.NewTime(v.UTC())
+	t := metav1.NewMicroTime(v.UTC())
 	return &t
+}
+
+// advanceObservedChange records the dependency change a decision was made for.
+// It never moves the timestamp backwards: a concurrent enqueue may already have
+// recorded a newer change on the request, and lowering it would make KICK
+// forget that change.
+func advanceObservedChange(status *kickv1alpha1.KickRequestStatus, latest *time.Time) {
+	next := toMicroTimePtr(latest)
+	if next == nil {
+		return
+	}
+	if status.LatestObservedDependencyChange != nil && !next.After(status.LatestObservedDependencyChange.Time) {
+		return
+	}
+	status.LatestObservedDependencyChange = next
 }
 
 func (r *KickRequestReconciler) recordTransition(request *kickv1alpha1.KickRequest, newPhase kickv1alpha1.KickRequestPhase, reason, message, provider string) {
