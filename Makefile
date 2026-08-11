@@ -30,6 +30,34 @@ KIND_KUBECONFIG ?= $(shell pwd)/.kubeconfig-kind-kick-dev
 E2E_NAMESPACE ?= kick-e2e
 PKGS := $(shell go list ./... | grep -v '/ai-docs/' || true)
 
+# Scenario IDs per e2e suite. `core` is everything not claimed by a suite that
+# needs extra infrastructure, so adding a suite here removes it from core
+# automatically instead of requiring two edits that can drift apart.
+E2E_IDS_ARGOCD ?= 024 025 026 027 028 029 030 031 032 033 034 035 036 037 038 039 040 041 042
+E2E_IDS_RECOVERY ?= 048 049 050 051
+E2E_IDS_ROLLOUTS ?= 060 061 062 063
+E2E_IDS_CSI ?= 064 065 066 067
+E2E_IDS_KARGO ?= 068 069 070 071
+E2E_IDS_NONCORE := $(E2E_IDS_ARGOCD) $(E2E_IDS_RECOVERY) $(E2E_IDS_ROLLOUTS) $(E2E_IDS_CSI) $(E2E_IDS_KARGO)
+
+E2E_CHAINSAW_CONFIG := test/e2e/chainsaw-configuration.yaml
+E2E_CHAINSAW_CONFIG_INTEGRATION := test/e2e/chainsaw-configuration-integration.yaml
+
+empty :=
+space := $(empty) $(empty)
+# Turn "024 025" into "/KICK-E2E-(024|025)\b".
+e2e_regex = /KICK-E2E-($(subst $(space),|,$(strip $(1))))\b
+
+# $(1) suite name, $(2) grep flags, $(3) ID list, $(4) chainsaw config
+define e2e_suite
+@scenario_dirs="$$(find test/e2e/scenarios -mindepth 1 -maxdepth 1 -type d | sort | grep $(2) '$(call e2e_regex,$(3))')"; \
+if [[ -z "$$scenario_dirs" ]]; then \
+	echo "no $(1) scenarios selected"; \
+	exit 1; \
+fi; \
+KUBECONFIG=$(KIND_KUBECONFIG) $(CHAINSAW) test --config $(4) --kube-context $(KIND_CONTEXT) $$scenario_dirs
+endef
+
 .PHONY: fmt
 fmt:
 	gofmt -w $$(find . -name '*.go' -not -path './vendor/*' -not -path './ai-docs/*')
@@ -60,30 +88,27 @@ test-e2e: chainsaw e2e-namespace
 
 .PHONY: test-e2e-core
 test-e2e-core: chainsaw e2e-namespace
-	@scenario_dirs="$$(find test/e2e/scenarios -mindepth 1 -maxdepth 1 -type d | sort | grep -Ev '/KICK-E2E-(024|025|026|027|028|029|030|031|032|033|034|035|036|037|038|039|040|041|042|048|049|050|051)\b')"; \
-	if [[ -z "$$scenario_dirs" ]]; then \
-		echo "no core scenarios selected"; \
-		exit 1; \
-	fi; \
-	KUBECONFIG=$(KIND_KUBECONFIG) $(CHAINSAW) test --config test/e2e/chainsaw-configuration.yaml --kube-context $(KIND_CONTEXT) $$scenario_dirs
+	$(call e2e_suite,core,-Ev,$(E2E_IDS_NONCORE),$(E2E_CHAINSAW_CONFIG))
 
 .PHONY: test-e2e-argocd
 test-e2e-argocd: chainsaw e2e-namespace
-	@scenario_dirs="$$(find test/e2e/scenarios -mindepth 1 -maxdepth 1 -type d | sort | grep -E '/KICK-E2E-(024|025|026|027|028|029|030|031|032|033|034|035|036|037|038|039|040|041|042)\b')"; \
-	if [[ -z "$$scenario_dirs" ]]; then \
-		echo "no argocd scenarios selected"; \
-		exit 1; \
-	fi; \
-	KUBECONFIG=$(KIND_KUBECONFIG) $(CHAINSAW) test --config test/e2e/chainsaw-configuration.yaml --kube-context $(KIND_CONTEXT) $$scenario_dirs
+	$(call e2e_suite,argocd,-E,$(E2E_IDS_ARGOCD),$(E2E_CHAINSAW_CONFIG))
 
 .PHONY: test-e2e-recovery
 test-e2e-recovery: chainsaw e2e-namespace
-	@scenario_dirs="$$(find test/e2e/scenarios -mindepth 1 -maxdepth 1 -type d | sort | grep -E '/KICK-E2E-(048|049|050|051)\b')"; \
-	if [[ -z "$$scenario_dirs" ]]; then \
-		echo "no recovery scenarios selected"; \
-		exit 1; \
-	fi; \
-	KUBECONFIG=$(KIND_KUBECONFIG) $(CHAINSAW) test --config test/e2e/chainsaw-configuration.yaml --kube-context $(KIND_CONTEXT) $$scenario_dirs
+	$(call e2e_suite,recovery,-E,$(E2E_IDS_RECOVERY),$(E2E_CHAINSAW_CONFIG))
+
+.PHONY: test-e2e-rollouts
+test-e2e-rollouts: chainsaw e2e-namespace
+	$(call e2e_suite,argo-rollouts,-E,$(E2E_IDS_ROLLOUTS),$(E2E_CHAINSAW_CONFIG_INTEGRATION))
+
+.PHONY: test-e2e-csi
+test-e2e-csi: chainsaw e2e-namespace
+	$(call e2e_suite,csi,-E,$(E2E_IDS_CSI),$(E2E_CHAINSAW_CONFIG_INTEGRATION))
+
+.PHONY: test-e2e-kargo
+test-e2e-kargo: chainsaw e2e-namespace
+	$(call e2e_suite,kargo,-E,$(E2E_IDS_KARGO),$(E2E_CHAINSAW_CONFIG_INTEGRATION))
 
 .PHONY: test-e2e-scenario
 test-e2e-scenario: chainsaw e2e-namespace

@@ -1781,10 +1781,14 @@ Reasons:
 - `KickSucceeded`
 - `KickNoLongerRequired`
 - `KickFailed`
+- `KickDryRun`
 - `OwnerUnknown`
 - `OwnerAmbiguous`
 
-Use `kubectl describe kickrequest <name>` to inspect event history for a request.
+Use `kubectl describe kickrequest <name>` to inspect event history for a request
+
+`KickDryRun` is emitted instead of `KickStarted`/`KickSucceeded` when the
+matching KickPolicy sets `spec.dryRun: true`. The restart is never performed..
 ## Source: docs/content/docs/reference/_index.md
 
 ---
@@ -1925,17 +1929,20 @@ Prometheus metrics are registered in controller-runtime metrics registry.
 
 Counter by labels:
 
-- `provider`
-- `result`
+- `provider` — GitOps provider name, or `unknown` when none applies
+- `result` — `succeeded`, `no_longer_required`, `failed`, `dry_run`
 
 Meaning: completed KickRequest outcomes.
+
+`dry_run` is recorded when a policy sets `spec.dryRun: true`; the request reaches
+a terminal decision without a restart being performed.
 
 ## `kick_restarts_total`
 
 Counter by labels:
 
-- `provider`
-- `result`
+- `provider` — GitOps provider name, or `unknown` when none applies
+- `result` — `started`, `succeeded`, `failed`
 
 Meaning: restart execution attempts and outcomes.
 
@@ -1944,9 +1951,28 @@ Meaning: restart execution attempts and outcomes.
 Counter by labels:
 
 - `controller`
-- `reason`
+- `reason` — `Unknown` when no reason is supplied
 
 Meaning: controller reconciliation errors.
+
+## `kick_notification_deliveries_total`
+
+Counter by labels:
+
+- `namespace` — namespace of the NotificationPolicy
+- `policy` — NotificationPolicy name
+- `outcome` — `success` or `failure`
+
+Meaning: NotificationPolicy webhook delivery attempts. A failed delivery never
+fails a restart.
+
+## `kick_notification_dropped_total`
+
+Counter, no labels.
+
+Meaning: notification events discarded because the delivery queue was full. A
+non-zero value means the webhook endpoint is not keeping up.
+
 ## Source: docs/content/docs/reference/notificationpolicy.md
 
 # NotificationPolicy API Reference

@@ -15,6 +15,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -540,10 +541,14 @@ func phaseTransitionTime(status kickv1alpha1.KickRequestStatus, created metav1.T
 }
 
 func sourceKind(kind dependency.Kind) observation.SourceKind {
-	if kind == dependency.ConfigMap {
+	switch kind {
+	case dependency.ConfigMap:
 		return observation.SourceKindConfigMap
+	case dependency.SecretProviderClass:
+		return observation.SourceKindSecretProviderClass
+	default:
+		return observation.SourceKindSecret
 	}
-	return observation.SourceKindSecret
 }
 
 func workloadRestartedAt(obj client.Object) *time.Time {
@@ -554,9 +559,28 @@ func workloadRestartedAt(obj client.Object) *time.Time {
 		return parseRestartedAt(workload.Spec.Template.Annotations)
 	case *appsv1.DaemonSet:
 		return parseRestartedAt(workload.Spec.Template.Annotations)
+	case *unstructured.Unstructured:
+		return argoRolloutRestartedAt(workload)
 	default:
 		return nil
 	}
+}
+
+// Argo Rollouts record restarts in spec.restartAt, not in a pod template annotation.
+func argoRolloutRestartedAt(obj *unstructured.Unstructured) *time.Time {
+	if !dependency.IsArgoRollout(obj.GetAPIVersion(), obj.GetKind()) {
+		return nil
+	}
+	raw, found, err := unstructured.NestedString(obj.Object, "spec", "restartAt")
+	if err != nil || !found || raw == "" {
+		return nil
+	}
+	parsed, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		return nil
+	}
+	utc := parsed.UTC()
+	return &utc
 }
 
 func parseRestartedAt(annotations map[string]string) *time.Time {

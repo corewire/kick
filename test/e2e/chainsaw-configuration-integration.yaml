@@ -1,0 +1,19 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Configuration
+metadata:
+  name: kick-e2e-integration
+spec:
+  failFast: false
+  # Same shared-namespace contract as the core configuration; see
+  # chainsaw-configuration.yaml for the rationale.
+  namespace: kick-e2e
+  timeouts:
+    # Integration suites drive real third-party control planes: a Kargo
+    # promotion followed by an Argo CD sync, or a CSI driver rotation poll,
+    # cannot complete inside the core budgets. Raise the budgets rather than
+    # shortening the polling in scenarios, which only converts slowness into
+    # flakes.
+    apply: 60s
+    assert: 300s
+    cleanup: 120s
+    exec: 600s

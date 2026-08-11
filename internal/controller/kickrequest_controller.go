@@ -706,6 +706,8 @@ func dependencyToSourceIdentity(dep dependency.DependencyRef) (observation.Sourc
 		identity.Kind = observation.SourceKindSecret
 	case dependency.ConfigMap:
 		identity.Kind = observation.SourceKindConfigMap
+	case dependency.SecretProviderClass:
+		identity.Kind = observation.SourceKindSecretProviderClass
 	default:
 		return observation.SourceIdentity{}, false
 	}
