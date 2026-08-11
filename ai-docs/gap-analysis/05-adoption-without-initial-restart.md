@@ -1,5 +1,10 @@
 # Gap 5: Adoption without an initial restart
 
+> **Outcome: closed.** Adoption already restarts nothing, which is now
+> documented rather than fixed. `spec.dryRun` was added so the decision can be
+> previewed (`KICK-FEAT-021`). Holding pods `Pending` is declined: it needs an
+> admission webhook in the pod path.
+
 > **Comparison bullet.** *You want to avoid the initial restart when adopting
 > the tool. Wave's mutating webhook sets the first hash without a rollout, and
 > holds pods `Pending` while a required Secret is missing.*

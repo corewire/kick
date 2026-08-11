@@ -1,5 +1,9 @@
 # Gap 2: Secrets Store CSI driver
 
+> **Outcome: implemented.** `SecretProviderClass` is discovered from CSI volumes
+> and `SecretProviderClassPodStatus` is observed behind
+> `--enable-csi-integration`. Tracked as `KICK-FEAT-023`.
+
 > **Comparison bullet.** *Your secrets are mounted through the Secrets Store CSI
 > driver. Reloader watches `SecretProviderClassPodStatus`; KICK has no
 > equivalent.*

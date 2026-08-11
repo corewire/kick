@@ -1,5 +1,10 @@
 # Gap 1: Running KICK without Argo CD or Flux
 
+> **Outcome: closed.** No code change was needed. The comparison page and the
+> new [Running without GitOps](../../docs/content/docs/guides/without-gitops.md)
+> guide were corrected, and `KICK-E2E-058` proves it. Tracked as
+> `KICK-FEAT-022`.
+
 > **Comparison bullet.** *You do not run Argo CD or Flux. Without GitOps gating,
 > KICK's main advantage does not apply, and Reloader is far better proven.*
 

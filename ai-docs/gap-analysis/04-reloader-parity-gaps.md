@@ -1,5 +1,10 @@
 # Gap 4: Reloader features with no KICK counterpart
 
+> **Outcome: split, as proposed.** Argo Rollouts implemented via `spec.restartAt`
+> (`KICK-FEAT-024`), webhooks implemented as the `NotificationPolicy` CRD
+> (`KICK-FEAT-026`), and Kargo added as a third GitOps provider
+> (`KICK-FEAT-025`). OpenShift `DeploymentConfig` declined.
+
 > **Comparison bullet.** *You need alerting webhooks, OpenShift
 > `DeploymentConfig`, or Argo Rollouts. These are Reloader features with no KICK
 > counterpart.*

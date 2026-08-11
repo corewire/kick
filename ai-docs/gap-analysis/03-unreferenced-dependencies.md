@@ -1,5 +1,9 @@
 # Gap 3: Dependencies not referenced by the pod template
 
+> **Outcome: declined.** Restarting on a hand-maintained list of names would
+> drift from reality and produce restarts nobody can explain. This is now an
+> explicit non-goal on the comparison page. No feature ID was allocated.
+
 > **Comparison bullet.** *Your application reads a Secret through the API rather
 > than through env or a volume. Reloader and Wave can both be told about such a
 > dependency by name; KICK only discovers env and volume references.*
