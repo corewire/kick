@@ -100,28 +100,126 @@ carrying `spec.restartAt`.
 
 `KICK-FEAT-023`, `024` and `025` are marked `e2e: not_applicable` in
 [traceability/features.yaml](traceability/features.yaml) on the grounds that
-each needs a third-party control plane. Installing Argo CD v2.13.3 into the kind
-cluster took roughly one minute via
-[test/e2e/setup/argocd/install-argocd.sh](test/e2e/setup/argocd/install-argocd.sh),
-so that rationale is weaker than it looked.
+each needs a third-party control plane. That rationale conflates two very
+different levels of infrastructure, and for two of the three features the
+cheaper level is sufficient.
 
-**Change.** For each integration, in decreasing order of value:
+### Two tiers
 
-1. **Argo Rollouts** — cheapest. Install the controller, deploy a Rollout with a
-   canary strategy consuming a Secret, change the Secret, assert `spec.restartAt`
-   moves, the pod template is untouched, and the canary steps are *not* executed.
-2. **Secrets Store CSI** — install the driver plus the `e2e-provider` test
-   provider (no cloud account needed). Assert a rotation produces exactly one
-   restart, and that a partially-rotated cluster produces none.
-3. **Kargo** — most expensive; needs Kargo plus Argo CD plus a Git repo.
+**Tier 1 — CRDs only.** Install the third-party CRDs, hand-author the
+third-party objects as test fixtures. No controller runs. This is not a
+watered-down test: the real CRD's OpenAPI schema validates every field name,
+type and enum, so a fixture that KICK's code agrees with is a fixture the real
+controller would also accept. It catches exactly the class of defect T1 belongs
+to — a translation KICK never performs — and it is hermetic and fast.
 
-Each needs its own setup script under `test/e2e/setup/`, a Makefile target
-mirroring `test-e2e-argocd`, and an exclusion range added to `test-e2e-core`.
-Then flip the corresponding `e2e:` entries to `required` and delete the
-rationales.
+**Tier 2 — real control plane.** Install the actual controller. Only needed
+where the assertion is about the third party's *behaviour* rather than the
+object's shape.
 
-**Acceptance.** `make test-e2e-rollouts` (etc.) green, and
-`make feature-coverage` reporting no `not_applicable` e2e for these features.
+The tier each feature needs differs, and so does the cost.
+
+### FEAT-025 Kargo — Tier 1, and Tier 1 is correct
+
+Verified: Kargo ships standalone CRD manifests at
+`charts/kargo/resources/crds/kargo.akuity.io_{stages,promotions}.yaml`
+(tag `v1.1.1`). Those are the only two kinds KICK reads.
+
+KICK's Kargo provider never talks to a Kargo controller. It reads
+`Stage.status.currentPromotion.name`, `Promotion.spec.stage`,
+`Promotion.status.phase`, and the `kargo.akuity.io/authorized-stage` annotation
+on an Argo CD Application. Every one of those is writable by a test.
+
+Running real Kargo would need cert-manager, a Git server, a container registry
+and Argo CD, to end up asserting against status fields the test could have
+written directly. Tier 2 here buys almost nothing.
+
+**Infra:** `kubectl apply -f` two CRD files. Argo CD is already installed.
+
+**Scenarios:** gate blocks on `status.currentPromotion` set; gate blocks on a
+non-terminal Promotion; gate delegates to Argo CD once the Promotion is
+`Succeeded`; gate returns `GateOwnerUnknown` for an unannotated Application;
+gate returns `GateOwnerAmbiguous` for two authorized stages.
+
+### FEAT-024 Argo Rollouts — Tier 2, and Tier 2 is cheap
+
+Verified: `manifests/install.yaml` at tag `v1.7.2` exists (HTTP 200), and
+`manifests/crds` exists if a Tier 1 subset is ever wanted. All images are
+published and pullable.
+
+Tier 1 would confirm KICK writes `spec.restartAt`. But the assertion that
+actually justifies the feature — that restarting a Rollout via `spec.restartAt`
+does **not** re-run the canary or blue-green steps, which is the whole reason we
+avoided the pod-template annotation — requires the real controller to observe
+the Rollout and execute, or decline to execute, its strategy.
+
+**Infra:** one `install.yaml`, namespace `argo-rollouts`, plus a
+`rollout status`-equivalent wait on `deploy/argo-rollouts`.
+
+**Scenarios:** Secret change restarts a canary Rollout via `spec.restartAt` with
+the pod template byte-identical and no canary step executed; the same for
+blue-green; `ArgoRolloutComplete` gates the KickRequest until pods are actually
+replaced; a Rollout using `spec.workloadRef` is handled or explicitly rejected.
+
+### FEAT-023 Secrets Store CSI — Tier 1 now, Tier 2 later
+
+Verified, and this is the finding that changes the plan: the driver itself is a
+published manifest (`deploy/secrets-store-csi-driver.yaml` at `v1.4.6`, HTTP
+200), but the **e2e-provider has no published image**.
+`registry.k8s.io/csi-secrets-store/e2e-provider` returns `"tags":[]`, and the
+upstream installer at `test/e2eprovider/e2e-provider-installer.yaml` literally
+carries `image: replace/this/image/at/build/time`. Upstream builds it from
+source in-repo (`make e2e-provider-container`). Tier 2 therefore means vendoring
+a Go build of a third-party test fixture, building an image, and `kind load`ing
+it — per developer and in CI.
+
+Two further Tier 2 costs: the driver defaults to
+`--enable-secret-rotation=false` with `--rotation-poll-interval=2m`, so the
+manifest must be patched to enable rotation and shorten the interval well below
+chainsaw's 180s `exec` timeout, or the test cannot observe a rotation at all.
+
+Tier 1 is unusually strong here. `SecretProviderClassPodStatus` has **no spec** —
+it is status-only, and KICK's observer reads nothing else. A test can create the
+CRD and write `status.objects[].version` directly, which is precisely the signal
+the driver would have produced. **This is the tier that catches T1.**
+
+**Infra (Tier 1):** the `SecretProviderClass` and
+`SecretProviderClassPodStatus` CRDs from the driver repo. Nothing else.
+
+**Scenarios (Tier 1):** a version change on all pods' `status.objects` triggers
+exactly one restart (fails today because of T1); mixed versions across pods
+produce zero restarts until they converge; a pod referencing the SPC through a
+CSI volume is discovered by the reverse index.
+
+**Tier 2 later** if we ever need to prove the driver's real rotation behaviour.
+Record it as a known limitation rather than pretending Tier 1 covers it.
+
+### Shared plumbing
+
+- Setup scripts under `test/e2e/setup/<tool>/`, following the existing
+  [install-argocd.sh](test/e2e/setup/argocd/install-argocd.sh) contract: pinned
+  version, explicit `--kubeconfig`/`--context`, never an ambient context, and a
+  readiness wait.
+- One Makefile target per suite mirroring `test-e2e-argocd`, plus the matching
+  ID range added to the `grep -Ev` exclusion in `test-e2e-core`. That exclusion
+  list is already an unreadable 24-ID alternation; adding three more ranges is
+  the point at which it should become a label or directory convention instead.
+- IDs from `KICK-E2E-060`. Each scenario owns its `kick-e2e-NNN` namespace.
+- Keep script deadlines under the 180s `exec` timeout in
+  [chainsaw-configuration.yaml](test/e2e/chainsaw-configuration.yaml).
+
+### Ordering constraint that is easy to get wrong
+
+The manager probes for these CRDs **once, at startup** (T7). A setup script that
+installs CRDs *after* KICK is deployed produces a green-looking cluster in which
+the integration is silently inactive and every scenario fails for a reason that
+looks nothing like the cause. Every setup script must install CRDs before the
+manager starts, or restart the manager afterwards. Worth an assertion in the
+scripts rather than a comment.
+
+**Acceptance.** `make test-e2e-kargo`, `make test-e2e-rollouts` and
+`make test-e2e-csi` green; `KICK-FEAT-023` and `025` move to `e2e: required`;
+`024` moves to `required`; `make feature-coverage` clean.
 
 ---
 
@@ -208,6 +306,15 @@ configuration reference.
 
 T1 first — it is a shipped defect that makes an advertised feature a no-op.
 T2 and T3 are small and share the timeline test fixture, so do them together.
-T5 is fifteen minutes and closes the documentation loop. Then T4, which is the
-largest and would have caught T1. T6 and T7 are genuine but neither blocks a
-release.
+T5 is fifteen minutes and closes the documentation loop.
+
+Then T4, in ascending order of infrastructure cost, which is the reverse of what
+I assumed before checking: **CSI Tier 1** (two CRDs, and it is the test that
+catches T1), then **Kargo Tier 1** (two CRDs, Argo CD already present), then
+**Argo Rollouts Tier 2** (one install manifest). CSI Tier 2 is deferred
+indefinitely — it requires building an unpublished third-party image from
+source, which is not worth it for the marginal coverage over Tier 1.
+
+T6 and T7 are genuine but neither blocks a release. T7 is worth doing before T4
+regardless, because the startup-probe ordering it describes will otherwise bite
+whoever writes the setup scripts.
