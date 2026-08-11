@@ -450,3 +450,18 @@ features:
     - test/envtest/notificationpolicy_api_test.go
   e2e:
   - KICK-E2E-059
+- id: KICK-FEAT-027
+  name: NotificationPolicy validation reconciler
+  spec: ai-docs/gap-analysis/06-follow-up-tasks.md
+  task: ai-docs/gap-analysis/06-follow-up-tasks.md
+  tests:
+    unit: required
+    envtest: required
+    e2e: required
+  coverage:
+    unit:
+    - internal/controller/notificationpolicy_controller_test.go
+    envtest:
+    - test/envtest/notificationpolicy_readiness_test.go
+  e2e:
+  - KICK-E2E-072

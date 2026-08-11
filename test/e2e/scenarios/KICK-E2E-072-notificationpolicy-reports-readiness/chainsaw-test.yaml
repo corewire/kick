@@ -1,0 +1,140 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: kick-e2e-072-notificationpolicy-reports-readiness
+spec:
+  steps:
+    - name: create-fixtures
+      try:
+        - apply:
+            file: resources.yaml
+        - assert:
+            resource:
+              apiVersion: kick.corewire.io/v1alpha1
+              kind: NotificationPolicy
+              metadata:
+                name: default
+                namespace: kick-e2e-072
+    - name: assert-missing-secret-is-reported
+      try:
+        - script:
+            content: |
+              set -eu
+              # The referenced Secret does not exist yet, so the policy must
+              # report the problem instead of looking healthy.
+              deadline=$(( $(date +%s) + 90 ))
+              while true; do
+                status=$(kubectl -n kick-e2e-072 get notificationpolicy default \
+                  -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)
+                reason=$(kubectl -n kick-e2e-072 get notificationpolicy default \
+                  -o jsonpath='{.status.conditions[?(@.type=="Ready")].reason}' 2>/dev/null || true)
+                if [ "${status}" = "False" ] && [ "${reason}" = "ValidationFailed" ]; then
+                  break
+                fi
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "expected Ready=False/ValidationFailed, got '${status}'/'${reason}'" >&2
+                  kubectl -n kick-e2e-072 get notificationpolicy default \
+                    -o jsonpath='{.status.conditions}' >&2 || true
+                  exit 1
+                fi
+                sleep 2
+              done
+    - name: create-referenced-secret
+      try:
+        - script:
+            content: |
+              set -eu
+              # The token value is random and never printed: only its presence
+              # under the referenced key matters for validation.
+              kubectl -n kick-e2e-072 create secret generic notify-token \
+                --from-literal=token="$(head -c 24 /dev/urandom | base64 | tr -d '\n')" >/dev/null
+    - name: assert-policy-becomes-ready
+      try:
+        - script:
+            content: |
+              set -eu
+              deadline=$(( $(date +%s) + 90 ))
+              while true; do
+                status=$(kubectl -n kick-e2e-072 get notificationpolicy default \
+                  -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)
+                reason=$(kubectl -n kick-e2e-072 get notificationpolicy default \
+                  -o jsonpath='{.status.conditions[?(@.type=="Ready")].reason}' 2>/dev/null || true)
+                if [ "${status}" = "True" ] && [ "${reason}" = "Validated" ]; then
+                  break
+                fi
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "expected Ready=True/Validated after the secret exists, got '${status}'/'${reason}'" >&2
+                  kubectl -n kick-e2e-072 get notificationpolicy default \
+                    -o jsonpath='{.status.conditions}' >&2 || true
+                  kubectl -n kick-e2e-072 get secret notify-token \
+                    -o jsonpath='{.metadata.name}{"\n"}' >&2 || true
+                  exit 1
+                fi
+                sleep 2
+              done
+    - name: assert-observed-generation-tracks-spec
+      try:
+        - script:
+            content: |
+              set -eu
+              # A spec change must be observed, not left behind at an older
+              # generation while the condition still claims to be current.
+              kubectl -n kick-e2e-072 patch notificationpolicy default \
+                --type merge -p '{"spec":{"webhook":{"timeoutSeconds":7}}}' >/dev/null
+              deadline=$(( $(date +%s) + 90 ))
+              while true; do
+                generation=$(kubectl -n kick-e2e-072 get notificationpolicy default \
+                  -o jsonpath='{.metadata.generation}')
+                observed=$(kubectl -n kick-e2e-072 get notificationpolicy default \
+                  -o jsonpath='{.status.observedGeneration}' 2>/dev/null || true)
+                status=$(kubectl -n kick-e2e-072 get notificationpolicy default \
+                  -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)
+                if [ "${observed}" = "${generation}" ] && [ "${status}" = "True" ]; then
+                  break
+                fi
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "expected observedGeneration ${generation} and Ready=True, got '${observed}'/'${status}'" >&2
+                  kubectl -n kick-e2e-072 get notificationpolicy default \
+                    -o jsonpath='{.status.conditions}' >&2 || true
+                  exit 1
+                fi
+                sleep 2
+              done
+    - name: assert-nothing-was-delivered
+      try:
+        - script:
+            content: |
+              set -eu
+              # Validation is not delivery: no KickRequest exists, so the
+              # counters must stay untouched.
+              delivered=$(kubectl -n kick-e2e-072 get notificationpolicy default \
+                -o jsonpath='{.status.delivered}')
+              failed=$(kubectl -n kick-e2e-072 get notificationpolicy default \
+                -o jsonpath='{.status.failed}')
+              last_delivery=$(kubectl -n kick-e2e-072 get notificationpolicy default \
+                -o jsonpath='{.status.lastDeliveryTime}')
+              if [ -n "${delivered}" ] && [ "${delivered}" -ne 0 ]; then
+                echo "expected no deliveries, status.delivered='${delivered}'" >&2
+                exit 1
+              fi
+              if [ -n "${failed}" ] && [ "${failed}" -ne 0 ]; then
+                echo "expected no delivery attempts, status.failed='${failed}'" >&2
+                exit 1
+              fi
+              if [ -n "${last_delivery}" ]; then
+                echo "expected no delivery timestamp, status.lastDeliveryTime='${last_delivery}'" >&2
+                exit 1
+              fi
+              requests=$(kubectl -n kick-e2e-072 get kickrequests -o name | wc -l)
+              if [ "${requests}" -ne 0 ]; then
+                echo "the scenario must not create kickrequests, found ${requests}" >&2
+                kubectl -n kick-e2e-072 get kickrequests -o yaml >&2 || true
+                exit 1
+              fi
+    - name: cleanup
+      try:
+        - delete:
+            ref:
+              apiVersion: v1
+              kind: Namespace
+              name: kick-e2e-072

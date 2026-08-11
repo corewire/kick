@@ -28,6 +28,7 @@
 | KICK-FEAT-024 | Pass | N/A | Pass | KICK-E2E-060, KICK-E2E-061, KICK-E2E-062, KICK-E2E-063 | PASS |
 | KICK-FEAT-025 | Pass | N/A | N/A | - | PASS |
 | KICK-FEAT-026 | Pass | Pass | Pass | KICK-E2E-059 | PASS |
+| KICK-FEAT-027 | Pass | Pass | Pass | KICK-E2E-072 | PASS |
 
 # API Field Coverage Report
 

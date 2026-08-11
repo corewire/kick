@@ -27,6 +27,7 @@ import (
 	"github.com/corewire/kick/internal/timeline"
 	coordinationv1 "k8s.io/api/coordination/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -37,7 +38,10 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
-var scheme = runtime.NewScheme()
+var (
+	scheme   = runtime.NewScheme()
+	setupLog = ctrl.Log.WithName("setup")
+)
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
@@ -125,11 +129,21 @@ func main() {
 	}).SetupWithManager(mgr); err != nil {
 		os.Exit(1)
 	}
+	if err := (&controller.NotificationPolicyReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		os.Exit(1)
+	}
 	// Optional integrations: registering an index or watch for a kind whose CRD
 	// is absent aborts the manager, so the flag and the cluster must both allow it.
 	var optionalWorkloadKinds []dependency.WorkloadKind
-	if enableArgoRollouts && apiprobe.KindAvailable(mgr.GetRESTMapper(), dependency.ArgoRolloutGVK) {
-		optionalWorkloadKinds = append(optionalWorkloadKinds, dependency.ArgoRolloutWorkloadKind)
+	if enableArgoRollouts {
+		if apiprobe.KindAvailable(mgr.GetRESTMapper(), dependency.ArgoRolloutGVK) {
+			optionalWorkloadKinds = append(optionalWorkloadKinds, dependency.ArgoRolloutWorkloadKind)
+		} else {
+			logSkippedIntegration("Argo Rollouts", dependency.ArgoRolloutGVK)
+		}
 	}
 
 	if err := setupObservationControllers(mgr, policyMatcher, optionalWorkloadKinds, enableCSIIntegration); err != nil {
@@ -179,7 +193,11 @@ func setupObservationControllers(
 	if err := dependency.RegisterWorkloadReverseIndexes(context.Background(), mgr.GetFieldIndexer(), optionalWorkloadKinds...); err != nil {
 		return err
 	}
-	if !enableCSIIntegration || !apiprobe.KindAvailable(mgr.GetRESTMapper(), controller.SecretProviderClassPodStatusGVK) {
+	if !enableCSIIntegration {
+		return nil
+	}
+	if !apiprobe.KindAvailable(mgr.GetRESTMapper(), controller.SecretProviderClassPodStatusGVK) {
+		logSkippedIntegration("Secrets Store CSI", controller.SecretProviderClassPodStatusGVK)
 		return nil
 	}
 	return (&controller.SecretProviderClassObservationReconciler{
@@ -217,8 +235,17 @@ func newProviderRegistry(mgr ctrl.Manager, argocdNamespace string, applicationNa
 	)
 	if apiprobe.KindAvailable(mgr.GetRESTMapper(), kargoprovider.StageGVK) {
 		registry.Register(&kargoprovider.Provider{Client: mgr.GetClient(), ArgoCD: argocdProvider})
+	} else {
+		logSkippedIntegration("Kargo", kargoprovider.StageGVK)
 	}
 	return registry
+}
+
+// logSkippedIntegration records an optional integration left inactive because its
+// kind is absent. The probe runs once, so installing the CRDs later needs a restart.
+func logSkippedIntegration(integration string, gvk schema.GroupVersionKind) {
+	setupLog.Info("optional integration skipped: kind not found in the cluster; restart the KICK manager after installing its CRDs",
+		"integration", integration, "gvk", gvk.String())
 }
 
 // addTimelineServer runs the read-only timeline API alongside the manager.

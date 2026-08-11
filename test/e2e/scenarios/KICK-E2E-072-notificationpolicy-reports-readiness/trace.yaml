@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-072
+name: notificationpolicy-reports-readiness
+features:
+  - KICK-FEAT-027
+provider: core
+class: behavior
+required: true

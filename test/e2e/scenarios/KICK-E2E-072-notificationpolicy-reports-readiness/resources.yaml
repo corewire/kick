@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kick-e2e-072
+---
+apiVersion: kick.corewire.io/v1alpha1
+kind: NotificationPolicy
+metadata:
+  name: default
+  namespace: kick-e2e-072
+spec:
+  phases:
+    - Succeeded
+  webhook:
+    # No Service backs this name and no KickRequest is created in this scenario,
+    # so the endpoint is never called: only validation is under test here.
+    url: http://kick-e2e-072-receiver.kick-e2e-072.svc:8080/hook
+    timeoutSeconds: 5
+    auth:
+      # The Secret is intentionally absent from this file. The test creates it
+      # later so the readiness transition itself is observable.
+      bearerToken:
+        name: notify-token
+        key: token

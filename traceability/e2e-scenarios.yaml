@@ -393,3 +393,9 @@ scenarios:
     status: required
     features:
       - KICK-FEAT-024
+  - id: KICK-E2E-072
+    name: notificationpolicy reports readiness
+    directory: test/e2e/scenarios/KICK-E2E-072-notificationpolicy-reports-readiness
+    status: required
+    features:
+      - KICK-FEAT-027
