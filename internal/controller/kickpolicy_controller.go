@@ -88,6 +88,7 @@ func (r *KickPolicyReconciler) providerProblem(policy *kickv1alpha1.KickPolicy) 
 
 func (r *KickPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if r.Recorder == nil {
+		//nolint:staticcheck // controller-runtime still returns the client-go EventRecorder interface from this method.
 		r.Recorder = mgr.GetEventRecorderFor("kickpolicy-controller")
 	}
 	return ctrl.NewControllerManagedBy(mgr).
