@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kick-e2e-073
+---
+apiVersion: kick.corewire.io/v1alpha1
+kind: KickPolicy
+metadata:
+  name: flux-gated
+  namespace: kick-e2e-073
+spec:
+  discovery:
+    workloadSelector:
+      matchLabels:
+        app: kick-e2e-073
+  gitOps:
+    # Flux is enabled by default but its CRDs are never installed in any e2e
+    # suite, so this policy can never be served and must say so.
+    provider: Flux
+---
+apiVersion: kick.corewire.io/v1alpha1
+kind: KickPolicy
+metadata:
+  name: ungated
+  namespace: kick-e2e-073
+spec:
+  discovery:
+    workloadSelector:
+      matchLabels:
+        app: kick-e2e-073
+  gitOps:
+    provider: None

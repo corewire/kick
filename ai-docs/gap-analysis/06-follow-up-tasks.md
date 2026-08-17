@@ -238,6 +238,29 @@ yields `GateOwnerUnknown`; two authorized stages yield `GateOwnerAmbiguous`.
 This is the most expensive of the three and the one most likely to be flaky.
 Budget for it accordingly rather than discovering it late.
 
+#### Verified against a real control plane
+
+Implemented as `test/e2e/setup/kargo/install-kargo.sh` and scenarios 068-071.
+Four findings that the plan above did not anticipate:
+
+- Kargo refuses to hand git credentials to a plain-HTTP remote. The in-cluster
+  Gitea is HTTP, so the test installation sets
+  `controller.allowCredentialsOverHTTP=true`. This is a test-only concession; a
+  real installation keeps the default.
+- The chart enforces a five-minute floor on Warehouse polling
+  (`controller.reconcilers.warehouses.minReconciliationInterval`). The floor is
+  lowered and the scenarios additionally force discovery by annotating the
+  Warehouse with `kargo.akuity.io/refresh`.
+- A Promotion that outlives its Stage leaves a nil entry in Kargo's index of
+  running Promotions by Argo CD Application. From then on every Application
+  event logs `cache contained <nil>, which is not an Object` and **no**
+  Promotion in the cluster is reconciled again until the controller restarts.
+  Scenario cleanup therefore deletes Promotions before the Stage.
+- The gate reason surfaced by KICK was wrong for every provider except Argo CD:
+  `RegistryGateResolver` only unwrapped `argocd.ResolutionError`, so a Kargo
+  `AmbiguousOwner` was reported as `OwnerUnknown`. Resolution errors now carry
+  their reason through the provider-neutral `gitops.GateReasoner` interface.
+
 ### FEAT-023 Secrets Store CSI — real driver and real provider
 
 The e2e-provider really is unpublished, and the mechanism is now clear:

@@ -417,9 +417,39 @@ scenarios:
     status: required
     features:
       - KICK-FEAT-023
+  - id: KICK-E2E-068
+    name: kargo promotion blocks restart
+    directory: test/e2e/scenarios/KICK-E2E-068-kargo-promotion-blocks-restart
+    status: required
+    features:
+      - KICK-FEAT-025
+  - id: KICK-E2E-069
+    name: kargo restart after promotion
+    directory: test/e2e/scenarios/KICK-E2E-069-kargo-restart-after-promotion
+    status: required
+    features:
+      - KICK-FEAT-025
+  - id: KICK-E2E-070
+    name: kargo unannotated application blocks
+    directory: test/e2e/scenarios/KICK-E2E-070-kargo-unannotated-application-blocks
+    status: required
+    features:
+      - KICK-FEAT-025
+  - id: KICK-E2E-071
+    name: kargo ambiguous stage blocks
+    directory: test/e2e/scenarios/KICK-E2E-071-kargo-ambiguous-stage-blocks
+    status: required
+    features:
+      - KICK-FEAT-025
   - id: KICK-E2E-072
     name: notificationpolicy reports readiness
     directory: test/e2e/scenarios/KICK-E2E-072-notificationpolicy-reports-readiness
     status: required
     features:
       - KICK-FEAT-027
+  - id: KICK-E2E-073
+    name: kickpolicy reports unavailable integration
+    directory: test/e2e/scenarios/KICK-E2E-073-kickpolicy-reports-unavailable-integration
+    status: required
+    features:
+      - KICK-FEAT-028

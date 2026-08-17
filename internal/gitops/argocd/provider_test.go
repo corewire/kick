@@ -40,7 +40,7 @@ func TestResolveOwnerRejectsStaleAnnotationThenFallback(t *testing.T) {
 			"resources": []interface{}{map[string]interface{}{"group": "apps", "kind": "Deployment", "namespace": "payments", "name": "payments-api"}},
 		},
 	}}
-	app.SetGroupVersionKind(applicationGVK)
+	app.SetGroupVersionKind(ApplicationGVK)
 
 	provider := &Provider{
 		Client:                fake.NewClientBuilder().WithScheme(scheme).WithObjects(app).Build(),
@@ -85,7 +85,7 @@ func TestEvaluateGateTypedBlocks(t *testing.T) {
 			"sync": map[string]interface{}{"status": "OutOfSync"},
 		},
 	}}
-	app.SetGroupVersionKind(applicationGVK)
+	app.SetGroupVersionKind(ApplicationGVK)
 
 	project := &unstructured.Unstructured{Object: map[string]interface{}{
 		"apiVersion": "argoproj.io/v1alpha1",

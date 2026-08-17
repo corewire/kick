@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-069
+name: kargo-restart-after-promotion
+features:
+  - KICK-FEAT-025
+provider: kargo
+class: behavior
+required: true

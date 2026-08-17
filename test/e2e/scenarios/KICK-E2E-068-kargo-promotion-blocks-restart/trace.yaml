@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-068
+name: kargo-promotion-blocks-restart
+features:
+  - KICK-FEAT-025
+provider: kargo
+class: behavior
+required: true

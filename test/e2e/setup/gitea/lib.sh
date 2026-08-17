@@ -69,6 +69,24 @@ esac
 EOF
 }
 
+# Delete a repository, branches and all.
+#
+# Seeding only replaces one path on main, so a scenario that promotes to another
+# branch would otherwise inherit that branch from its previous run. Such a
+# scenario drops the repository first and lets the next seed recreate it.
+gitea_delete_repo() {
+  gitea_sh "$GITEA_USER" "$GITEA_PASSWORD" "$1" <<'EOF'
+set -eu
+code=$(curl -s -o /dev/null -w '%{http_code}' -u "$1:$2" \
+  -X DELETE "http://127.0.0.1:3000/api/v1/repos/$1/$3")
+case "$code" in
+204) echo "deleted repository $3" ;;
+404) echo "repository $3 does not exist" ;;
+*) echo "unexpected status $code deleting repository $3" >&2; exit 1 ;;
+esac
+EOF
+}
+
 _gitea_clone() {
   gitea_sh "$1" "$(gitea_repo_url "$1")" <<'EOF'
 set -eu

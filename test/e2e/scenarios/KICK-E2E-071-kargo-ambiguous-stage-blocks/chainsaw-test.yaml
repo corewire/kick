@@ -1,0 +1,91 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: kick-e2e-071-kargo-ambiguous-stage-blocks
+spec:
+  steps:
+    - name: seed-repository
+      try:
+        - script:
+            content: ../../setup/gitea/seed.sh e2e-071 manifests manifests
+    - name: create-fixtures
+      try:
+        - apply:
+            file: resources.yaml
+    - name: wait-for-initial-sync
+      try:
+        - assert:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Application
+              metadata:
+                name: kick-e2e-071
+                namespace: argocd
+              status:
+                sync:
+                  status: Synced
+                health:
+                  status: Healthy
+        - assert:
+            resource:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: app-071
+                namespace: kick-e2e-071
+                generation: 1
+              status:
+                availableReplicas: 1
+    - name: rotate-secret
+      try:
+        - script:
+            content: ../../setup/gitea/seed.sh e2e-071 manifests updated "rotate app-secret"
+        - script:
+            content: |
+              set -eu
+              kubectl -n argocd patch application kick-e2e-071 --type merge \
+                -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'
+    - name: assert-ambiguous-owner
+      try:
+        - assert:
+            resource:
+              apiVersion: kick.corewire.io/v1alpha1
+              kind: KickRequest
+              metadata:
+                name: deployment-app-071
+                namespace: kick-e2e-071
+              status:
+                phase: WaitingForOwner
+                gate:
+                  reason: AmbiguousOwner
+        - script:
+            content: |
+              set -eu
+              NS=kick-e2e-071
+
+              message=$(kubectl -n $NS get kickrequest deployment-app-071 \
+                -o jsonpath='{.status.gate.message}')
+              case "$message" in
+                *"more than one kargo stage"*) ;;
+                *)
+                  echo "unexpected gate message: $message" >&2
+                  exit 1
+                  ;;
+              esac
+
+              # An ambiguous owner must not decay into a restart.
+              sleep 60
+              generation=$(kubectl -n $NS get deployment app-071 \
+                -o jsonpath='{.metadata.generation}')
+              if [ "$generation" -ne 1 ]; then
+                echo "app-071 was restarted despite an ambiguous Kargo owner" >&2
+                kubectl -n $NS get kickrequests -o yaml >&2 || true
+                exit 1
+              fi
+    - name: cleanup
+      try:
+        - delete:
+            ref:
+              apiVersion: v1
+              kind: Namespace
+              name: kick-e2e-071

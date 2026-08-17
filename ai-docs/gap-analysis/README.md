@@ -36,9 +36,9 @@ source of truth for current behaviour.
 |---|---|---|
 | KICK-FEAT-021 | Dry-run policy evaluation without restart | KICK-E2E-057 |
 | KICK-FEAT-022 | Operation without a GitOps provider | KICK-E2E-058 |
-| KICK-FEAT-023 | Secrets Store CSI rotation detection | none — needs the CSI driver |
-| KICK-FEAT-024 | Argo Rollout workload restarts | none — needs the Rollouts controller |
-| KICK-FEAT-025 | Kargo stage promotion gate | none — needs a Kargo control plane |
+| KICK-FEAT-023 | Secrets Store CSI rotation detection | KICK-E2E-064…067 |
+| KICK-FEAT-024 | Argo Rollout workload restarts | KICK-E2E-060…063 |
+| KICK-FEAT-025 | Kargo stage promotion gate | KICK-E2E-068…071 |
 | KICK-FEAT-026 | NotificationPolicy webhook delivery | KICK-E2E-059 |
 
 Features without e2e coverage carry a rationale in

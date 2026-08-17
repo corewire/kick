@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kick-e2e-070
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kick-e2e-070
+  namespace: argocd
+  # Deliberately no kargo.akuity.io/authorized-stage annotation: no Kargo Stage
+  # claims this Application.
+spec:
+  project: default
+  source:
+    repoURL: http://gitea.kick-e2e-git.svc.cluster.local:3000/kick-e2e/e2e-070.git
+    targetRevision: main
+    path: manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kick-e2e-070
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+---
+apiVersion: kick.corewire.io/v1alpha1
+kind: KickPolicy
+metadata:
+  name: default
+  namespace: kick-e2e-070
+spec:
+  discovery:
+    workloadSelector: {}
+  gitOps:
+    provider: Kargo

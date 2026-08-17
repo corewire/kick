@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-071
+name: kargo-ambiguous-stage-blocks
+features:
+  - KICK-FEAT-025
+provider: kargo
+class: behavior
+required: true

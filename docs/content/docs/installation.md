@@ -8,7 +8,8 @@ description: Install the KICK operator with Helm, or from source for local devel
 llmsDescription: |
   Installation guide for the KICK operator. Prerequisites: Kubernetes 1.28+,
   Helm 3.12+. Install via the Helm chart (oci://ghcr.io/corewire/charts/kick)
-  into namespace kick-system. Key values: argocd.enabled, image.repository/tag.
+  into namespace kick-system. Key values: integrations.argocd.enabled,
+  image.repository/tag.
   Helm installs CRDs on first install but does not upgrade them — re-apply the
   CRDs with kubectl on upgrade. A from-source path (kind + make) is provided for
   local development.
@@ -41,8 +42,10 @@ Override with `--set key=value` or a `-f values.yaml` file:
 |-------|---------|-------------|
 | `image.repository` | `ghcr.io/corewire/kick` | Controller image. |
 | `image.tag` | chart `appVersion` | Controller image tag. |
-| `argocd.enabled` | `true` | Grant RBAC to read Argo CD `Application`/`AppProject` for GitOps gating. |
-| `argocd.applicationNamespaces` | `["*"]` | Namespaces KICK may read Argo CD objects from. |
+| `integrations.argocd.enabled` | `true` | Grant RBAC to read Argo CD `Application`/`AppProject` for GitOps gating. |
+| `integrations.argocd.applicationNamespaces` | `[]` | Namespaces KICK may read Argo CD objects from. Empty means Argo CD namespace only. |
+| `integrations.flux.enabled` | `true` | Grant RBAC to read Flux `Kustomizations`/`HelmReleases` for GitOps gating. |
+| `integrations.kargo.enabled` | `false` | Grant RBAC to read Kargo `Stages`/`Promotions` for GitOps gating. |
 | `leaderElection.enabled` | `true` | Enable leader election for HA. |
 | `replicaCount` | `1` | Controller replicas. |
 
@@ -51,7 +54,7 @@ If you do not use Argo CD, disable its RBAC:
 ```bash
 helm install kick oci://ghcr.io/corewire/charts/kick \
   --namespace kick-system --create-namespace \
-  --set argocd.enabled=false
+  --set integrations.argocd.enabled=false
 ```
 
 ### Upgrading CRDs

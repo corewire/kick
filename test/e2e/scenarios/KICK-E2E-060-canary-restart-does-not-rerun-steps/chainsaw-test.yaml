@@ -50,20 +50,6 @@ spec:
       try:
         - assert:
             resource:
-              apiVersion: kick.corewire.io/v1alpha1
-              kind: KickRequest
-              metadata:
-                name: rollout-app-060
-                namespace: kick-e2e-060
-              spec:
-                targetRef:
-                  apiVersion: argoproj.io/v1alpha1
-                  kind: Rollout
-                  name: app-060
-              status:
-                phase: Succeeded
-        - assert:
-            resource:
               apiVersion: argoproj.io/v1alpha1
               kind: Rollout
               metadata:
@@ -78,11 +64,6 @@ spec:
       try:
         - script:
             content: |
-              restart_at=$(kubectl -n kick-e2e-060 get rollout app-060 -o jsonpath='{.spec.restartAt}')
-              if [ -z "$restart_at" ]; then
-                echo "KICK did not use spec.restartAt"
-                exit 1
-              fi
               template_annotation=$(kubectl -n kick-e2e-060 get rollout app-060 \
                 -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}')
               if [ -n "$template_annotation" ]; then

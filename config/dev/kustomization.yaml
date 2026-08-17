@@ -7,3 +7,11 @@ patches:
   target:
     kind: Deployment
     name: ".*controller-manager"
+- path: manager_argocd_patch.yaml
+  target:
+    kind: Deployment
+    name: ".*controller-manager"
+- path: manager_integrations_patch.yaml
+  target:
+    kind: Deployment
+    name: ".*controller-manager"

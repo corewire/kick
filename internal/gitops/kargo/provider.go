@@ -215,3 +215,8 @@ type ResolutionError struct {
 func (e ResolutionError) Error() string {
 	return fmt.Sprintf("%s: %s", e.Reason, e.Message)
 }
+
+// GateReason implements gitops.GateReasoner.
+func (e ResolutionError) GateReason() gitops.GateReason {
+	return e.Reason
+}

@@ -23,14 +23,27 @@ rules:
     resources: ["kickpolicies"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["kick.corewire.io"]
+    resources: ["kickpolicies/status"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: ["kick.corewire.io"]
     resources: ["notificationpolicies"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["kick.corewire.io"]
     resources: ["notificationpolicies/status"]
     verbs: ["get", "update", "patch"]
+{{- if .Values.integrations.argocd.enabled }}
   - apiGroups: ["argoproj.io"]
     resources: ["applications"]
     verbs: ["get", "list", "watch"]
+{{- end }}
+{{- if .Values.integrations.flux.enabled }}
+  - apiGroups: ["kustomize.toolkit.fluxcd.io"]
+    resources: ["kustomizations"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["helm.toolkit.fluxcd.io"]
+    resources: ["helmreleases"]
+    verbs: ["get", "list", "watch"]
+{{- end }}
 {{- if .Values.integrations.argoRollouts.enabled }}
   - apiGroups: ["argoproj.io"]
     resources: ["rollouts"]

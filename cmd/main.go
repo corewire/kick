@@ -18,6 +18,7 @@ import (
 	argocdprovider "github.com/corewire/kick/internal/gitops/argocd"
 	fluxprovider "github.com/corewire/kick/internal/gitops/flux"
 	kargoprovider "github.com/corewire/kick/internal/gitops/kargo"
+	"github.com/corewire/kick/internal/integrations"
 	"github.com/corewire/kick/internal/kickrequest"
 	"github.com/corewire/kick/internal/notify"
 	"github.com/corewire/kick/internal/observation"
@@ -48,42 +49,59 @@ func init() {
 	utilruntime.Must(kickv1alpha1.AddToScheme(scheme))
 }
 
-func main() {
-	var metricsAddr, probeAddr string
-	var leaderElection bool
-	var requestRetention time.Duration
-	var timelineAddr string
-	var otlpEndpoint string
-	var otlpInsecure bool
-	var enableCSIIntegration bool
-	var enableArgoRollouts bool
-	var argocdNamespace string
+// options holds everything the operator is configured with on the command line.
+type options struct {
+	metricsAddr          string
+	probeAddr            string
+	timelineAddr         string
+	otlpEndpoint         string
+	otlpInsecure         bool
+	leaderElection       bool
+	requestRetention     time.Duration
+	rolloutTimeout       time.Duration
+	enableCSIIntegration bool
+	enableArgoRollouts   bool
+	providers            providerConfig
+}
+
+func parseFlags() options {
+	var opts options
 	var argocdApplicationNamespaces string
-	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Metrics endpoint address.")
-	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Health probe address.")
-	flag.StringVar(&timelineAddr, "timeline-bind-address", ":8090", "Timeline API/UI bind address. Empty disables the timeline server.")
-	flag.BoolVar(&leaderElection, "leader-elect", false, "Enable leader election.")
-	flag.StringVar(&otlpEndpoint, "otel-otlp-endpoint", "", "OTLP endpoint (host:port) for exporting traces to Tempo/Jaeger or another collector.")
-	flag.BoolVar(&otlpInsecure, "otel-otlp-insecure", true, "Use insecure OTLP transport (no TLS).")
-	flag.DurationVar(&requestRetention, "request-retention", 24*time.Hour, "Retention duration for terminal KickRequests before deletion.")
-	flag.BoolVar(&enableCSIIntegration, "enable-csi-integration", false, "Watch SecretProviderClassPodStatus to restart workloads when Secrets Store CSI secrets rotate. Ignored when the CRD is absent.")
-	flag.BoolVar(&enableArgoRollouts, "enable-argo-rollouts", false, "Treat argoproj.io Rollouts as restartable workloads. Ignored when the CRD is absent.")
-	flag.StringVar(&argocdNamespace, "argocd-namespace", "argocd", "Namespace holding Argo CD AppProjects.")
+	flag.StringVar(&opts.metricsAddr, "metrics-bind-address", ":8080", "Metrics endpoint address.")
+	flag.StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "Health probe address.")
+	flag.StringVar(&opts.timelineAddr, "timeline-bind-address", ":8090", "Timeline API/UI bind address. Empty disables the timeline server.")
+	flag.BoolVar(&opts.leaderElection, "leader-elect", false, "Enable leader election.")
+	flag.StringVar(&opts.otlpEndpoint, "otel-otlp-endpoint", "", "OTLP endpoint (host:port) for exporting traces to Tempo/Jaeger or another collector.")
+	flag.BoolVar(&opts.otlpInsecure, "otel-otlp-insecure", true, "Use insecure OTLP transport (no TLS).")
+	flag.DurationVar(&opts.requestRetention, "request-retention", 24*time.Hour, "Retention duration for terminal KickRequests before deletion.")
+	flag.DurationVar(&opts.rolloutTimeout, "rollout-timeout", 15*time.Minute, "How long a restart may take before the KickRequest fails with RolloutTimeout.")
+	flag.BoolVar(&opts.enableCSIIntegration, "enable-csi-integration", false, "Watch SecretProviderClassPodStatus to restart workloads when Secrets Store CSI secrets rotate. Ignored when the CRD is absent.")
+	flag.BoolVar(&opts.enableArgoRollouts, "enable-argo-rollouts", false, "Treat argoproj.io Rollouts as restartable workloads. Ignored when the CRD is absent.")
+	flag.BoolVar(&opts.providers.ArgoCDEnabled, "enable-argocd", true, "Gate restarts on Argo CD Application state. Ignored when the CRD is absent.")
+	flag.BoolVar(&opts.providers.FluxEnabled, "enable-flux", true, "Gate restarts on Flux Kustomization and HelmRelease state. Ignored when the CRDs are absent.")
+	flag.BoolVar(&opts.providers.KargoEnabled, "enable-kargo", false, "Block restarts while a Kargo Promotion is in flight. Ignored when the CRD is absent.")
+	flag.StringVar(&opts.providers.ArgoCDNamespace, "argocd-namespace", "argocd", "Namespace holding Argo CD AppProjects.")
 	flag.StringVar(&argocdApplicationNamespaces, "argocd-application-namespaces", "", "Comma-separated namespaces to search for Argo CD Applications. Empty means the Argo CD namespace only.")
 	zapOptions := zap.Options{Development: true}
 	zapOptions.BindFlags(flag.CommandLine)
 	flag.Parse()
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zapOptions)))
-	shutdownTracing, err := telemetry.SetupOTLP(context.Background(), "kick-controller", otlpEndpoint, otlpInsecure)
+	opts.providers.ArgoCDApplicationNamespaces = splitNamespaces(argocdApplicationNamespaces)
+	return opts
+}
+
+func main() {
+	opts := parseFlags()
+	shutdownTracing, err := telemetry.SetupOTLP(context.Background(), "kick-controller", opts.otlpEndpoint, opts.otlpInsecure)
 	if err != nil {
 		os.Exit(1)
 	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
-		Metrics:                metricsserver.Options{BindAddress: metricsAddr},
-		HealthProbeBindAddress: probeAddr,
-		LeaderElection:         leaderElection,
+		Metrics:                metricsserver.Options{BindAddress: opts.metricsAddr},
+		HealthProbeBindAddress: opts.probeAddr,
+		LeaderElection:         opts.leaderElection,
 		LeaderElectionID:       "kick.corewire.io",
 		Client: client.Options{
 			Cache: &client.CacheOptions{
@@ -109,48 +127,11 @@ func main() {
 	})); err != nil {
 		os.Exit(1)
 	}
-	policyMatcher := &policy.DeploymentPolicyMatcher{Client: mgr.GetClient()}
-	providerRegistry := newProviderRegistry(mgr, argocdNamespace, splitNamespaces(argocdApplicationNamespaces))
-	notifier := notify.NewWebhookDispatcher(mgr.GetClient(), notify.DefaultQueueSize)
-	if err := mgr.Add(notifier); err != nil {
+	if err := setupControllers(mgr, opts); err != nil {
 		os.Exit(1)
 	}
-	if err := (&controller.KickRequestReconciler{
-		Client:             mgr.GetClient(),
-		Scheme:             mgr.GetScheme(),
-		PolicyMatcher:      policyMatcher,
-		GateResolver:       &controller.RegistryGateResolver{Registry: providerRegistry},
-		ObservationStore:   observation.NewLeaseStore(mgr.GetClient()),
-		FreshnessEvaluator: &freshness.Evaluator{Inspector: &rollout.LiveRolloutInspector{Client: mgr.GetClient()}},
-		RestartExecutor:    executor.NewRestartExecutor(mgr.GetClient(), 10*time.Minute),
-		Notifier:           notifier,
-		RequeueInterval:    30 * time.Second,
-		RequestRetention:   requestRetention,
-	}).SetupWithManager(mgr); err != nil {
-		os.Exit(1)
-	}
-	if err := (&controller.NotificationPolicyReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		os.Exit(1)
-	}
-	// Optional integrations: registering an index or watch for a kind whose CRD
-	// is absent aborts the manager, so the flag and the cluster must both allow it.
-	var optionalWorkloadKinds []dependency.WorkloadKind
-	if enableArgoRollouts {
-		if apiprobe.KindAvailable(mgr.GetRESTMapper(), dependency.ArgoRolloutGVK) {
-			optionalWorkloadKinds = append(optionalWorkloadKinds, dependency.ArgoRolloutWorkloadKind)
-		} else {
-			logSkippedIntegration("Argo Rollouts", dependency.ArgoRolloutGVK)
-		}
-	}
-
-	if err := setupObservationControllers(mgr, policyMatcher, optionalWorkloadKinds, enableCSIIntegration); err != nil {
-		os.Exit(1)
-	}
-	if timelineAddr != "" {
-		if err := addTimelineServer(mgr, timelineAddr); err != nil {
+	if opts.timelineAddr != "" {
+		if err := addTimelineServer(mgr, opts.timelineAddr); err != nil {
 			os.Exit(1)
 		}
 	}
@@ -163,6 +144,56 @@ func main() {
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		os.Exit(1)
 	}
+}
+
+// setupControllers wires every reconciler, including the optional workload
+// kinds that may only be watched once their CRDs are known to exist.
+func setupControllers(mgr ctrl.Manager, opts options) error {
+	policyMatcher := &policy.DeploymentPolicyMatcher{Client: mgr.GetClient()}
+	providerRegistry := newProviderRegistry(mgr, opts.providers)
+	notifier := notify.NewWebhookDispatcher(mgr.GetClient(), notify.DefaultQueueSize)
+	if err := mgr.Add(notifier); err != nil {
+		return err
+	}
+	if err := (&controller.KickRequestReconciler{
+		Client:             mgr.GetClient(),
+		Scheme:             mgr.GetScheme(),
+		PolicyMatcher:      policyMatcher,
+		GateResolver:       &controller.RegistryGateResolver{Registry: providerRegistry},
+		ObservationStore:   observation.NewLeaseStore(mgr.GetClient()),
+		FreshnessEvaluator: &freshness.Evaluator{Inspector: &rollout.LiveRolloutInspector{Client: mgr.GetClient()}},
+		RestartExecutor:    executor.NewRestartExecutor(mgr.GetClient(), opts.rolloutTimeout),
+		Notifier:           notifier,
+		RequeueInterval:    30 * time.Second,
+		RequestRetention:   opts.requestRetention,
+	}).SetupWithManager(mgr); err != nil {
+		return err
+	}
+	if err := (&controller.NotificationPolicyReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		return err
+	}
+	if err := (&controller.KickPolicyReconciler{
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Registry: providerRegistry,
+	}).SetupWithManager(mgr); err != nil {
+		return err
+	}
+	// Registering an index or watch for a kind whose CRD is absent aborts the
+	// manager, so the flag and the cluster must both allow it.
+	var optionalWorkloadKinds []dependency.WorkloadKind
+	if opts.enableArgoRollouts {
+		if apiprobe.KindAvailable(mgr.GetRESTMapper(), dependency.ArgoRolloutGVK) {
+			optionalWorkloadKinds = append(optionalWorkloadKinds, dependency.ArgoRolloutWorkloadKind)
+		} else {
+			setupLog.Info("optional integration skipped", "integration", integrations.ArgoRollouts.Title,
+				"reason", integrations.ArgoRollouts.KindNotInstalledMessage(dependency.ArgoRolloutGVK))
+		}
+	}
+	return setupObservationControllers(mgr, policyMatcher, optionalWorkloadKinds, opts.enableCSIIntegration)
 }
 
 // setupObservationControllers wires the Secret/ConfigMap observer, the reverse
@@ -197,7 +228,8 @@ func setupObservationControllers(
 		return nil
 	}
 	if !apiprobe.KindAvailable(mgr.GetRESTMapper(), controller.SecretProviderClassPodStatusGVK) {
-		logSkippedIntegration("Secrets Store CSI", controller.SecretProviderClassPodStatusGVK)
+		setupLog.Info("optional integration skipped", "integration", integrations.SecretsStoreCSI.Title,
+			"reason", integrations.SecretsStoreCSI.KindNotInstalledMessage(controller.SecretProviderClassPodStatusGVK))
 		return nil
 	}
 	return (&controller.SecretProviderClassObservationReconciler{
@@ -220,32 +252,53 @@ func splitNamespaces(value string) []string {
 	return namespaces
 }
 
-// newProviderRegistry builds the GitOps provider registry. Kargo is only
-// registered when its CRDs exist, because a policy naming an unavailable
-// provider must fail fast rather than error on every reconcile.
-func newProviderRegistry(mgr ctrl.Manager, argocdNamespace string, applicationNamespaces []string) *gitops.Registry {
+// newProviderRegistry builds the GitOps provider registry. A provider is only
+// registered when its integration is enabled and its CRDs are served; every
+// other case is recorded so a policy naming the provider can be told which
+// switch to flip instead of just failing.
+func newProviderRegistry(mgr ctrl.Manager, cfg providerConfig) *gitops.Registry {
 	argocdProvider := &argocdprovider.Provider{
 		Client:                mgr.GetClient(),
-		ControlPlaneNamespace: argocdNamespace,
-		ApplicationNamespaces: applicationNamespaces,
+		ControlPlaneNamespace: cfg.ArgoCDNamespace,
+		ApplicationNamespaces: cfg.ArgoCDApplicationNamespaces,
 	}
-	registry := gitops.NewRegistry(
-		argocdProvider,
-		&fluxprovider.Provider{Client: mgr.GetClient()},
-	)
-	if apiprobe.KindAvailable(mgr.GetRESTMapper(), kargoprovider.StageGVK) {
+	registry := gitops.NewRegistry()
+	if register(registry, integrations.ArgoCD, cfg.ArgoCDEnabled, mgr, argocdprovider.ApplicationGVK) {
+		registry.Register(argocdProvider)
+	}
+	if register(registry, integrations.Flux, cfg.FluxEnabled, mgr, fluxprovider.KustomizationGVK) {
+		registry.Register(&fluxprovider.Provider{Client: mgr.GetClient()})
+	}
+	if register(registry, integrations.Kargo, cfg.KargoEnabled, mgr, kargoprovider.StageGVK) {
 		registry.Register(&kargoprovider.Provider{Client: mgr.GetClient(), ArgoCD: argocdProvider})
-	} else {
-		logSkippedIntegration("Kargo", kargoprovider.StageGVK)
 	}
 	return registry
 }
 
-// logSkippedIntegration records an optional integration left inactive because its
-// kind is absent. The probe runs once, so installing the CRDs later needs a restart.
-func logSkippedIntegration(integration string, gvk schema.GroupVersionKind) {
-	setupLog.Info("optional integration skipped: kind not found in the cluster; restart the KICK manager after installing its CRDs",
-		"integration", integration, "gvk", gvk.String())
+// providerConfig collects the GitOps provider switches resolved from flags.
+type providerConfig struct {
+	ArgoCDEnabled               bool
+	FluxEnabled                 bool
+	KargoEnabled                bool
+	ArgoCDNamespace             string
+	ArgoCDApplicationNamespaces []string
+}
+
+// register reports whether an integration may be wired up, recording the reason
+// in the registry when it may not.
+func register(registry *gitops.Registry, integration integrations.Integration, enabled bool, mgr ctrl.Manager, gvk schema.GroupVersionKind) bool {
+	switch {
+	case !enabled:
+		registry.MarkUnavailable(integration.Name, gitops.Unavailability{Reason: integrations.ReasonDisabled, Message: integration.DisabledMessage()})
+		return false
+	case !apiprobe.KindAvailable(mgr.GetRESTMapper(), gvk):
+		message := integration.KindNotInstalledMessage(gvk)
+		registry.MarkUnavailable(integration.Name, gitops.Unavailability{Reason: integrations.ReasonKindNotInstalled, Message: message})
+		setupLog.Info("optional integration skipped", "integration", integration.Title, "reason", message)
+		return false
+	default:
+		return true
+	}
 }
 
 // addTimelineServer runs the read-only timeline API alongside the manager.

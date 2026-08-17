@@ -5,27 +5,31 @@ namespace:
 rbac:
   create: true
 
-argocd:
-  enabled: true
-  namespace: argocd
-  applicationNamespaces:
-    - "*"
-
 requestRetention: 24h
 rolloutTimeout: 15m
 
-# Optional integrations. Each one needs its CRDs installed; KICK additionally
-# probes the API server at startup and stays inactive when a CRD is absent.
+# Optional integrations. Each value switches the operator behavior and the RBAC
+# for it together; KICK additionally probes the API server at startup and stays
+# inactive when the CRDs are absent.
 integrations:
+  # Gate restarts on Argo CD Application state.
+  argocd:
+    enabled: true
+    namespace: argocd
+    # Namespaces searched for Applications. Empty means the Argo CD namespace only.
+    applicationNamespaces: []
+  # Gate restarts on Flux Kustomization and HelmRelease state.
+  flux:
+    enabled: true
+  # Block restarts while a Kargo Promotion is in flight. Requires
+  # spec.gitOps.provider: Kargo on the KickPolicy.
+  kargo:
+    enabled: false
   # Restart Argo Rollouts through spec.restartAt.
   argoRollouts:
     enabled: false
   # Restart workloads when a Secrets Store CSI mounted secret rotates.
   secretsStoreCSI:
-    enabled: false
-  # Block restarts while a Kargo Promotion is in flight. Requires
-  # spec.gitOps.provider: Kargo on the KickPolicy.
-  kargo:
     enabled: false
 
 image:

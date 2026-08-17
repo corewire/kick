@@ -11,7 +11,6 @@ import (
 	"github.com/corewire/kick/internal/executor"
 	"github.com/corewire/kick/internal/freshness"
 	"github.com/corewire/kick/internal/gitops"
-	argocdprovider "github.com/corewire/kick/internal/gitops/argocd"
 	"github.com/corewire/kick/internal/notify"
 	"github.com/corewire/kick/internal/observation"
 	"github.com/corewire/kick/internal/policy"
@@ -59,9 +58,9 @@ func (r *RegistryGateResolver) ResolveOwnerAndGate(ctx context.Context, workload
 	owner, err := provider.ResolveOwner(ctx, workload)
 	if err != nil {
 		reason := gitops.GateOwnerUnknown
-		var resolutionErr argocdprovider.ResolutionError
-		if errors.As(err, &resolutionErr) {
-			reason = resolutionErr.Reason
+		var reasoned gitops.GateReasoner
+		if errors.As(err, &reasoned) {
+			reason = reasoned.GateReason()
 		}
 		return kickv1alpha1.GitOpsOwnerStatus{}, gitops.GateDecision{
 			Allowed:     false,
@@ -95,9 +94,19 @@ func (r *RegistryGateResolver) selectProvider(workload client.Object, providerNa
 	}
 	provider, ok := r.Registry.ProviderByName(providerName)
 	if !ok {
-		return nil, gitops.GateDecision{Reason: gitops.GateProviderUnavailable, Message: "configured provider is not enabled: " + providerName}
+		return nil, gitops.GateDecision{Reason: gitops.GateProviderUnavailable, Message: providerUnavailableMessage(r.Registry, providerName)}
 	}
 	return provider, gitops.GateDecision{}
+}
+
+// providerUnavailableMessage explains an unregistered provider in terms of the
+// switch that registers it, falling back to the bare name for a provider KICK
+// does not implement at all.
+func providerUnavailableMessage(registry ProviderRegistry, providerName string) string {
+	if unavailability, ok := registry.Unavailability(providerName); ok {
+		return fmt.Sprintf("spec.gitOps.provider is %q but %s", providerName, unavailability.Message)
+	}
+	return fmt.Sprintf("spec.gitOps.provider is %q, which this KICK build does not implement", providerName)
 }
 
 // gateProviderName maps the policy provider enum onto a registered provider

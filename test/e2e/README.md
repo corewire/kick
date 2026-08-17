@@ -70,3 +70,34 @@ test/e2e/setup/gitea/commit-file.sh e2e-037 manifests/app.yaml ./updated/app.yam
 
 Repository URLs follow
 `http://gitea.kick-e2e-git.svc.cluster.local:3000/kick-e2e/e2e-0NN.git`.
+
+Seeding only replaces a path on `main`. A scenario whose GitOps tool promotes to
+another branch therefore drops its repository first with
+`test/e2e/setup/gitea/reset-repo.sh`, otherwise the promoted branch survives
+from the previous run and the first sync is served from stale content.
+
+## Kargo scenarios
+
+The Kargo scenarios (068-071) drive a real promotion: a Warehouse subscribes to
+`main`, the Stage renders `manifests/` onto the `stage/prod` branch and the
+`argocd-update` step syncs the Argo CD Application. Three things make that
+reproducible:
+
+- The Application has no `syncPolicy.automated`. Kargo owns the sync, so the
+  promotion is what drives it and what waits for the result.
+- Freight discovery is forced with
+  `kubectl annotate warehouse repo kargo.akuity.io/refresh=<epoch> --overwrite`
+  instead of waiting out the Warehouse polling interval.
+- A scenario that must observe the gate *while* a promotion runs promotes an
+  extra workload in `argocd.argoproj.io/sync-wave: "1"` that takes minutes to
+  become ready. The rotated Secret is in the default wave, so it is applied
+  while the sync - and with it the promotion - is still running. Nothing else
+  in that directory carries an annotation: the API server bumps a Deployment's
+  `metadata.generation` on annotation changes as well, which would make the
+  "was it restarted?" assertion meaningless.
+
+Cleanup deletes Promotions before the Stage they belong to. Kargo indexes
+running Promotions by Argo CD Application and resolves the Stage while doing so;
+a Promotion that outlives its Stage leaves a nil entry in that index and no
+Promotion in the cluster is reconciled again until the Kargo controller is
+restarted.

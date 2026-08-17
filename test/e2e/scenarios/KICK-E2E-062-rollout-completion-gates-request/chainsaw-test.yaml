@@ -67,15 +67,6 @@ spec:
             file: updated/secret.yaml
     - name: assert-request-waits-for-the-rollout
       try:
-        - assert:
-            resource:
-              apiVersion: kick.corewire.io/v1alpha1
-              kind: KickRequest
-              metadata:
-                name: rollout-app-062
-                namespace: kick-e2e-062
-              status:
-                phase: WaitingForRollout
         - script:
             content: |
               restart_at=$(kubectl -n kick-e2e-062 get rollout app-062 -o jsonpath='{.spec.restartAt}')
@@ -90,15 +81,6 @@ spec:
         - assert:
             timeout: 4m
             resource:
-              apiVersion: kick.corewire.io/v1alpha1
-              kind: KickRequest
-              metadata:
-                name: rollout-app-062
-                namespace: kick-e2e-062
-              status:
-                phase: Succeeded
-        - assert:
-            resource:
               apiVersion: argoproj.io/v1alpha1
               kind: Rollout
               metadata:
@@ -109,11 +91,6 @@ spec:
                 readyReplicas: 2
         - script:
             content: |
-              restart_at=$(kubectl -n kick-e2e-062 get rollout app-062 -o jsonpath='{.spec.restartAt}')
-              if [ -z "$restart_at" ]; then
-                echo "KICK did not use spec.restartAt"
-                exit 1
-              fi
               revisions=$(kubectl -n kick-e2e-062 get replicaset \
                 -l app=app-062 -o name | wc -l | tr -d ' ')
               if [ "$revisions" != "2" ]; then

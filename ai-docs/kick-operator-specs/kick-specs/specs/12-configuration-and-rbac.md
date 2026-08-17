@@ -5,11 +5,12 @@
 Initial configuration should be minimal:
 
 ```yaml
-argocd:
-  enabled: true
-  namespace: argocd
-  applicationNamespaces:
-    - "*"
+integrations:
+  argocd:
+    enabled: true
+    namespace: argocd
+    applicationNamespaces:
+      - "*"
 requestRetention: 24h
 rolloutTimeout: 15m
 ```

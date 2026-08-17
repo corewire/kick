@@ -427,16 +427,19 @@ features:
   tests:
     unit: required
     envtest: not_applicable
-    e2e: not_applicable
+    e2e: required
   coverage:
     unit:
     - internal/gitops/kargo/provider_test.go
+    - internal/controller/gate_resolver_test.go
   rationale:
     envtest: Kargo Stage and Promotion CRDs are not vendored here and are read as
       unstructured objects; envtest would assert upstream schemas.
-    e2e: A meaningful assertion requires a running Kargo control plane driving Argo CD,
-      which is not installed in the e2e kind cluster.
-  e2e: []
+  e2e:
+  - KICK-E2E-068
+  - KICK-E2E-069
+  - KICK-E2E-070
+  - KICK-E2E-071
 - id: KICK-FEAT-026
   name: NotificationPolicy webhook delivery
   spec: ai-docs/gap-analysis/04-reloader-parity-gaps.md
@@ -467,3 +470,18 @@ features:
     - test/envtest/notificationpolicy_readiness_test.go
   e2e:
   - KICK-E2E-072
+- id: KICK-FEAT-028
+  name: KickPolicy reports unavailable GitOps integrations
+  spec: ai-docs/kick-operator-specs/kick-specs/specs/12-configuration-and-rbac.md
+  task: ai-docs/kick-operator-specs/kick-specs/specs/12-configuration-and-rbac.md
+  tests:
+    unit: required
+    envtest: required
+    e2e: required
+  coverage:
+    unit:
+    - internal/controller/kickpolicy_controller_test.go
+    envtest:
+    - test/envtest/kickpolicy_readiness_test.go
+  e2e:
+  - KICK-E2E-073

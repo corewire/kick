@@ -26,11 +26,18 @@ spec:
             - --leader-elect={{ .Values.leaderElection.enabled }}
             - --health-probe-bind-address=:8081
             - --metrics-bind-address=:8080
-{{- if .Values.integrations.secretsStoreCSI.enabled }}
-            - --enable-csi-integration
+            - --request-retention={{ .Values.requestRetention }}
+            - --rollout-timeout={{ .Values.rolloutTimeout }}
+            - --enable-argocd={{ .Values.integrations.argocd.enabled }}
+            - --enable-flux={{ .Values.integrations.flux.enabled }}
+            - --enable-kargo={{ .Values.integrations.kargo.enabled }}
+            - --enable-argo-rollouts={{ .Values.integrations.argoRollouts.enabled }}
+            - --enable-csi-integration={{ .Values.integrations.secretsStoreCSI.enabled }}
+{{- if .Values.integrations.argocd.enabled }}
+            - --argocd-namespace={{ .Values.integrations.argocd.namespace }}
+{{- with .Values.integrations.argocd.applicationNamespaces }}
+            - --argocd-application-namespaces={{ join "," . }}
 {{- end }}
-{{- if .Values.integrations.argoRollouts.enabled }}
-            - --enable-argo-rollouts
 {{- end }}
           livenessProbe:
             httpGet:

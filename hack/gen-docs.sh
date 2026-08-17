@@ -20,10 +20,10 @@ KICK watches Secret and ConfigMap changes and evaluates whether a workload resta
 - Restart action patches `kubectl.kubernetes.io/restartedAt` on Deployment, StatefulSet and DaemonSet.
 - Argo Rollouts are restarted via `spec.restartAt` instead, so the canary strategy is not re-run.
 
-## Optional integrations (off by default)
+## Optional integrations
 - GitOps gating is opt-in: `spec.gitOps.provider` defaults to `None`. Providers: ArgoCD, Flux, Kargo, Auto.
-- `--enable-argo-rollouts`: treat `argoproj.io/v1alpha1` Rollouts as restartable workloads.
-- `--enable-csi-integration`: observe `SecretProviderClassPodStatus` for Secrets Store CSI rotation.
+- `--enable-argocd` and `--enable-flux` default to true.
+- `--enable-kargo`, `--enable-argo-rollouts`, and `--enable-csi-integration` default to false.
 
 ## Deliberate non-goals
 - Dependencies declared by name are not supported; only proven env/volume/CSI references are used.

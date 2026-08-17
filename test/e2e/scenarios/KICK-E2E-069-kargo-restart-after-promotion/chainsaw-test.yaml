@@ -1,0 +1,139 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: kick-e2e-069-kargo-restart-after-promotion
+spec:
+  steps:
+    - name: seed-repository
+      try:
+        # Promotions push to stage/prod, which seeding alone would not reset, so
+        # the repository is dropped and recreated from the fixtures.
+        - script:
+            content: ../../setup/gitea/reset-repo.sh e2e-069
+        - script:
+            content: ../../setup/gitea/seed.sh e2e-069 manifests manifests
+    - name: create-fixtures
+      try:
+        - apply:
+            file: resources.yaml
+    - name: wait-for-first-promotion
+      try:
+        - assert:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Application
+              metadata:
+                name: kick-e2e-069
+                namespace: argocd
+              status:
+                sync:
+                  status: Synced
+                health:
+                  status: Healthy
+        - assert:
+            resource:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: app-069
+                namespace: kick-e2e-069
+                generation: 1
+              status:
+                availableReplicas: 1
+    - name: promote-rotated-secret
+      try:
+        - script:
+            content: ../../setup/gitea/seed.sh e2e-069 manifests updated "rotate app-secret"
+        - script:
+            content: |
+              set -eu
+              kubectl -n kick-e2e-069 annotate warehouse repo \
+                kargo.akuity.io/refresh="$(date +%s)" --overwrite
+    - name: assert-promotion-settles
+      try:
+        - assert:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Application
+              metadata:
+                name: kick-e2e-069
+                namespace: argocd
+              status:
+                sync:
+                  status: Synced
+                health:
+                  status: Healthy
+        - assert:
+            resource:
+              apiVersion: kargo.akuity.io/v1alpha1
+              kind: Stage
+              metadata:
+                name: prod
+                namespace: kick-e2e-069
+              status:
+                health:
+                  status: Healthy
+    - name: assert-restart-happens-exactly-once
+      try:
+        - assert:
+            resource:
+              apiVersion: kick.corewire.io/v1alpha1
+              kind: KickRequest
+              metadata:
+                name: deployment-app-069
+                namespace: kick-e2e-069
+              status:
+                phase: Succeeded
+                gate:
+                  reason: Allowed
+        - script:
+            content: |
+              set -eu
+              NS=kick-e2e-069
+
+              restarted=$(kubectl -n $NS get deployment app-069 \
+                -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}')
+              if [ -z "$restarted" ]; then
+                echo "app-069 was never restarted" >&2
+                kubectl -n $NS get kickrequests -o yaml >&2 || true
+                exit 1
+              fi
+
+              kubectl -n $NS rollout status deployment/app-069 --timeout=120s
+
+              # Give the promotion, the Argo CD sync and the freshness engine
+              # time to produce a second restart if they were going to.
+              sleep 60
+
+              generation=$(kubectl -n $NS get deployment app-069 \
+                -o jsonpath='{.metadata.generation}')
+              if [ "$generation" -ne 2 ]; then
+                echo "expected exactly one restart, generation is $generation" >&2
+                kubectl -n $NS get replicasets >&2 || true
+                kubectl -n $NS get kickrequests -o yaml >&2 || true
+                exit 1
+              fi
+
+              replicasets=$(kubectl -n $NS get replicaset \
+                -l app=app-069 -o name | wc -l)
+              if [ "$replicasets" -ne 2 ]; then
+                echo "expected exactly two ReplicaSets, found $replicasets" >&2
+                kubectl -n $NS get replicasets >&2 || true
+                exit 1
+              fi
+    - name: cleanup
+      try:
+        - script:
+            content: |
+              set -eu
+              # Promotions must go before the Stage they belong to. Kargo indexes
+              # running Promotions by Argo CD Application and resolves the Stage
+              # while doing so; a Promotion that outlives its Stage poisons that
+              # index with a nil entry and no Promotion in the cluster is
+              # reconciled again until the Kargo controller restarts.
+              kubectl -n kick-e2e-069 delete promotions.kargo.akuity.io --all \
+                --ignore-not-found --timeout=120s
+              kubectl delete project.kargo.akuity.io kick-e2e-069 \
+                --ignore-not-found --timeout=120s
+              kubectl delete namespace kick-e2e-069 \
+                --ignore-not-found --timeout=120s

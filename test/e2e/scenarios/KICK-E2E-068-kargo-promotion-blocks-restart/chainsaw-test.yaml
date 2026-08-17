@@ -1,0 +1,125 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: kick-e2e-068-kargo-promotion-blocks-restart
+spec:
+  steps:
+    - name: seed-repository
+      try:
+        # Promotions push to stage/prod, which seeding alone would not reset, so
+        # the repository is dropped and recreated from the fixtures.
+        - script:
+            content: ../../setup/gitea/reset-repo.sh e2e-068
+        - script:
+            content: ../../setup/gitea/seed.sh e2e-068 manifests manifests
+    - name: create-fixtures
+      try:
+        - apply:
+            file: resources.yaml
+    - name: wait-for-first-promotion
+      try:
+        - assert:
+            resource:
+              apiVersion: argoproj.io/v1alpha1
+              kind: Application
+              metadata:
+                name: kick-e2e-068
+                namespace: argocd
+              status:
+                sync:
+                  status: Synced
+                health:
+                  status: Healthy
+        - assert:
+            resource:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: app-068
+                namespace: kick-e2e-068
+                generation: 1
+              status:
+                availableReplicas: 1
+    - name: promote-rotated-secret
+      try:
+        # One commit carries both the rotated Secret and a workload that needs a
+        # minute to report ready, so the Stage still counts the promotion as
+        # current long after the rotated Secret has reached the cluster.
+        - script:
+            content: ../../setup/gitea/seed.sh e2e-068 manifests updated "rotate app-secret"
+        # A Warehouse polls no faster than the controller's floor. Refreshing it
+        # is what the Kargo CLI does and keeps the scenario off that clock.
+        - script:
+            content: |
+              set -eu
+              kubectl -n kick-e2e-068 annotate warehouse repo \
+                kargo.akuity.io/refresh="$(date +%s)" --overwrite
+    - name: assert-gate-blocks-while-promoting
+      try:
+        - script:
+            content: |
+              set -eu
+              NS=kick-e2e-068
+              deadline=$(( $(date +%s) + 240 ))
+
+              while true; do
+                reason=$(kubectl -n $NS get kickrequest deployment-app-068 \
+                  -o jsonpath='{.status.gate.reason}' 2>/dev/null || true)
+                if [ "$reason" = "OwnerReconciling" ]; then
+                  break
+                fi
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "KICK never reported a blocked gate for app-068" >&2
+                  kubectl -n $NS get kickrequests -o yaml >&2 || true
+                  kubectl -n $NS get promotions,stages -o wide >&2 || true
+                  exit 1
+                fi
+                sleep 2
+              done
+
+              # Read the rest while the gate is still closed.
+              message=$(kubectl -n $NS get kickrequest deployment-app-068 \
+                -o jsonpath='{.status.gate.message}')
+              generation=$(kubectl -n $NS get deployment app-068 \
+                -o jsonpath='{.metadata.generation}')
+              token=$(kubectl -n $NS get secret app-secret \
+                -o jsonpath='{.data.token}')
+
+              # The Kargo gate, not the Argo CD gate it delegates to, is what
+              # held the restart back.
+              case "$message" in
+                *"promotion in progress"*|*"promotion is pending or running"*) ;;
+                *)
+                  echo "unexpected gate message: $message" >&2
+                  kubectl -n $NS get kickrequests -o yaml >&2 || true
+                  exit 1
+                  ;;
+              esac
+
+              # The rotated Secret is already in the cluster, so the gate is the
+              # only reason the workload has not been rolled. YmV0YQ== is beta.
+              if [ "$token" != "YmV0YQ==" ]; then
+                echo "app-secret was not rotated to beta yet: $token" >&2
+                exit 1
+              fi
+              if [ "$generation" -ne 1 ]; then
+                echo "app-068 was restarted while the promotion was in flight" >&2
+                kubectl -n $NS get kickrequests -o yaml >&2 || true
+                exit 1
+              fi
+    - name: cleanup
+      try:
+        - script:
+            content: |
+              set -eu
+              # Promotions must go before the Stage they belong to. Kargo indexes
+              # running Promotions by Argo CD Application and resolves the Stage
+              # while doing so; a Promotion that outlives its Stage poisons that
+              # index with a nil entry and no Promotion in the cluster is
+              # reconciled again until the Kargo controller restarts.
+              kubectl -n kick-e2e-068 delete promotions.kargo.akuity.io --all \
+                --ignore-not-found --timeout=120s
+              kubectl delete project.kargo.akuity.io kick-e2e-068 \
+                --ignore-not-found --timeout=120s
+              kubectl delete namespace kick-e2e-068 \
+                --ignore-not-found --timeout=120s

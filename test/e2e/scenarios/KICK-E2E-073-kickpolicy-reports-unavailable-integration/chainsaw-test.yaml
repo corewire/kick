@@ -1,0 +1,126 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: kick-e2e-073-kickpolicy-reports-unavailable-integration
+spec:
+  steps:
+    - name: create-fixtures
+      try:
+        - apply:
+            file: resources.yaml
+        - assert:
+            resource:
+              apiVersion: kick.corewire.io/v1alpha1
+              kind: KickPolicy
+              metadata:
+                name: flux-gated
+                namespace: kick-e2e-073
+    - name: assert-unavailable-integration-is-reported
+      try:
+        - script:
+            content: |
+              set -eu
+              deadline=$(( $(date +%s) + 90 ))
+              while true; do
+                status=$(kubectl -n kick-e2e-073 get kickpolicy flux-gated \
+                  -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)
+                reason=$(kubectl -n kick-e2e-073 get kickpolicy flux-gated \
+                  -o jsonpath='{.status.conditions[?(@.type=="Ready")].reason}' 2>/dev/null || true)
+                if [ "${status}" = "False" ] && [ "${reason}" = "IntegrationKindNotInstalled" ]; then
+                  break
+                fi
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "expected Ready=False/IntegrationKindNotInstalled, got '${status}'/'${reason}'" >&2
+                  kubectl -n kick-e2e-073 get kickpolicy flux-gated \
+                    -o jsonpath='{.status.conditions}' >&2 || true
+                  exit 1
+                fi
+                sleep 2
+              done
+    - name: assert-message-names-the-switch-to-flip
+      try:
+        - script:
+            content: |
+              set -eu
+              # A reason alone is not actionable. The message must name both the
+              # manager flag and the Helm value, or the operator is a guessing game.
+              message=$(kubectl -n kick-e2e-073 get kickpolicy flux-gated \
+                -o jsonpath='{.status.conditions[?(@.type=="Ready")].message}')
+              for needle in '--enable-flux' 'integrations.flux.enabled' 'kustomize.toolkit.fluxcd.io'; do
+                case "${message}" in
+                  *"${needle}"*) ;;
+                  *)
+                    echo "expected the message to mention ${needle}, got: ${message}" >&2
+                    exit 1
+                    ;;
+                esac
+              done
+    - name: assert-ungated-policy-is-accepted
+      try:
+        - script:
+            content: |
+              set -eu
+              # An unavailable integration must not spill over: a policy that
+              # asks for no provider stays ready.
+              deadline=$(( $(date +%s) + 90 ))
+              while true; do
+                status=$(kubectl -n kick-e2e-073 get kickpolicy ungated \
+                  -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)
+                reason=$(kubectl -n kick-e2e-073 get kickpolicy ungated \
+                  -o jsonpath='{.status.conditions[?(@.type=="Ready")].reason}' 2>/dev/null || true)
+                if [ "${status}" = "True" ] && [ "${reason}" = "Accepted" ]; then
+                  break
+                fi
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "expected Ready=True/Accepted, got '${status}'/'${reason}'" >&2
+                  kubectl -n kick-e2e-073 get kickpolicy ungated \
+                    -o jsonpath='{.status.conditions}' >&2 || true
+                  exit 1
+                fi
+                sleep 2
+              done
+    - name: assert-switching-provider-clears-the-condition
+      try:
+        - script:
+            content: |
+              set -eu
+              kubectl -n kick-e2e-073 patch kickpolicy flux-gated \
+                --type merge -p '{"spec":{"gitOps":{"provider":"None"}}}' >/dev/null
+              deadline=$(( $(date +%s) + 90 ))
+              while true; do
+                generation=$(kubectl -n kick-e2e-073 get kickpolicy flux-gated \
+                  -o jsonpath='{.metadata.generation}')
+                observed=$(kubectl -n kick-e2e-073 get kickpolicy flux-gated \
+                  -o jsonpath='{.status.observedGeneration}' 2>/dev/null || true)
+                status=$(kubectl -n kick-e2e-073 get kickpolicy flux-gated \
+                  -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)
+                if [ "${observed}" = "${generation}" ] && [ "${status}" = "True" ]; then
+                  break
+                fi
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "expected observedGeneration ${generation} and Ready=True, got '${observed}'/'${status}'" >&2
+                  kubectl -n kick-e2e-073 get kickpolicy flux-gated \
+                    -o jsonpath='{.status.conditions}' >&2 || true
+                  exit 1
+                fi
+                sleep 2
+              done
+    - name: assert-validation-restarts-nothing
+      try:
+        - script:
+            content: |
+              set -eu
+              # Reporting readiness is not a restart trigger.
+              requests=$(kubectl -n kick-e2e-073 get kickrequests -o name | wc -l)
+              if [ "${requests}" -ne 0 ]; then
+                echo "the scenario must not create kickrequests, found ${requests}" >&2
+                kubectl -n kick-e2e-073 get kickrequests -o yaml >&2 || true
+                exit 1
+              fi
+    - name: cleanup
+      try:
+        - delete:
+            ref:
+              apiVersion: v1
+              kind: Namespace
+              name: kick-e2e-073

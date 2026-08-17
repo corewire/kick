@@ -20,7 +20,7 @@ const (
 )
 
 var (
-	kustomizationGVK = schema.GroupVersionKind{Group: "kustomize.toolkit.fluxcd.io", Version: "v1", Kind: "Kustomization"}
+	KustomizationGVK = schema.GroupVersionKind{Group: "kustomize.toolkit.fluxcd.io", Version: "v1", Kind: "Kustomization"}
 	helmReleaseGVK   = schema.GroupVersionKind{Group: "helm.toolkit.fluxcd.io", Version: "v2", Kind: "HelmRelease"}
 )
 
@@ -93,6 +93,11 @@ func (e ResolutionError) Error() string {
 	return fmt.Sprintf("%s: %s", e.Reason, e.Message)
 }
 
+// GateReason implements gitops.GateReasoner.
+func (e ResolutionError) GateReason() gitops.GateReason {
+	return e.Reason
+}
+
 func ownerFromLabels(workload client.Object) gitops.Owner {
 	if workload == nil {
 		return gitops.Owner{}
@@ -106,7 +111,7 @@ func ownerFromLabels(workload client.Object) gitops.Owner {
 		if namespace == "" {
 			namespace = workload.GetNamespace()
 		}
-		return gitops.Owner{APIVersion: kustomizationGVK.GroupVersion().String(), Kind: kustomizationGVK.Kind, Namespace: namespace, Name: name}
+		return gitops.Owner{APIVersion: KustomizationGVK.GroupVersion().String(), Kind: KustomizationGVK.Kind, Namespace: namespace, Name: name}
 	}
 	if name := labels[labelHelmReleaseName]; name != "" {
 		namespace := labels[labelHelmReleaseNamespace]

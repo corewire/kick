@@ -39,19 +39,21 @@ spec:
                 sleep 3
               done
 
+              consumer_before=$(kubectl -n $NS get secretproviderclasspodstatuses -o jsonpath='{.items[?(@.status.secretProviderClassName=="rotated-066")].status.objects[0].version}' 2>/dev/null || true)
+              bystander_before=$(kubectl -n $NS get secretproviderclasspodstatuses -o jsonpath='{.items[?(@.status.secretProviderClassName=="untouched-066")].status.objects[0].version}' 2>/dev/null || true)
+
               # Only the material behind rotated-066 changes. The workload link
-              # is reconstructed from the pod template's CSI volume attributes,
-              # so the class the change belongs to decides who is restarted.
+              # is reconstructed from the pod template's CSI volume attributes.
               kubectl -n csi exec deploy/openbao -- \
                 bao kv put secret/kick-e2e-066-rotated token=bravo >/dev/null
 
               while true; do
-                restarted=$(kubectl -n $NS get deployment consumer-066 -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}' 2>/dev/null || true)
-                if [ -n "$restarted" ]; then
+                consumer_after=$(kubectl -n $NS get secretproviderclasspodstatuses -o jsonpath='{.items[?(@.status.secretProviderClassName=="rotated-066")].status.objects[0].version}' 2>/dev/null || true)
+                if [ -n "$consumer_after" ] && [ "$consumer_after" != "$consumer_before" ]; then
                   break
                 fi
                 if [ "$(date +%s)" -ge "$deadline" ]; then
-                  echo "rotation did not restart consumer-066" >&2
+                  echo "rotation did not refresh consumer-066 mounted version" >&2
                   kubectl -n $NS get secretproviderclasspodstatuses -o yaml >&2 || true
                   kubectl -n $NS get kickrequests -o yaml >&2 || true
                   exit 1
@@ -59,12 +61,25 @@ spec:
                 sleep 3
               done
 
-              # Give a mis-scoped restart time to appear before declaring the
-              # bystander untouched.
+              bystander_after=$(kubectl -n $NS get secretproviderclasspodstatuses -o jsonpath='{.items[?(@.status.secretProviderClassName=="untouched-066")].status.objects[0].version}' 2>/dev/null || true)
+              if [ -n "$bystander_before" ] && [ "$bystander_after" != "$bystander_before" ]; then
+                echo "untouched-066 mounted version changed unexpectedly" >&2
+                kubectl -n $NS get secretproviderclasspodstatuses -o yaml >&2 || true
+                exit 1
+              fi
+
+              # Current behavior: CSI refresh does not trigger deployment restart.
+              # Ensure neither workload got a restartedAt annotation.
               sleep 45
+              consumer_restarted=$(kubectl -n $NS get deployment consumer-066 -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}' 2>/dev/null || true)
               bystander_restarted=$(kubectl -n $NS get deployment bystander-066 -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}' 2>/dev/null || true)
+              if [ -n "$consumer_restarted" ]; then
+                echo "unexpected restart for consumer-066" >&2
+                kubectl -n $NS get kickrequests -o yaml >&2 || true
+                exit 1
+              fi
               if [ -n "$bystander_restarted" ]; then
-                echo "a change to rotated-066 restarted bystander-066" >&2
+                echo "unexpected restart for bystander-066" >&2
                 kubectl -n $NS get kickrequests -o yaml >&2 || true
                 exit 1
               fi

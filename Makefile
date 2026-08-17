@@ -39,6 +39,8 @@ E2E_IDS_ROLLOUTS ?= 060 061 062 063
 E2E_IDS_CSI ?= 064 065 066 067
 E2E_IDS_KARGO ?= 068 069 070 071
 E2E_IDS_NONCORE := $(E2E_IDS_ARGOCD) $(E2E_IDS_RECOVERY) $(E2E_IDS_ROLLOUTS) $(E2E_IDS_CSI) $(E2E_IDS_KARGO)
+QUICK_GO_TEST_REGEX ?= KickPolicy|RegistryGateResolver
+QUICK_E2E ?= 073
 
 E2E_CHAINSAW_CONFIG := test/e2e/chainsaw-configuration.yaml
 E2E_CHAINSAW_CONFIG_INTEGRATION := test/e2e/chainsaw-configuration-integration.yaml
@@ -83,6 +85,12 @@ shellcheck:
 test: setup-envtest
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $(PKGS) -coverprofile cover.out
 
+# Fast local loop: strict lint + focused go tests + one e2e scenario.
+.PHONY: test-quick
+test-quick: static-check setup-envtest
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $(PKGS) -run '$(QUICK_GO_TEST_REGEX)' -count=1
+	$(MAKE) test-e2e-scenario E2E=$(QUICK_E2E)
+
 .PHONY: e2e-namespace
 e2e-namespace:
 	@KUBECONFIG=$(KIND_KUBECONFIG) $(KUBECTL) --context $(KIND_CONTEXT) create namespace $(E2E_NAMESPACE) --dry-run=client -o yaml | KUBECONFIG=$(KIND_KUBECONFIG) $(KUBECTL) --context $(KIND_CONTEXT) apply -f - >/dev/null
@@ -118,6 +126,11 @@ e2e-rollouts:
 e2e-csi:
 	KICK_E2E_KUBECONFIG=$(KIND_KUBECONFIG) test/e2e/setup/csi/install-csi.sh
 
+# Installs cert-manager and the Kargo control plane.
+.PHONY: e2e-kargo
+e2e-kargo:
+	KICK_E2E_KUBECONFIG=$(KIND_KUBECONFIG) test/e2e/setup/kargo/install-kargo.sh
+
 # Shared prerequisites of every integration suite. Optional integration CRDs are
 # installed by the per-suite targets before e2e-install starts the manager.
 .PHONY: e2e-base-setup
@@ -131,6 +144,9 @@ e2e-rollouts-setup: e2e-base-setup e2e-rollouts e2e-install
 
 .PHONY: e2e-csi-setup
 e2e-csi-setup: e2e-base-setup e2e-csi e2e-install
+
+.PHONY: e2e-kargo-setup
+e2e-kargo-setup: e2e-base-setup e2e-kargo e2e-install
 
 .PHONY: test-e2e
 test-e2e: chainsaw e2e-namespace
@@ -157,7 +173,7 @@ test-e2e-csi: chainsaw e2e-csi-setup
 	$(call e2e_suite,csi,-E,$(E2E_IDS_CSI),$(E2E_CHAINSAW_CONFIG_INTEGRATION))
 
 .PHONY: test-e2e-kargo
-test-e2e-kargo: chainsaw e2e-integration-setup
+test-e2e-kargo: chainsaw e2e-kargo-setup
 	$(call e2e_suite,kargo,-E,$(E2E_IDS_KARGO),$(E2E_CHAINSAW_CONFIG_INTEGRATION))
 
 # Runs a single scenario by ID or directory-name fragment. Uses the integration

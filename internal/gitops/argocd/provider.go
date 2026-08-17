@@ -19,7 +19,7 @@ const (
 )
 
 var (
-	applicationGVK = schema.GroupVersionKind{Group: "argoproj.io", Version: "v1alpha1", Kind: "Application"}
+	ApplicationGVK = schema.GroupVersionKind{Group: "argoproj.io", Version: "v1alpha1", Kind: "Application"}
 	appProjectGVK  = schema.GroupVersionKind{Group: "argoproj.io", Version: "v1alpha1", Kind: "AppProject"}
 )
 
@@ -109,6 +109,11 @@ func (e ResolutionError) Error() string {
 	return fmt.Sprintf("%s: %s", e.Reason, e.Message)
 }
 
+// GateReason implements gitops.GateReasoner.
+func (e ResolutionError) GateReason() gitops.GateReason {
+	return e.Reason
+}
+
 type trackingIdentity struct {
 	AppName   string
 	Group     string
@@ -145,7 +150,7 @@ func (p *Provider) resolveOwnerWithReason(ctx context.Context, workload client.O
 				app, getErr := p.getApplication(ctx, types.NamespacedName{Namespace: ns, Name: identity.AppName})
 				if getErr == nil {
 					project, _, _ := unstructured.NestedString(app.Object, "spec", "project")
-					return gitops.Owner{Provider: p.Name(), APIVersion: applicationGVK.GroupVersion().String(), Kind: applicationGVK.Kind, Namespace: ns, Name: identity.AppName, Project: project}, gitops.GateAllowed, nil
+					return gitops.Owner{Provider: p.Name(), APIVersion: ApplicationGVK.GroupVersion().String(), Kind: ApplicationGVK.Kind, Namespace: ns, Name: identity.AppName, Project: project}, gitops.GateAllowed, nil
 				}
 			}
 		}
@@ -163,7 +168,7 @@ func (p *Provider) resolveOwnerWithReason(ctx context.Context, workload client.O
 	}
 	app := matching[0]
 	project, _, _ := unstructured.NestedString(app.Object, "spec", "project")
-	return gitops.Owner{Provider: p.Name(), APIVersion: applicationGVK.GroupVersion().String(), Kind: applicationGVK.Kind, Namespace: app.GetNamespace(), Name: app.GetName(), Project: project}, gitops.GateAllowed, nil
+	return gitops.Owner{Provider: p.Name(), APIVersion: ApplicationGVK.GroupVersion().String(), Kind: ApplicationGVK.Kind, Namespace: app.GetNamespace(), Name: app.GetName(), Project: project}, gitops.GateAllowed, nil
 }
 
 func (p *Provider) applicationNamespaces() []string {
@@ -175,7 +180,7 @@ func (p *Provider) applicationNamespaces() []string {
 
 func (p *Provider) getApplication(ctx context.Context, key types.NamespacedName) (*unstructured.Unstructured, error) {
 	obj := &unstructured.Unstructured{}
-	obj.SetGroupVersionKind(applicationGVK)
+	obj.SetGroupVersionKind(ApplicationGVK)
 	if err := p.Client.Get(ctx, key, obj); err != nil {
 		return nil, err
 	}
@@ -195,7 +200,7 @@ func (p *Provider) findFallbackMatches(ctx context.Context, group, kind, namespa
 	matches := make([]unstructured.Unstructured, 0)
 	for _, ns := range p.applicationNamespaces() {
 		list := &unstructured.UnstructuredList{}
-		list.SetGroupVersionKind(schema.GroupVersionKind{Group: applicationGVK.Group, Version: applicationGVK.Version, Kind: "ApplicationList"})
+		list.SetGroupVersionKind(schema.GroupVersionKind{Group: ApplicationGVK.Group, Version: ApplicationGVK.Version, Kind: "ApplicationList"})
 		if err := p.Client.List(ctx, list, client.InNamespace(ns)); err != nil {
 			return nil, err
 		}

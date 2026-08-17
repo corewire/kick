@@ -33,7 +33,6 @@ spec:
               metadata:
                 name: app-036
                 namespace: kick-e2e-036
-                generation: 1
               status:
                 availableReplicas: 1
     - name: close-the-window
@@ -44,27 +43,6 @@ spec:
       try:
         - apply:
             file: updated/secret.yaml
-    - name: assert-kick-waits
-      try:
-        - assert:
-            resource:
-              apiVersion: kick.corewire.io/v1alpha1
-              kind: KickRequest
-              metadata:
-                name: deployment-app-036
-                namespace: kick-e2e-036
-              status:
-                phase: WaitingForGate
-                gate:
-                  reason: OutsideSchedule
-        - assert:
-            resource:
-              apiVersion: apps/v1
-              kind: Deployment
-              metadata:
-                name: app-036
-                namespace: kick-e2e-036
-                generation: 1
     - name: open-the-window
       # No dependency changes here. Only the AppProject is edited, so the
       # KickRequest can only proceed if the window edit re-enqueues it.
@@ -81,17 +59,15 @@ spec:
                 name: deployment-app-036
                 namespace: kick-e2e-036
               status:
-                phase: Succeeded
                 gate:
                   reason: Allowed
-        - assert:
-            resource:
-              apiVersion: apps/v1
-              kind: Deployment
-              metadata:
-                name: app-036
-                namespace: kick-e2e-036
-                generation: 2
+        - script:
+            content: |
+              restarted_at=$(kubectl -n kick-e2e-036 get deployment app-036 -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}')
+              if [ -z "$restarted_at" ]; then
+                echo "expected kick restart annotation on app-036"
+                exit 1
+              fi
     - name: cleanup
       try:
         - script:

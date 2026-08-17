@@ -32,6 +32,15 @@ const (
 	GateConfigurationError  GateReason = "ConfigurationError"
 )
 
+// GateReasoner is implemented by provider errors that already know which gate
+// reason they must surface. ResolveOwner failures are reported through this
+// interface so the caller does not have to know the concrete error type of
+// every provider.
+type GateReasoner interface {
+	error
+	GateReason() GateReason
+}
+
 type DetectionResult struct {
 	Confident bool
 	Message   string
@@ -62,16 +71,42 @@ type Provider interface {
 
 // Registry arbitrates enabled providers with deterministic zero/one/many outcomes.
 type Registry struct {
-	providers []Provider
+	providers   []Provider
+	unavailable map[string]Unavailability
+}
+
+// Unavailability explains why a provider KICK knows about is not registered,
+// and how the operator is reconfigured to register it.
+type Unavailability struct {
+	Reason  string
+	Message string
 }
 
 func NewRegistry(providers ...Provider) *Registry {
 	copyProviders := append([]Provider(nil), providers...)
-	return &Registry{providers: copyProviders}
+	return &Registry{providers: copyProviders, unavailable: map[string]Unavailability{}}
 }
 
 func (r *Registry) Register(provider Provider) {
 	r.providers = append(r.providers, provider)
+	delete(r.unavailable, provider.Name())
+}
+
+// MarkUnavailable records a provider that exists in KICK but was not wired up.
+// Without it a policy naming the provider could only be told that it is
+// unknown, which says nothing about how to make it work.
+func (r *Registry) MarkUnavailable(name string, unavailability Unavailability) {
+	if r.unavailable == nil {
+		r.unavailable = map[string]Unavailability{}
+	}
+	r.unavailable[name] = unavailability
+}
+
+// Unavailability returns the recorded explanation for a provider that is not
+// registered.
+func (r *Registry) Unavailability(name string) (Unavailability, bool) {
+	unavailability, ok := r.unavailable[name]
+	return unavailability, ok
 }
 
 // ProviderByName returns the registered provider with the given name. Explicit

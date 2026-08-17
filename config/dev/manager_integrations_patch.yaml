@@ -1,0 +1,12 @@
+# Optional integrations exercised by the integration suites. Every flag is a
+# no-op when the corresponding CRD is absent, so a single overlay serves every
+# suite.
+- op: add
+  path: /spec/template/spec/containers/0/args/-
+  value: --enable-argo-rollouts
+- op: add
+  path: /spec/template/spec/containers/0/args/-
+  value: --enable-csi-integration
+- op: add
+  path: /spec/template/spec/containers/0/args/-
+  value: --enable-kargo

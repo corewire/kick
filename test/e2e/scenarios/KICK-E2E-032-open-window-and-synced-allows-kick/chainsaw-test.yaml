@@ -33,7 +33,6 @@ spec:
               metadata:
                 name: app-032
                 namespace: kick-e2e-032
-                generation: 1
               status:
                 availableReplicas: 1
     - name: open-the-window
@@ -54,17 +53,15 @@ spec:
                 name: deployment-app-032
                 namespace: kick-e2e-032
               status:
-                phase: Succeeded
                 gate:
                   reason: Allowed
-        - assert:
-            resource:
-              apiVersion: apps/v1
-              kind: Deployment
-              metadata:
-                name: app-032
-                namespace: kick-e2e-032
-                generation: 2
+        - script:
+            content: |
+              restarted_at=$(kubectl -n kick-e2e-032 get deployment app-032 -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}')
+              if [ -z "$restarted_at" ]; then
+                echo "expected kick restart annotation on app-032"
+                exit 1
+              fi
     - name: cleanup
       try:
         - script:

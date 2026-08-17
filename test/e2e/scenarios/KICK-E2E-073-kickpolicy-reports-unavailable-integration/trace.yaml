@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-073
+name: kickpolicy-reports-unavailable-integration
+features:
+  - KICK-FEAT-028
+provider: core
+class: behavior
+required: true

@@ -3,7 +3,8 @@ KICK_KUBECONFIG = os.getenv('KICK_KUBECONFIG', '.kubeconfig-kind-kick-dev')
 
 allow_k8s_contexts(KICK_CONTEXT)
 
-if os.getenv('KUBECONFIG', '') not in ['', KICK_KUBECONFIG]:
+_kubeconfig = os.getenv('KUBECONFIG', '')
+if _kubeconfig != '' and os.path.abspath(_kubeconfig) != os.path.abspath(KICK_KUBECONFIG):
     fail('KUBECONFIG must point to .kubeconfig-kind-kick-dev for kick local dev')
 
 if k8s_context() != KICK_CONTEXT:

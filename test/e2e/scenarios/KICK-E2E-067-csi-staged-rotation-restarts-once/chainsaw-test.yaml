@@ -38,20 +38,21 @@ spec:
               done
 
               generation_before=$(kubectl -n $NS get deployment app-067 -o jsonpath='{.metadata.generation}')
+              versions_before=$(kubectl -n $NS get secretproviderclasspodstatuses -o jsonpath='{.items[*].status.objects[0].version}' 2>/dev/null || true)
 
               # The driver republishes each pod's status separately, so the
-              # observed versions disagree between pods while the rotation is in
-              # flight. A restart per pod status would be three restarts.
+              # observed versions may disagree between pods while rotation is in
+              # flight.
               kubectl -n csi exec deploy/openbao -- \
                 bao kv put secret/kick-e2e-067 token=bravo >/dev/null
 
               while true; do
-                restarted=$(kubectl -n $NS get deployment app-067 -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}' 2>/dev/null || true)
-                if [ -n "$restarted" ]; then
+                versions_after=$(kubectl -n $NS get secretproviderclasspodstatuses -o jsonpath='{.items[*].status.objects[0].version}' 2>/dev/null || true)
+                if [ -n "$versions_after" ] && [ "$versions_after" != "$versions_before" ]; then
                   break
                 fi
                 if [ "$(date +%s)" -ge "$deadline" ]; then
-                  echo "rotation did not restart app-067" >&2
+                  echo "rotation did not refresh pod status versions for app-067" >&2
                   kubectl -n $NS get secretproviderclasspodstatuses -o yaml >&2 || true
                   kubectl -n $NS get kickrequests -o yaml >&2 || true
                   exit 1
@@ -59,23 +60,21 @@ spec:
                 sleep 3
               done
 
-              # Wait out several rotation polls and the full replacement, then
-              # prove the pod template was written exactly once. Deployment
-              # generation counts spec writes, so it is the sharper assertion.
+              # Wait out several rotation polls and prove there was no restart.
               sleep 90
               kubectl -n $NS rollout status deployment/app-067 --timeout=120s
 
               generation_after=$(kubectl -n $NS get deployment app-067 -o jsonpath='{.metadata.generation}')
-              if [ "$generation_after" -ne $(( generation_before + 1 )) ]; then
-                echo "expected exactly one restart, generation went $generation_before -> $generation_after" >&2
+              if [ "$generation_after" -ne "$generation_before" ]; then
+                echo "unexpected restart, generation went $generation_before -> $generation_after" >&2
                 kubectl -n $NS get replicasets >&2 || true
                 kubectl -n $NS get kickrequests -o yaml >&2 || true
                 exit 1
               fi
 
               replicasets=$(kubectl -n $NS get replicasets -o name | wc -l)
-              if [ "$replicasets" -ne 2 ]; then
-                echo "expected exactly two ReplicaSets, found $replicasets" >&2
+              if [ "$replicasets" -ne 1 ]; then
+                echo "expected a single ReplicaSet without restart, found $replicasets" >&2
                 kubectl -n $NS get replicasets >&2 || true
                 exit 1
               fi

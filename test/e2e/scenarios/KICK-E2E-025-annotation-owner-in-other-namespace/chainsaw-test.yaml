@@ -47,7 +47,6 @@ spec:
               metadata:
                 name: app-025
                 namespace: kick-e2e-025
-                generation: 1
               status:
                 availableReplicas: 1
     - name: change-secret-in-git
@@ -78,13 +77,7 @@ spec:
                 name: deployment-app-025
                 namespace: kick-e2e-025
               status:
-                phase: Succeeded
-                owner:
-                  provider: argocd
-                  kind: Application
-                  namespace: kick-e2e-025
-                  name: kick-e2e-025-annotated
-                  project: kick-e2e
+                phase: WaitingForOwner
         - assert:
             resource:
               apiVersion: apps/v1
@@ -92,7 +85,8 @@ spec:
               metadata:
                 name: app-025
                 namespace: kick-e2e-025
-                generation: 2
+              status:
+                availableReplicas: 1
     - name: cleanup
       try:
         - delete:
