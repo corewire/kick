@@ -72,7 +72,7 @@ make test
 make test-e2e
 make helm-lint
 make helm-template
-make docs-gen
+make generate
 make docs-gen-check
 make feature-coverage
 ```

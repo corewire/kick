@@ -95,7 +95,7 @@ Run checks in this order:
 1. go test ./path/to/changed/package
 2. go test ./path/to/changed/package -run TestSpecificCase
 3. go test ./...
-4. make manifests generate
+4. make generate
 5. make verify-generated
 6. make test-envtest
 7. make e2e-scenario SCENARIO=KICK-E2E-NNN

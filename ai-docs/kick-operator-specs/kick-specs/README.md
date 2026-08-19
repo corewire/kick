@@ -54,6 +54,7 @@ Flux support is planned through the generic provider interface, but is not part 
 | `specs/19-framework-and-test-traceability.md`
 - `specs/20-e2e-suite-conventions.md` | Kubebuilder decision and feature-to-test enforcement |
 | `specs/22-kickpolicy.md` | Namespaced policy model, selection scope, and policy-driven gates |
+| `specs/23-unified-generation-entrypoint.md` | `make generate` as the single generation command |
 | `traceability/` | Machine-readable feature and e2e coverage matrices |
 | `tasks/` | Ordered, independently implementable work packages |
 | `examples/` | Example resources and flows |

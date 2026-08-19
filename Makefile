@@ -222,8 +222,12 @@ tilt-up:
 tilt-down:
 	KUBECONFIG=$(KIND_KUBECONFIG) KICK_KUBECONFIG=$(KIND_KUBECONFIG) $(TILT) down --context $(KIND_CONTEXT)
 
+# Single entry point for every generation task.
 .PHONY: generate
-generate: controller-gen
+generate: generate-deepcopy manifests api-field-coverage-gen docs-gen
+
+.PHONY: generate-deepcopy
+generate-deepcopy: controller-gen
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
 .PHONY: manifests
@@ -231,7 +235,7 @@ manifests: controller-gen
 	$(CONTROLLER_GEN) rbac:roleName=manager-role crd paths="./..." output:crd:artifacts:config=config/crd/bases
 
 .PHONY: codegen
-codegen: generate manifests
+codegen: generate
 
 .PHONY: helm-lint
 helm-lint:

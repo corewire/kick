@@ -7,7 +7,7 @@ llmsDescription: |
   lists every page with a one-line summary. llms-full.txt contains the whole
   documentation set in one file. Every page is also served as clean Markdown:
   leaf pages at {page}.md, sections at {section}/index.md. AGENTS.md in the repo
-  root instructs IDE coding agents. Regenerate with make docs-gen.
+  root instructs IDE coding agents. Regenerate with make generate.
 ---
 
 KICK's documentation is published in machine-readable form so an agent can load
@@ -50,7 +50,7 @@ local `make` targets.
 ## Regenerating
 
 ```bash
-make docs-gen
+make generate
 ```
 
 `hack/gen-docs.sh` rewrites `llms.txt`, rebuilds `llms-full.txt` from every

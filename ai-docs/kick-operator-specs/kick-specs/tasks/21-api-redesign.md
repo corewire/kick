@@ -322,8 +322,8 @@ spec.minInterval                             →  spec.restart.minInterval
    add provider sub-block `gitOps.argoCD.honorSyncWindows`; require
    `discovery.workloadSelector`.
 2. Add `PolicyRef` to `KickRequestSpec`.
-3. `make codegen`; sync CRDs into `charts/kick/crds/`.
+3. `make generate`.
 4. Update controller reads (`internal/controller`, `internal/schedule`,
    `internal/policy`), envtest, all e2e scenario YAMLs, samples, traceability.
-5. Regenerate AI docs (`make docs-gen`); run `make test`, `make lint`,
+5. Regenerate generated artifacts (`make generate`); run `make test`, `make lint`,
    `make test-e2e`.
