@@ -149,8 +149,8 @@ e2e-csi-setup: e2e-base-setup e2e-csi e2e-install
 e2e-kargo-setup: e2e-base-setup e2e-kargo e2e-install
 
 .PHONY: test-e2e
-test-e2e: chainsaw e2e-namespace
-	KUBECONFIG=$(KIND_KUBECONFIG) $(CHAINSAW) test --config test/e2e/chainsaw-configuration.yaml --kube-context $(KIND_CONTEXT) test/e2e/scenarios
+test-e2e: chainsaw e2e-base-setup e2e-rollouts e2e-csi e2e-kargo e2e-install
+	KUBECONFIG=$(KIND_KUBECONFIG) $(CHAINSAW) test --config $(E2E_CHAINSAW_CONFIG_INTEGRATION) --kube-context $(KIND_CONTEXT) test/e2e/scenarios
 
 .PHONY: test-e2e-core
 test-e2e-core: chainsaw e2e-namespace

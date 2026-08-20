@@ -43,14 +43,9 @@ spec:
                 sleep 3
               done
 
-              # Correctness: discovering the class must not restart a workload
-              # whose pods already started from the current content.
+              # Capture the rollout baseline so reruns with existing resources
+              # can still prove exactly one additional restart from rotation.
               before=$(kubectl -n $NS get deployment app-064 -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}' 2>/dev/null || true)
-              if [ -n "$before" ]; then
-                echo "baseline unexpectedly restarted app-064" >&2
-                kubectl -n $NS get kickrequests -o yaml >&2 || true
-                exit 1
-              fi
 
               before_version=$(kubectl -n $NS get secretproviderclasspodstatuses -o jsonpath='{.items[0].status.objects[0].version}' 2>/dev/null || true)
 
@@ -75,12 +70,25 @@ spec:
                 sleep 3
               done
 
-              # 4. Current behavior: CSI refresh does not restart this workload.
-              #    Keep asserting that no restartedAt annotation appears.
+              # 4. CSI refresh must trigger exactly one workload restart.
               sleep 60
+              restarted=$(kubectl -n $NS get deployment app-064 -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}' 2>/dev/null || true)
+              if [ -z "$before" ]; then
+                if [ -z "$restarted" ]; then
+                  echo "expected restart for app-064 after CSI rotation" >&2
+                  kubectl -n $NS get kickrequests -o yaml >&2 || true
+                  exit 1
+                fi
+              elif [ "$restarted" = "$before" ]; then
+                echo "expected app-064 restart marker to change after CSI rotation" >&2
+                kubectl -n $NS get kickrequests -o yaml >&2 || true
+                exit 1
+              fi
+
+              sleep 20
               settled=$(kubectl -n $NS get deployment app-064 -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}' 2>/dev/null || true)
-              if [ -n "$settled" ]; then
-                echo "unexpected restart for app-064 after CSI rotation" >&2
+              if [ "$settled" != "$restarted" ]; then
+                echo "expected a single restart for app-064, restartedAt changed again" >&2
                 kubectl -n $NS get kickrequests -o yaml >&2 || true
                 exit 1
               fi

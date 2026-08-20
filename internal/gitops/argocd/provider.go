@@ -143,17 +143,10 @@ func (p *Provider) resolveOwnerWithReason(ctx context.Context, workload client.O
 
 	group := workload.GetObjectKind().GroupVersionKind().Group
 	kind := workload.GetObjectKind().GroupVersionKind().Kind
-	if annotation := workload.GetAnnotations()[trackingIDAnnotation]; annotation != "" {
-		identity, err := parseTrackingID(annotation)
-		if err == nil && identity.Group == group && identity.Kind == kind && identity.Namespace == workload.GetNamespace() && identity.Name == workload.GetName() {
-			for _, ns := range p.applicationNamespaces() {
-				app, getErr := p.getApplication(ctx, types.NamespacedName{Namespace: ns, Name: identity.AppName})
-				if getErr == nil {
-					project, _, _ := unstructured.NestedString(app.Object, "spec", "project")
-					return gitops.Owner{Provider: p.Name(), APIVersion: ApplicationGVK.GroupVersion().String(), Kind: ApplicationGVK.Kind, Namespace: ns, Name: identity.AppName, Project: project}, gitops.GateAllowed, nil
-				}
-			}
-		}
+	if owner, reason, handled, err := p.resolveFromTrackingAnnotation(ctx, workload, group, kind); err != nil {
+		return gitops.Owner{}, gitops.GateProviderUnavailable, err
+	} else if handled {
+		return owner, reason, nil
 	}
 
 	matching, err := p.findFallbackMatches(ctx, group, kind, workload.GetNamespace(), workload.GetName())
@@ -169,6 +162,35 @@ func (p *Provider) resolveOwnerWithReason(ctx context.Context, workload client.O
 	app := matching[0]
 	project, _, _ := unstructured.NestedString(app.Object, "spec", "project")
 	return gitops.Owner{Provider: p.Name(), APIVersion: ApplicationGVK.GroupVersion().String(), Kind: ApplicationGVK.Kind, Namespace: app.GetNamespace(), Name: app.GetName(), Project: project}, gitops.GateAllowed, nil
+}
+
+// resolveFromTrackingAnnotation resolves ownership directly from the Argo CD
+// tracking annotation when it is present and valid. The boolean return marks
+// whether annotation handling decided the outcome.
+func (p *Provider) resolveFromTrackingAnnotation(ctx context.Context, workload client.Object, group, kind string) (gitops.Owner, gitops.GateReason, bool, error) {
+	annotation := workload.GetAnnotations()[trackingIDAnnotation]
+	if annotation == "" {
+		return gitops.Owner{}, gitops.GateOwnerUnknown, false, nil
+	}
+
+	identity, err := parseTrackingID(annotation)
+	if err != nil || identity.Group != group || identity.Kind != kind || identity.Namespace != workload.GetNamespace() || identity.Name != workload.GetName() {
+		return gitops.Owner{}, gitops.GateOwnerUnknown, false, nil
+	}
+
+	for _, ns := range p.applicationNamespaces() {
+		app, getErr := p.getApplication(ctx, types.NamespacedName{Namespace: ns, Name: identity.AppName})
+		if getErr != nil {
+			continue
+		}
+		if ns != p.ControlPlaneNamespace {
+			return gitops.Owner{}, gitops.GateOwnerUnknown, true, nil
+		}
+		project, _, _ := unstructured.NestedString(app.Object, "spec", "project")
+		return gitops.Owner{Provider: p.Name(), APIVersion: ApplicationGVK.GroupVersion().String(), Kind: ApplicationGVK.Kind, Namespace: ns, Name: identity.AppName, Project: project}, gitops.GateAllowed, true, nil
+	}
+
+	return gitops.Owner{}, gitops.GateOwnerUnknown, false, nil
 }
 
 func (p *Provider) applicationNamespaces() []string {

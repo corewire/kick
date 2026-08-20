@@ -69,6 +69,48 @@ func TestResolveOwnerRejectsStaleAnnotationThenFallback(t *testing.T) {
 	}
 }
 
+func TestResolveOwnerRejectsAnnotationOwnerOutsideControlPlaneNamespace(t *testing.T) {
+	scheme := runtime.NewScheme()
+	_ = appsv1.AddToScheme(scheme)
+
+	app := &unstructured.Unstructured{Object: map[string]interface{}{
+		"apiVersion": "argoproj.io/v1alpha1",
+		"kind":       "Application",
+		"metadata": map[string]interface{}{
+			"name":      "payments-app",
+			"namespace": "team-a",
+		},
+		"spec": map[string]interface{}{"project": "prod"},
+	}}
+	app.SetGroupVersionKind(ApplicationGVK)
+
+	provider := &Provider{
+		Client:                fake.NewClientBuilder().WithScheme(scheme).WithObjects(app).Build(),
+		ApplicationNamespaces: []string{"team-a"},
+		ControlPlaneNamespace: "argocd",
+	}
+
+	workload := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
+		Name:      "payments-api",
+		Namespace: "payments",
+		Annotations: map[string]string{
+			trackingIDAnnotation: "payments-app:apps/Deployment:payments/payments-api",
+		},
+	}}
+	workload.SetGroupVersionKind(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"})
+
+	owner, reason, err := provider.resolveOwnerWithReason(context.Background(), workload)
+	if err != nil {
+		t.Fatalf("resolve owner: %v", err)
+	}
+	if reason != gitops.GateOwnerUnknown {
+		t.Fatalf("reason = %s, want %s", reason, gitops.GateOwnerUnknown)
+	}
+	if owner != (gitops.Owner{}) {
+		t.Fatalf("owner = %#v, want zero value", owner)
+	}
+}
+
 func TestEvaluateGateTypedBlocks(t *testing.T) {
 	scheme := runtime.NewScheme()
 	_ = appsv1.AddToScheme(scheme)

@@ -1,0 +1,146 @@
+Version: v0.2.15
+Loading config (test/e2e/chainsaw-configuration-integration.yaml)...
+- Using test file: chainsaw-test
+- TestDirs [test/e2e/scenarios/KICK-E2E-058-no-gitops-provider-restarts]
+- Quiet false
+- SkipDelete false
+- FailFast false
+- ReportFormat ''
+- ReportName 'chainsaw-report'
+- Namespace 'kick-e2e'
+- FastNamespaceDeletion false
+- FullName false
+- IncludeTestRegex ''
+- ExcludeTestRegex ''
+- ApplyTimeout 1m0s
+- AssertTimeout 5m0s
+- CleanupTimeout 2m0s
+- DeleteTimeout 15s
+- ErrorTimeout 30s
+- ExecTimeout 10m0s
+- DeletionPropagationPolicy Background
+- Template true
+- NoCluster false
+- PauseOnFailure false
+Loading tests...
+- kick-e2e-058-no-gitops-provider-restarts (test/e2e/scenarios/KICK-E2E-058-no-gitops-provider-restarts)
+Loading values...
+Running tests...
+=== RUN   chainsaw
+=== PAUSE chainsaw
+=== CONT  chainsaw
+=== RUN   chainsaw/kick-e2e-058-no-gitops-provider-restarts
+=== PAUSE chainsaw/kick-e2e-058-no-gitops-provider-restarts
+=== CONT  chainsaw/kick-e2e-058-no-gitops-provider-restarts
+    sink.go:61: | 09:37:03 | [36;1mkick-e2e-058-no-gitops-provider-restarts[0;22m | [36;1mcreate-fixtures           [0;22m | [36;1mTRY[0;22m       | [36;1mBEGIN[0;22m |
+    sink.go:61: | 09:37:03 | [36;1mkick-e2e-058-no-gitops-provider-restarts[0;22m | [36;1mcreate-fixtures           [0;22m | [36;1mAPPLY[0;22m     | [36;1mRUN[0;22m   | v1/Namespace @ kick-e2e-058
+    sink.go:61: | 09:37:03 | [32;1mkick-e2e-058-no-gitops-provider-restarts[0;22m | [32;1mcreate-fixtures           [0;22m | [32;1mPATCH[0;22m     | [32;1mOK[0;22m    | v1/Namespace @ kick-e2e-058
+    sink.go:61: | 09:37:03 | [32;1mkick-e2e-058-no-gitops-provider-restarts[0;22m | [32;1mcreate-fixtures           [0;22m | [32;1mAPPLY[0;22m     | [32;1mDONE[0;22m  | v1/Namespace @ kick-e2e-058
+    sink.go:61: | 09:37:03 | [36;1mkick-e2e-058-no-gitops-provider-restarts[0;22m | [36;1mcreate-fixtures           [0;22m | [36;1mAPPLY[0;22m     | [36;1mRUN[0;22m   | kick.corewire.io/v1alpha1/KickPolicy @ kick-e2e-058/default
+    sink.go:61: | 09:37:03 | [32;1mkick-e2e-058-no-gitops-provider-restarts[0;22m | [32;1mcreate-fixtures           [0;22m | [32;1mPATCH[0;22m     | [32;1mOK[0;22m    | kick.corewire.io/v1alpha1/KickPolicy @ kick-e2e-058/default
+    sink.go:61: | 09:37:03 | [32;1mkick-e2e-058-no-gitops-provider-restarts[0;22m | [32;1mcreate-fixtures           [0;22m | [32;1mAPPLY[0;22m     | [32;1mDONE[0;22m  | kick.corewire.io/v1alpha1/KickPolicy @ kick-e2e-058/default
+    sink.go:61: | 09:37:03 | [36;1mkick-e2e-058-no-gitops-provider-restarts[0;22m | [36;1mcreate-fixtures           [0;22m | [36;1mAPPLY[0;22m     | [36;1mRUN[0;22m   | v1/Secret @ kick-e2e-058/app-secret
+    sink.go:61: | 09:37:03 | [32;1mkick-e2e-058-no-gitops-provider-restarts[0;22m | [32;1mcreate-fixtures           [0;22m | [32;1mPATCH[0;22m     | [32;1mOK[0;22m    | v1/Secret @ kick-e2e-058/app-secret
+    sink.go:61: | 09:37:03 | [32;1mkick-e2e-058-no-gitops-provider-restarts[0;22m | [32;1mcreate-fixtures           [0;22m | [32;1mAPPLY[0;22m     | [32;1mDONE[0;22m  | v1/Secret @ kick-e2e-058/app-secret
+    sink.go:61: | 09:37:03 | [36;1mkick-e2e-058-no-gitops-provider-restarts[0;22m | [36;1mcreate-fixtures           [0;22m | [36;1mAPPLY[0;22m     | [36;1mRUN[0;22m   | apps/v1/Deployment @ kick-e2e-058/app
+    sink.go:61: | 09:37:03 | [32;1mkick-e2e-058-no-gitops-provider-restarts[0;22m | [32;1mcreate-fixtures           [0;22m | [32;1mPATCH[0;22m     | [32;1mOK[0;22m    | apps/v1/Deployment @ kick-e2e-058/app
+    sink.go:61: | 09:37:03 | [32;1mkick-e2e-058-no-gitops-provider-restarts[0;22m | [32;1mcreate-fixtures           [0;22m | [32;1mAPPLY[0;22m     | [32;1mDONE[0;22m  | apps/v1/Deployment @ kick-e2e-058/app
+    sink.go:61: | 09:37:03 | [36;1mkick-e2e-058-no-gitops-provider-restarts[0;22m | [36;1mcreate-fixtures           [0;22m | [36;1mASSERT[0;22m    | [36;1mRUN[0;22m   | apps/v1/Deployment @ kick-e2e-058/app
+    sink.go:61: | 09:37:03 | [32;1mkick-e2e-058-no-gitops-provider-restarts[0;22m | [32;1mcreate-fixtures           [0;22m | [32;1mASSERT[0;22m    | [32;1mDONE[0;22m  | apps/v1/Deployment @ kick-e2e-058/app
+    sink.go:61: | 09:37:03 | [36;1mkick-e2e-058-no-gitops-provider-restarts[0;22m | [36;1mcreate-fixtures           [0;22m | [36;1mTRY[0;22m       | [36;1mEND[0;22m   |
+    sink.go:61: | 09:37:03 | [36;1mkick-e2e-058-no-gitops-provider-restarts[0;22m | [36;1mchange-secret             [0;22m | [36;1mTRY[0;22m       | [36;1mBEGIN[0;22m |
+    sink.go:61: | 09:37:03 | [36;1mkick-e2e-058-no-gitops-provider-restarts[0;22m | [36;1mchange-secret             [0;22m | [36;1mCMD[0;22m       | [36;1mRUN[0;22m   |
+        === COMMAND
+        /usr/bin/sh -c set -eu
+        kubectl -n kick-e2e-058 patch secret app-secret --type merge -p '{"stringData":{"token":"bravo"}}'
+    sink.go:61: | 09:37:03 | [36;1mkick-e2e-058-no-gitops-provider-restarts[0;22m | [36;1mchange-secret             [0;22m | [36;1mSCRIPT[0;22m    | [36;1mLOG[0;22m   |
+        === STDOUT
+        secret/app-secret patched
+    sink.go:61: | 09:37:03 | [32;1mkick-e2e-058-no-gitops-provider-restarts[0;22m | [32;1mchange-secret             [0;22m | [32;1mSCRIPT[0;22m    | [32;1mDONE[0;22m  |
+    sink.go:61: | 09:37:03 | [36;1mkick-e2e-058-no-gitops-provider-restarts[0;22m | [36;1mchange-secret             [0;22m | [36;1mTRY[0;22m       | [36;1mEND[0;22m   |
+    sink.go:61: | 09:37:03 | [36;1mkick-e2e-058-no-gitops-provider-restarts[0;22m | [36;1massert-restart-succeeded  [0;22m | [36;1mTRY[0;22m       | [36;1mBEGIN[0;22m |
+    sink.go:61: | 09:37:03 | [36;1mkick-e2e-058-no-gitops-provider-restarts[0;22m | [36;1massert-restart-succeeded  [0;22m | [36;1mCMD[0;22m       | [36;1mRUN[0;22m   |
+        === COMMAND
+        /usr/bin/sh -c set -eu
+        deadline=$(( $(date +%s) + 150 ))
+        while true; do
+          phase=$(kubectl -n kick-e2e-058 get kickrequest deployment-app \
+            -o jsonpath='{.status.phase}' 2>/dev/null || true)
+          if [ "$phase" = "Succeeded" ]; then
+            break
+          fi
+          case "$phase" in
+            Failed|DryRun)
+              echo "unexpected terminal phase '${phase}' without a GitOps provider" >&2
+              kubectl -n kick-e2e-058 get kickrequests -o yaml >&2 || true
+              exit 1
+              ;;
+          esac
+          if [ "$(date +%s)" -ge "$deadline" ]; then
+            echo "expected the kickrequest to succeed, got '${phase}'" >&2
+            kubectl -n kick-e2e-058 get kickrequests -o yaml >&2 || true
+            exit 1
+          fi
+          sleep 2
+        done
+    sink.go:61: | 09:37:04 | [32;1mkick-e2e-058-no-gitops-provider-restarts[0;22m | [32;1massert-restart-succeeded  [0;22m | [32;1mSCRIPT[0;22m    | [32;1mDONE[0;22m  |
+    sink.go:61: | 09:37:04 | [36;1mkick-e2e-058-no-gitops-provider-restarts[0;22m | [36;1massert-restart-succeeded  [0;22m | [36;1mTRY[0;22m       | [36;1mEND[0;22m   |
+    sink.go:61: | 09:37:04 | [36;1mkick-e2e-058-no-gitops-provider-restarts[0;22m | [36;1massert-exactly-one-rollout[0;22m | [36;1mTRY[0;22m       | [36;1mBEGIN[0;22m |
+    sink.go:61: | 09:37:04 | [36;1mkick-e2e-058-no-gitops-provider-restarts[0;22m | [36;1massert-exactly-one-rollout[0;22m | [36;1mCMD[0;22m       | [36;1mRUN[0;22m   |
+        === COMMAND
+        /usr/bin/sh -c set -eu
+        restarted=$(kubectl -n kick-e2e-058 get deployment app \
+          -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}')
+        if [ -z "${restarted}" ]; then
+          echo "expected restartedAt to be set" >&2
+          exit 1
+        fi
+        # Ownership was never resolved, so no gate may have been recorded
+        # as blocking.
+        provider=$(kubectl -n kick-e2e-058 get kickrequest deployment-app \
+          -o jsonpath='{.status.owner.provider}' || true)
+        if [ -n "${provider}" ] && [ "${provider}" != "none" ]; then
+          echo "expected no GitOps owner, got '${provider}'" >&2
+          exit 1
+        fi
+        # Let the system settle, then require the state to be stable: a
+        # single rollout, and no second KickRequest.
+        sleep 30
+        settled=$(kubectl -n kick-e2e-058 get deployment app \
+          -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}')
+        if [ "${settled}" != "${restarted}" ]; then
+          echo "expected exactly one restart, restartedAt changed from '${restarted}' to '${settled}'" >&2
+          exit 1
+        fi
+        revisions=$(kubectl -n kick-e2e-058 get replicaset \
+          -l app=app --no-headers | wc -l | tr -d ' ')
+        if [ "${revisions}" != "2" ]; then
+          echo "expected exactly 2 replicasets (initial + one restart), got ${revisions}" >&2
+          kubectl -n kick-e2e-058 get replicaset -o wide >&2 || true
+          exit 1
+        fi
+    sink.go:61: | 09:37:34 | [36;1mkick-e2e-058-no-gitops-provider-restarts[0;22m | [36;1massert-exactly-one-rollout[0;22m | [36;1mSCRIPT[0;22m    | [36;1mLOG[0;22m   |
+        === STDERR
+        expected exactly 2 replicasets (initial + one restart), got 7
+        NAME             DESIRED   CURRENT   READY   AGE     CONTAINERS   IMAGES                       SELECTOR
+        app-5554d58d48   0         0         0       19m     app          registry.k8s.io/pause:3.10   app=app,pod-template-hash=5554d58d48
+        app-68c44f8fdf   0         0         0       86s     app          registry.k8s.io/pause:3.10   app=app,pod-template-hash=68c44f8fdf
+        app-6d7d5b8f6f   1         1         1       31s     app          registry.k8s.io/pause:3.10   app=app,pod-template-hash=6d7d5b8f6f
+        app-749f4f6c4d   0         0         0       17m     app          registry.k8s.io/pause:3.10   app=app,pod-template-hash=749f4f6c4d
+        app-76d97784d9   0         0         0       9m13s   app          registry.k8s.io/pause:3.10   app=app,pod-template-hash=76d97784d9
+        app-7c8df76c9c   0         0         0       19m     app          registry.k8s.io/pause:3.10   app=app,pod-template-hash=7c8df76c9c
+        app-886f58b4     0         0         0       11m     app          registry.k8s.io/pause:3.10   app=app,pod-template-hash=886f58b4
+    sink.go:61: | 09:37:34 | [31;1mkick-e2e-058-no-gitops-provider-restarts[0;22m | [31;1massert-exactly-one-rollout[0;22m | [31;1mSCRIPT[0;22m    | [31;1mERROR[0;22m |
+        === ERROR
+        exit status 1
+    sink.go:61: | 09:37:34 | [36;1mkick-e2e-058-no-gitops-provider-restarts[0;22m | [36;1massert-exactly-one-rollout[0;22m | [36;1mTRY[0;22m       | [36;1mEND[0;22m   |
+--- FAIL: chainsaw (0.02s)
+    --- FAIL: chainsaw/kick-e2e-058-no-gitops-provider-restarts (30.88s)
+FAIL
+Tests Summary...
+- Passed  tests 0
+- Failed  tests 1
+- Skipped tests 0
+Done with failures.
+Error: some tests failed
+make: *** [Makefile:185: test-e2e-scenario] Error 1

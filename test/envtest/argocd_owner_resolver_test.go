@@ -81,7 +81,7 @@ func TestArgoCDOwnerResolverEnvtest(t *testing.T) {
 		"kind":       "Application",
 		"metadata": map[string]interface{}{
 			"name":      "payments-app",
-			"namespace": "team-a",
+			"namespace": "argocd",
 		},
 		"spec":   map[string]interface{}{"project": "production"},
 		"status": map[string]interface{}{"resources": []interface{}{map[string]interface{}{"group": "apps", "kind": "Deployment", "namespace": "payments", "name": "payments-api"}}},
@@ -101,7 +101,7 @@ func TestArgoCDOwnerResolverEnvtest(t *testing.T) {
 		t.Fatalf("create project: %v", err)
 	}
 
-	provider := &argocd.Provider{Client: c, ApplicationNamespaces: []string{"team-a", "team-b"}, ControlPlaneNamespace: "argocd"}
+	provider := &argocd.Provider{Client: c, ApplicationNamespaces: []string{"argocd", "team-a", "team-b"}, ControlPlaneNamespace: "argocd"}
 	workload := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
 		Name:      "payments-api",
 		Namespace: "payments",
@@ -115,7 +115,7 @@ func TestArgoCDOwnerResolverEnvtest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve owner: %v", err)
 	}
-	if owner.Namespace != "team-a" || owner.Name != "payments-app" {
+	if owner.Namespace != "argocd" || owner.Name != "payments-app" {
 		t.Fatalf("owner mismatch: %#v", owner)
 	}
 
@@ -124,8 +124,32 @@ func TestArgoCDOwnerResolverEnvtest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("fallback resolve owner: %v", err)
 	}
-	if owner.Namespace != "team-a" || owner.Name != "payments-app" {
+	if owner.Namespace != "argocd" || owner.Name != "payments-app" {
 		t.Fatalf("fallback owner mismatch: %#v", owner)
+	}
+
+	annotatedApp := &unstructured.Unstructured{Object: map[string]interface{}{
+		"apiVersion": "argoproj.io/v1alpha1",
+		"kind":       "Application",
+		"metadata": map[string]interface{}{
+			"name":      "annotated-app",
+			"namespace": "team-a",
+		},
+		"spec": map[string]interface{}{"project": "production"},
+	}}
+	annotatedApp.SetGroupVersionKind(schema.GroupVersionKind{Group: "argoproj.io", Version: "v1alpha1", Kind: "Application"})
+	if err := c.Create(ctx, annotatedApp); err != nil {
+		t.Fatalf("create annotated application: %v", err)
+	}
+
+	workload.Annotations["argocd.argoproj.io/tracking-id"] = "annotated-app:apps/Deployment:payments/payments-api"
+	if _, err := provider.ResolveOwner(ctx, workload); err == nil {
+		t.Fatalf("expected annotation owner outside control-plane namespace to block")
+	} else {
+		var resolutionErr argocd.ResolutionError
+		if !errors.As(err, &resolutionErr) || resolutionErr.Reason != gitops.GateOwnerUnknown {
+			t.Fatalf("unexpected resolution error: %v", err)
+		}
 	}
 
 	if err := unstructured.SetNestedSlice(app.Object, []interface{}{}, "status", "resources"); err != nil {

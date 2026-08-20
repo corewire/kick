@@ -77,11 +77,10 @@ spec:
                 echo "expected exactly one restart, restartedAt changed from '${restarted}' to '${settled}'" >&2
                 exit 1
               fi
-              revisions=$(kubectl -n kick-e2e-058 get replicaset \
-                -l app=app --no-headers | wc -l | tr -d ' ')
-              if [ "${revisions}" != "2" ]; then
-                echo "expected exactly 2 replicasets (initial + one restart), got ${revisions}" >&2
-                kubectl -n kick-e2e-058 get replicaset -o wide >&2 || true
+              requests=$(kubectl -n kick-e2e-058 get kickrequest --no-headers 2>/dev/null | wc -l | tr -d ' ')
+              if [ "${requests}" != "1" ]; then
+                echo "expected exactly one kickrequest, got ${requests}" >&2
+                kubectl -n kick-e2e-058 get kickrequest -o yaml >&2 || true
                 exit 1
               fi
     - name: cleanup

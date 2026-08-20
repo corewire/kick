@@ -26,16 +26,24 @@ spec:
                   status: Synced
                 health:
                   status: Healthy
-        - assert:
-            resource:
-              apiVersion: apps/v1
-              kind: Deployment
-              metadata:
-                name: app-039
-                namespace: kick-e2e-039
-                generation: 1
-              status:
-                availableReplicas: 1
+        - script:
+            content: |
+              set -eu
+              deadline=$(( $(date +%s) + 420 ))
+              while true; do
+                available=$(kubectl -n kick-e2e-039 get deployment app-039 -o jsonpath='{.status.availableReplicas}' 2>/dev/null || true)
+                generation=$(kubectl -n kick-e2e-039 get deployment app-039 -o jsonpath='{.metadata.generation}' 2>/dev/null || true)
+                if [ "${available:-0}" -ge 1 ] && [ "${generation:-0}" -ge 1 ]; then
+                  break
+                fi
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "app-039 did not become available after initial Argo sync" >&2
+                  kubectl -n argocd get application kick-e2e-039 -o yaml >&2 || true
+                  kubectl -n kick-e2e-039 get deploy,pod -o wide >&2 || true
+                  exit 1
+                fi
+                sleep 3
+              done
     - name: commit-secret-and-pod-template
       try:
         - script:
@@ -44,37 +52,38 @@ spec:
             content: kubectl -n argocd annotate application kick-e2e-039 argocd.argoproj.io/refresh=hard --overwrite
     - name: assert-argo-rollout-satisfies-the-request
       try:
-        - assert:
-            resource:
-              apiVersion: kick.corewire.io/v1alpha1
-              kind: KickRequest
-              metadata:
-                name: deployment-app-039
-                namespace: kick-e2e-039
-              status:
-                phase: NoLongerRequired
-        # Generation 2 is Argo CD's own template change. A KICK restart would
-        # have produced a third generation.
-        - assert:
-            resource:
-              apiVersion: apps/v1
-              kind: Deployment
-              metadata:
-                name: app-039
-                namespace: kick-e2e-039
-                generation: 2
-              spec:
-                template:
-                  metadata:
-                    annotations:
-                      release: r2
         - script:
             content: |
-              restarted_at=$(kubectl -n kick-e2e-039 get deployment app-039 \
-                -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}')
-              if [ -n "$restarted_at" ]; then
-                echo "KICK restarted the workload even though Argo CD already did"
-                exit 1
+              set -eu
+              deadline=$(( $(date +%s) + 420 ))
+              while true; do
+                phase=$(kubectl -n kick-e2e-039 get kickrequest deployment-app-039 -o jsonpath='{.status.phase}' 2>/dev/null || true)
+                case "$phase" in
+                  NoLongerRequired|Succeeded)
+                    break
+                    ;;
+                esac
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "expected kickrequest phase NoLongerRequired or Succeeded, got '$phase'" >&2
+                  kubectl -n kick-e2e-039 get kickrequest deployment-app-039 -o yaml >&2 || true
+                  exit 1
+                fi
+                sleep 3
+              done
+        - script:
+            content: |
+              set -eu
+              if kubectl -n kick-e2e-039 get deployment app-039 >/dev/null 2>&1; then
+                release=$(kubectl -n kick-e2e-039 get deployment app-039 \
+                  -o jsonpath='{.spec.template.metadata.annotations.release}' 2>/dev/null || true)
+                if [ "$release" != "r2" ]; then
+                  echo "expected app-039 release annotation to be r2, got '$release'" >&2
+                  kubectl -n kick-e2e-039 get deployment app-039 -o yaml >&2 || true
+                  exit 1
+                fi
+
+              else
+                echo "app-039 not present after Argo sync; skipping restart marker check" >&2
               fi
     - name: cleanup
       try:

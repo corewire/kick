@@ -37,6 +37,8 @@ spec:
                 sleep 3
               done
 
+              before=$(kubectl -n $NS get deployment app-065 -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}' 2>/dev/null || true)
+
               # Write the same bytes again. This is a real store write: the KV
               # engine creates version 2 and a new created_time. The provider
               # derives the reported object version from the content, not from
@@ -58,8 +60,8 @@ spec:
               sleep 90
 
               restarted=$(kubectl -n $NS get deployment app-065 -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}' 2>/dev/null || true)
-              if [ -n "$restarted" ]; then
-                echo "byte-identical write restarted app-065" >&2
+              if [ "$restarted" != "$before" ]; then
+                echo "byte-identical write changed restartedAt for app-065" >&2
                 kubectl -n $NS get secretproviderclasspodstatuses -o yaml >&2 || true
                 kubectl -n $NS get kickrequests -o yaml >&2 || true
                 exit 1
