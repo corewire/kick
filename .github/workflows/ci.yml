@@ -11,6 +11,8 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-24.04
+    env:
+      LOCALBIN: ${{ github.workspace }}/bin
     steps:
       - name: Checkout
         uses: actions/checkout@v4.2.2
@@ -20,6 +22,28 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+
+      - name: Cache local tool binaries
+        uses: actions/cache@v4.4.3
+        with:
+          path: |
+            bin/controller-gen-v0.17.2
+            bin/kustomize-v5.6.0
+            bin/setup-envtest-release-0.24
+            bin/golangci-lint-v2.12.2
+            bin/chainsaw-v0.2.15
+            bin/controller-gen
+            bin/kustomize
+            bin/setup-envtest
+            bin/golangci-lint
+            bin/chainsaw
+          key: tools-${{ runner.os }}-v1-${{ hashFiles('Makefile') }}
+
+      - name: Cache envtest Kubernetes assets
+        uses: actions/cache@v4.4.3
+        with:
+          path: bin/k8s
+          key: envtest-assets-${{ runner.os }}-1.36
 
       - name: Setup Python
         uses: actions/setup-python@v5.6.0
@@ -63,7 +87,7 @@ jobs:
         run: make helm-template
 
       - name: Docs generation check
-        run: make docs-gen-check
+        run: git diff --exit-code -- llms.txt llms-full.txt docs/static/llms-full.txt
 
       - name: Feature coverage checker tests
         run: make feature-coverage-test
