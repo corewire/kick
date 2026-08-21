@@ -257,6 +257,15 @@ docs-casts:
 docs-gen-check: docs-gen
 	git diff --exit-code -- llms.txt llms-full.txt docs/static/llms-full.txt
 
+.PHONY: pre-commit-check
+pre-commit-check: docs-gen-check
+
+.PHONY: install-hooks
+install-hooks:
+	git config core.hooksPath .githooks
+	chmod +x .githooks/pre-commit
+	@echo "Installed git hooks from .githooks/"
+
 .PHONY: feature-coverage
 feature-coverage:
 	python3 tools/gen_api_field_coverage.py --output traceability/api-field-coverage.generated.yaml
