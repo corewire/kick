@@ -1,0 +1,314 @@
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>KICK – Concepts</title><link>https://corewire.github.io/kick/docs/concepts/</link><description>Recent content in Concepts on KICK</description><generator>Hugo -- gohugo.io</generator><language>en</language><atom:link href="https://corewire.github.io/kick/docs/concepts/index.xml" rel="self" type="application/rss+xml"/><item><title>Hidden restart requirement</title><link>https://corewire.github.io/kick/docs/concepts/hidden-restart-requirement/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://corewire.github.io/kick/docs/concepts/hidden-restart-requirement/</guid><description>
+&lt;p&gt;Kubernetes does &lt;strong&gt;not&lt;/strong&gt; restart a workload when the content of a &lt;code&gt;Secret&lt;/code&gt; or
+&lt;code&gt;ConfigMap&lt;/code&gt; it consumes changes. The change lands in the API server, but the
+running Pod keeps serving its old configuration.&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://corewire.github.io/kick/images/the-problem.drawio.svg" alt="Updating a Secret or ConfigMap does nothing in Kubernetes, so the Pod keeps its old config and drifts from the intended state." loading="lazy" /&gt;&lt;/p&gt;
+&lt;p&gt;There are two reasons:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Environment variables&lt;/strong&gt; are resolved once, at Pod start. A later change to
+the source is never re-read.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Mounted files&lt;/strong&gt; are updated on the node eventually, but whether the process
+reloads them is entirely workload-specific — most never do.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;The result is silent &lt;strong&gt;configuration drift&lt;/strong&gt;: the intended state (the updated
+Secret/ConfigMap) and the running state (the Pod&amp;rsquo;s in-memory config) diverge,
+with no error and no signal.&lt;/p&gt;
+&lt;p&gt;KICK closes this gap. It tracks each workload&amp;rsquo;s dependencies and triggers a
+controlled rollout when one changes — immediately by default, or gated on
+&lt;a href="../gitops-gates/"&gt;GitOps state and schedule windows&lt;/a&gt; when configured.&lt;/p&gt;</description></item><item><title>Dependency discovery</title><link>https://corewire.github.io/kick/docs/concepts/dependency-discovery/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://corewire.github.io/kick/docs/concepts/dependency-discovery/</guid><description>
+&lt;p&gt;KICK supports &lt;code&gt;Deployment&lt;/code&gt;, &lt;code&gt;StatefulSet&lt;/code&gt;, and &lt;code&gt;DaemonSet&lt;/code&gt; workloads, and
+optionally &lt;code&gt;argoproj.io/v1alpha1&lt;/code&gt; &lt;code&gt;Rollout&lt;/code&gt; when the controller runs with
+&lt;code&gt;--enable-argo-rollouts&lt;/code&gt;. It discovers their dependencies automatically — you
+never maintain a dependency list by hand.&lt;/p&gt;
+&lt;p&gt;For each workload it walks the Pod template and collects every &lt;code&gt;Secret&lt;/code&gt; and
+&lt;code&gt;ConfigMap&lt;/code&gt; reached through:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;container and init-container &lt;code&gt;envFrom&lt;/code&gt; references;&lt;/li&gt;
+&lt;li&gt;container and init-container &lt;code&gt;valueFrom.secretKeyRef&lt;/code&gt; / &lt;code&gt;valueFrom.configMapKeyRef&lt;/code&gt;;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;volumes[].secret.secretName&lt;/code&gt; and &lt;code&gt;volumes[].configMap.name&lt;/code&gt;;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;volumes[].projected.sources[].secret.name&lt;/code&gt; / &lt;code&gt;...configMap.name&lt;/code&gt;;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;volumes[].csi&lt;/code&gt; with driver &lt;code&gt;secrets-store.csi.k8s.io&lt;/code&gt;, which yields a
+&lt;code&gt;SecretProviderClass&lt;/code&gt; dependency (see below).&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;code&gt;imagePullSecrets&lt;/code&gt; are &lt;strong&gt;excluded by design&lt;/strong&gt; and never trigger a restart — they
+authenticate image pulls, not application config.&lt;/p&gt;
+&lt;p&gt;Each discovered source is identified by &lt;code&gt;apiVersion&lt;/code&gt; + &lt;code&gt;kind&lt;/code&gt; + &lt;code&gt;namespace&lt;/code&gt; +
+&lt;code&gt;name&lt;/code&gt;, so the same underlying object referenced twice is one dependency.&lt;/p&gt;
+&lt;p&gt;An Argo &lt;code&gt;Rollout&lt;/code&gt; that uses &lt;code&gt;spec.workloadRef&lt;/code&gt; instead of an inline
+&lt;code&gt;spec.template&lt;/code&gt; has no pod spec of its own, so KICK discovers no dependencies
+for it. Select the referenced workload instead.&lt;/p&gt;
+&lt;h2&gt;Only proven references&lt;span class="hx:absolute hx:-mt-20" id="only-proven-references"&gt;&lt;/span&gt;
+&lt;a href="#only-proven-references" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;KICK restarts only on dependencies it can prove the workload consumes by reading
+the pod spec. There is deliberately no way to declare an extra dependency by
+name: a hand-maintained list drifts from reality, and a stale entry causes
+restarts nobody can explain. If an application reads a Secret through the API,
+create a &lt;code&gt;KickRequest&lt;/code&gt; from whatever triggers that change instead.&lt;/p&gt;
+&lt;h2&gt;Secrets Store CSI&lt;span class="hx:absolute hx:-mt-20" id="secrets-store-csi"&gt;&lt;/span&gt;
+&lt;a href="#secrets-store-csi" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;With &lt;code&gt;--enable-csi-integration&lt;/code&gt;, KICK watches &lt;code&gt;SecretProviderClassPodStatus&lt;/code&gt; and
+derives a content fingerprint from the mounted object versions reported by every
+pod of the class. Because a rotation reaches pods one at a time, KICK only acts
+once every pod reports the same versions; while they disagree it re-checks
+shortly instead of restarting mid-rotation. The first observation is anchored to
+an epoch baseline, so enabling the integration never restarts anything by
+itself.&lt;/p&gt;
+&lt;h2&gt;Scoping with selectors&lt;span class="hx:absolute hx:-mt-20" id="scoping-with-selectors"&gt;&lt;/span&gt;
+&lt;a href="#scoping-with-selectors" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;Discovery is always automatic — KICK never needs a hand-maintained dependency
+list. Two optional selectors on &lt;code&gt;spec.discovery&lt;/code&gt; narrow what a policy acts on:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;workloadSelector&lt;/code&gt; picks the workloads the policy manages.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;dependencySelector&lt;/code&gt; picks which consumed Secret/ConfigMap changes trigger a
+restart (by the Secret/ConfigMap&amp;rsquo;s own labels).&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;A workload restarts only when it consumes a changed dependency that is in both
+scopes. An empty or omitted selector matches everything on its axis, so a policy
+with no selectors watches every workload and every dependency. When set,
+&lt;code&gt;dependencySelector&lt;/code&gt; also scopes freshness: out-of-scope dependencies never mark
+a workload stale.&lt;/p&gt;</description></item><item><title>Freshness</title><link>https://corewire.github.io/kick/docs/concepts/freshness/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://corewire.github.io/kick/docs/concepts/freshness/</guid><description>
+&lt;p&gt;A changed dependency is not enough on its own — the running rollout might
+already predate the change &lt;em&gt;or&lt;/em&gt; already include it. &lt;strong&gt;Freshness&lt;/strong&gt; is the check
+that decides. It compares two timestamps:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Λ&lt;/strong&gt; — the latest &lt;em&gt;relevant&lt;/em&gt; dependency change (see
+&lt;a href="../dependency-discovery/"&gt;dependency discovery&lt;/a&gt; for what counts).&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;σ&lt;/strong&gt; — the current rollout&amp;rsquo;s start time (the &lt;code&gt;restartedAt&lt;/code&gt; stamp if present,
+otherwise the active revision&amp;rsquo;s creation time), computed per workload kind.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;The decision is a strict comparison:&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Condition&lt;/th&gt;
+&lt;th&gt;Verdict&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;dependency newer than rollout (Λ &amp;gt; σ)&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;stale&lt;/strong&gt; → restart required&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;dependency older than or equal to rollout (Λ ≤ σ)&lt;/td&gt;
+&lt;td&gt;&lt;strong&gt;fresh&lt;/strong&gt; → no restart&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;KICK always &lt;strong&gt;re-reads live state&lt;/strong&gt; immediately before restarting, so a rollout
+that started in the meantime is never restarted twice.&lt;/p&gt;
+&lt;h2&gt;Initial baseline&lt;span class="hx:absolute hx:-mt-20" id="initial-baseline"&gt;&lt;/span&gt;
+&lt;a href="#initial-baseline" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;Freshness needs an authoritative change timestamp, and the first observation of
+a dependency never witnessed the change that produced the content it finds. KICK
+therefore dates that content from what the API server recorded: the source&amp;rsquo;s
+creation time, or the last write any field manager made to it, whichever is
+later.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;A source untouched since creation carries exactly what the workload picked up
+when it rolled out, so it is fresh and adopting a workload never restarts it.&lt;/li&gt;
+&lt;li&gt;A source written after its creation is dated to that write, exactly as the API
+server recorded it. Kubernetes&amp;rsquo; own timestamps are second-granular, so KICK
+keeps its change times at sub-second precision: a change made in the same
+second as a rollout is still recognised as newer.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Drift that the API server did not record - a write by a client that does not use
+server-side field management - still cannot be inferred. From the baseline
+onward, every relevant change advances Λ and is compared normally.&lt;/p&gt;
+&lt;p&gt;Evaluation is driven by observed changes, including the first observation of a
+source. A workload created after all of its dependencies already exist is fresh
+by construction — its Pods started from the current content of every source — so
+no &lt;code&gt;KickRequest&lt;/code&gt; is created for it. The next relevant change to one of its
+sources triggers evaluation as usual.&lt;/p&gt;</description></item><item><title>GitOps gates</title><link>https://corewire.github.io/kick/docs/concepts/gitops-gates/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://corewire.github.io/kick/docs/concepts/gitops-gates/</guid><description>
+&lt;p&gt;A &lt;strong&gt;gate&lt;/strong&gt; decides whether a restart that is &lt;em&gt;needed&lt;/em&gt; (the workload is
+&lt;a href="../freshness/"&gt;stale&lt;/a&gt;) may actually run &lt;em&gt;right now&lt;/em&gt;. The gate never invents work:
+it only ever delays or permits a restart that freshness already justified.&lt;/p&gt;
+&lt;p&gt;&lt;img src="https://corewire.github.io/kick/images/gitops-gate.drawio.svg" alt="If the GitOps owner is unknown or the sync window is closed, KICK stays blocked and re-checks later; only a clear owner with an open window lets the restart run." loading="lazy" /&gt;&lt;/p&gt;
+&lt;p&gt;Gating is &lt;strong&gt;opt-in&lt;/strong&gt;. With no &lt;code&gt;gitOps&lt;/code&gt; block — the default, &lt;code&gt;provider: None&lt;/code&gt; —
+KICK self-gates and restarts as soon as a dependency is stale. You add a gate
+when a restart must wait for a maintenance window, or until your GitOps tool has
+finished reconciling the workload.&lt;/p&gt;
+&lt;h2&gt;Two stages&lt;span class="hx:absolute hx:-mt-20" id="two-stages"&gt;&lt;/span&gt;
+&lt;a href="#two-stages" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;The gate is evaluated in order. A restart runs only if &lt;strong&gt;both&lt;/strong&gt; stages allow it.&lt;/p&gt;
+&lt;div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code"&gt;
+&lt;div&gt;&lt;pre&gt;&lt;code&gt;stale workload ──▶ [ 1. native windows ] ──▶ [ 2. GitOps provider ] ──▶ restart
+│ │
+OutsideSchedule sync window · owner · sync state
+▼ ▼
+wait &amp;amp; re-check wait &amp;amp; re-check&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0"&gt;
+&lt;button
+class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+title="Copy code"
+aria-label="Copy code"
+data-copied-label="Copied!"
+&gt;
+&lt;div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;/button&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;h3&gt;Stage 1 — native schedule windows&lt;span class="hx:absolute hx:-mt-20" id="stage-1--native-schedule-windows"&gt;&lt;/span&gt;
+&lt;a href="#stage-1--native-schedule-windows" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h3&gt;&lt;p&gt;&lt;code&gt;spec.schedule.windows[]&lt;/code&gt; are KICK-native cron windows evaluated without
+any provider. Each window is either &lt;code&gt;Allow&lt;/code&gt; or &lt;code&gt;Deny&lt;/code&gt;:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;The current time is &lt;strong&gt;open&lt;/strong&gt; when it falls inside at least one &lt;code&gt;Allow&lt;/code&gt; window
+and inside no &lt;code&gt;Deny&lt;/code&gt; window.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Deny always wins.&lt;/strong&gt; A &lt;code&gt;Deny&lt;/code&gt; window overlapping the current time blocks the
+restart even if an &lt;code&gt;Allow&lt;/code&gt; window also matches.&lt;/li&gt;
+&lt;li&gt;With no windows configured, this stage is always open.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;When the clock is outside the allowed schedule the gate blocks with reason
+&lt;code&gt;OutsideSchedule&lt;/code&gt; and re-checks when the next window boundary arrives.&lt;/p&gt;
+&lt;p&gt;Each window takes a 5-field &lt;code&gt;cron&lt;/code&gt; expression, a &lt;code&gt;duration&lt;/code&gt;, and an optional
+IANA &lt;code&gt;timeZone&lt;/code&gt; (UTC by default). This stage never consults a GitOps tool, so a
+maintenance window works on its own.&lt;/p&gt;
+&lt;h3&gt;Stage 2 — GitOps provider&lt;span class="hx:absolute hx:-mt-20" id="stage-2--gitops-provider"&gt;&lt;/span&gt;
+&lt;a href="#stage-2--gitops-provider" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h3&gt;&lt;p&gt;&lt;code&gt;spec.gitOps.provider&lt;/code&gt; selects who owns the restart decision:&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Provider&lt;/th&gt;
+&lt;th&gt;Behaviour&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;None&lt;/code&gt; &lt;em&gt;(default)&lt;/em&gt;&lt;/td&gt;
+&lt;td&gt;KICK self-gates; this stage always allows.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;ArgoCD&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Defer to Argo CD ownership and sync state.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;Auto&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Detect the managing provider automatically.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;Flux&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Reserved for Flux ownership (roadmap).&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;With a real provider, KICK must resolve &lt;strong&gt;exactly one&lt;/strong&gt; owner for the workload
+and confirm that owner is reconciled before it restarts.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Owner resolution&lt;/strong&gt; (Argo CD):&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;Primary&lt;/strong&gt; — the workload&amp;rsquo;s Argo CD tracking annotation.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Fallback&lt;/strong&gt; — an indexed lookup of &lt;code&gt;Application&lt;/code&gt;s that manage the workload.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Zero or ambiguous&lt;/strong&gt; — no owner (&lt;code&gt;OwnerUnknown&lt;/code&gt;) or more than one
+(&lt;code&gt;MultipleOwners&lt;/code&gt;) blocks the automatic restart. KICK never guesses.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;&lt;strong&gt;Sync windows&lt;/strong&gt; — the Argo CD provider also evaluates &lt;code&gt;spec.syncWindows&lt;/code&gt; on the
+&lt;code&gt;AppProject&lt;/code&gt; that owns the &lt;code&gt;Application&lt;/code&gt;, using the application name and its
+destination. A closed window blocks with &lt;code&gt;OutsideSchedule&lt;/code&gt;, the same reason the
+native stage uses. So Argo CD sync windows are honoured without restating them
+in the &lt;code&gt;KickPolicy&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Sync check&lt;/strong&gt; — when &lt;code&gt;requireReconciled&lt;/code&gt; is &lt;code&gt;true&lt;/code&gt; (the default), the owning
+&lt;code&gt;Application&lt;/code&gt; must report &lt;code&gt;Synced&lt;/code&gt;. An out-of-sync or still-reconciling owner
+blocks with &lt;code&gt;OwnerOutOfSync&lt;/code&gt; / &lt;code&gt;OwnerReconciling&lt;/code&gt;, so KICK never restarts against
+config the GitOps tool is mid-flight on.&lt;/p&gt;
+&lt;h2&gt;Blocking reasons&lt;span class="hx:absolute hx:-mt-20" id="blocking-reasons"&gt;&lt;/span&gt;
+&lt;a href="#blocking-reasons" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;The gate surfaces why a restart is waiting on &lt;code&gt;KickRequest.status.gate.reason&lt;/code&gt;:&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Reason&lt;/th&gt;
+&lt;th&gt;Stage&lt;/th&gt;
+&lt;th&gt;Meaning&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;Allowed&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;—&lt;/td&gt;
+&lt;td&gt;Both stages passed; the restart may run.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;OutsideSchedule&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Windows&lt;/td&gt;
+&lt;td&gt;Current time is outside a native window or an Argo CD sync window.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;OwnerUnknown&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Provider&lt;/td&gt;
+&lt;td&gt;No GitOps owner could be resolved.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;AmbiguousOwner&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Provider&lt;/td&gt;
+&lt;td&gt;More than one owner matched.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;OwnerOutOfSync&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Provider&lt;/td&gt;
+&lt;td&gt;The owning application is not &lt;code&gt;Synced&lt;/code&gt;.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;OwnerReconciling&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Provider&lt;/td&gt;
+&lt;td&gt;The owning application is still applying.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;ProjectUnknown&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Provider&lt;/td&gt;
+&lt;td&gt;The application&amp;rsquo;s &lt;code&gt;AppProject&lt;/code&gt; could not be read.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;ProviderUnavailable&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Provider&lt;/td&gt;
+&lt;td&gt;The provider could not be queried.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;ConfigurationError&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Provider&lt;/td&gt;
+&lt;td&gt;A sync window could not be parsed.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h2&gt;Waiting behaviour&lt;span class="hx:absolute hx:-mt-20" id="waiting-behaviour"&gt;&lt;/span&gt;
+&lt;a href="#waiting-behaviour" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;A blocked restart is not dropped. KICK persists the waiting phase and reason on
+the &lt;code&gt;KickRequest&lt;/code&gt; and re-evaluates the gate when either:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;a timer fires (to catch schedule-window boundaries), or&lt;/li&gt;
+&lt;li&gt;a relevant provider object changes (for example the &lt;code&gt;Application&lt;/code&gt; becomes
+&lt;code&gt;Synced&lt;/code&gt;).&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;The moment the gate flips to &lt;code&gt;Allowed&lt;/code&gt;, KICK re-reads live state and — if the
+workload is still stale — issues the restart.&lt;/p&gt;
+&lt;h2&gt;Example&lt;span class="hx:absolute hx:-mt-20" id="example"&gt;&lt;/span&gt;
+&lt;a href="#example" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;Restart only inside a nightly window &lt;strong&gt;and&lt;/strong&gt; only once Argo CD has synced the
+owner:&lt;/p&gt;
+&lt;div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code"&gt;
+&lt;div&gt;&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;apiVersion&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;kick.corewire.io/v1alpha1&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;kind&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;KickPolicy&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;metadata&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;name&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;gated&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;spec&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;discovery&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;workloadSelector&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;{}&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;schedule&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;windows&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;- &lt;span class="nt"&gt;type&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;Allow&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;cron&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;0 2 * * *&amp;#34;&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="c"&gt;# 02:00 daily&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;duration&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;1h&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;gitOps&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;provider&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;ArgoCD&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;requireReconciled&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="kc"&gt;true&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0"&gt;
+&lt;button
+class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+title="Copy code"
+aria-label="Copy code"
+data-copied-label="Copied!"
+&gt;
+&lt;div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;/button&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;p&gt;Native &lt;code&gt;schedule.windows&lt;/code&gt; gate &lt;em&gt;when&lt;/em&gt; KICK restarts; they are independent of the
+provider. Argo CD &lt;code&gt;AppProject&lt;/code&gt; sync windows still constrain when Argo itself
+syncs, and the Argo provider honors them as part of its own gate.&lt;/p&gt;
+&lt;h2&gt;See also&lt;span class="hx:absolute hx:-mt-20" id="see-also"&gt;&lt;/span&gt;
+&lt;a href="#see-also" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;ul&gt;
+&lt;li&gt;&lt;a href="../freshness/"&gt;Freshness&lt;/a&gt; — what makes a restart &lt;em&gt;needed&lt;/em&gt; before the gate runs.&lt;/li&gt;
+&lt;li&gt;&lt;a href="../../reference/kickpolicy/"&gt;KickPolicy reference&lt;/a&gt; — every &lt;code&gt;gitOps&lt;/code&gt; field.&lt;/li&gt;
+&lt;li&gt;&lt;a href="../../theory/operator-model/#6-policy-scope-and-the-gate"&gt;Operator model §6&lt;/a&gt; —
+the gate in formal notation.&lt;/li&gt;
+&lt;/ul&gt;</description></item></channel></rss>

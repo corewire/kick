@@ -1,0 +1,520 @@
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>KICK – Development</title><link>https://corewire.github.io/kick/docs/development/</link><description>Recent content in Development on KICK</description><generator>Hugo -- gohugo.io</generator><language>en</language><atom:link href="https://corewire.github.io/kick/docs/development/index.xml" rel="self" type="application/rss+xml"/><item><title>End-to-end tests</title><link>https://corewire.github.io/kick/docs/development/e2e-testing/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://corewire.github.io/kick/docs/development/e2e-testing/</guid><description>
+&lt;p&gt;KICK&amp;rsquo;s end-to-end tests run Chainsaw scenarios against a kind cluster. Every
+scenario directory under &lt;code&gt;test/e2e/scenarios&lt;/code&gt; maps to one stable scenario ID and
+carries a &lt;code&gt;trace.yaml&lt;/code&gt; linking it to the features it proves.&lt;/p&gt;
+&lt;h2&gt;Suites&lt;span class="hx:absolute hx:-mt-20" id="suites"&gt;&lt;/span&gt;
+&lt;a href="#suites" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Target&lt;/th&gt;
+&lt;th&gt;Covers&lt;/th&gt;
+&lt;th&gt;Installs&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;make test-e2e-core&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;restart, policy and observation behaviour&lt;/td&gt;
+&lt;td&gt;KICK&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;make test-e2e-argocd&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Argo CD ownership, sync windows and sync state&lt;/td&gt;
+&lt;td&gt;Gitea, Argo CD&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;make test-e2e-recovery&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;crash and restart recovery&lt;/td&gt;
+&lt;td&gt;KICK&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;make test-e2e-rollouts&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Argo Rollouts restarts&lt;/td&gt;
+&lt;td&gt;Argo Rollouts&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;make test-e2e-csi&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Secrets Store CSI rotation&lt;/td&gt;
+&lt;td&gt;CSI driver and provider&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;make test-e2e-kargo&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Kargo promotion gating&lt;/td&gt;
+&lt;td&gt;cert-manager, Kargo&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;Each target installs its own prerequisites and then redeploys the manager from
+the &lt;code&gt;config/e2e&lt;/code&gt; overlay. The manager probes the optional integration CRDs once
+at startup, so it is always restarted after a CRD is installed — otherwise the
+integration would stay silently inactive.&lt;/p&gt;
+&lt;h2&gt;Working on a single scenario&lt;span class="hx:absolute hx:-mt-20" id="working-on-a-single-scenario"&gt;&lt;/span&gt;
+&lt;a href="#working-on-a-single-scenario" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code"&gt;
+&lt;div&gt;&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;make e2e-rollouts-setup &lt;span class="c1"&gt;# prerequisites for the suite&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;make test-e2e-scenario &lt;span class="nv"&gt;E2E&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;060&lt;/span&gt; &lt;span class="c1"&gt;# one scenario, integration timeout budget&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;make test-e2e-render &lt;span class="c1"&gt;# render every scenario without a cluster&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0"&gt;
+&lt;button
+class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+title="Copy code"
+aria-label="Copy code"
+data-copied-label="Copied!"
+&gt;
+&lt;div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;/button&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;h2&gt;GitOps fixtures&lt;span class="hx:absolute hx:-mt-20" id="gitops-fixtures"&gt;&lt;/span&gt;
+&lt;a href="#gitops-fixtures" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;Scenarios that need a real GitOps source push manifests into the in-cluster
+Gitea, one repository per scenario, so parallel scenarios never share state:&lt;/p&gt;
+&lt;div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code"&gt;
+&lt;div&gt;&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;test/e2e/setup/gitea/seed.sh e2e-037 manifests ./manifests
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;test/e2e/setup/gitea/commit-file.sh e2e-037 manifests/app.yaml ./updated/app.yaml&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0"&gt;
+&lt;button
+class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+title="Copy code"
+aria-label="Copy code"
+data-copied-label="Copied!"
+&gt;
+&lt;div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;/button&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;p&gt;Argo CD sync windows also block Argo CD&amp;rsquo;s own sync, so a scenario that closes a
+window must deliver the dependency change directly instead of through git.&lt;/p&gt;</description></item><item><title/><link>https://corewire.github.io/kick/docs/development/kamera-debugging/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://corewire.github.io/kick/docs/development/kamera-debugging/</guid><description>
+&lt;h1&gt;Kamera Debugging for KICK&lt;/h1&gt;&lt;p&gt;KICK includes optional kamera tooling for structural control-plane analysis and exploration artifact inspection.&lt;/p&gt;
+&lt;p&gt;Upstream: &lt;a href="https://github.com/tgoodwin/kamera"target="_blank" rel="noopener"&gt;https://github.com/tgoodwin/kamera&lt;/a&gt;&lt;/p&gt;
+&lt;h2&gt;Install&lt;span class="hx:absolute hx:-mt-20" id="install"&gt;&lt;/span&gt;
+&lt;a href="#install" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;From repo root:&lt;/p&gt;
+&lt;div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code"&gt;
+&lt;div&gt;&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;make kamera
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;bin/kamera --help&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0"&gt;
+&lt;button
+class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+title="Copy code"
+aria-label="Copy code"
+data-copied-label="Copied!"
+&gt;
+&lt;div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;/button&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;p&gt;The Make target installs:&lt;/p&gt;
+&lt;div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code"&gt;
+&lt;div&gt;&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;go install github.com/tgoodwin/kamera/cmd/kamera@main&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0"&gt;
+&lt;button
+class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+title="Copy code"
+aria-label="Copy code"
+data-copied-label="Copied!"
+&gt;
+&lt;div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;/button&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;h2&gt;KICK example you can run now&lt;span class="hx:absolute hx:-mt-20" id="kick-example-you-can-run-now"&gt;&lt;/span&gt;
+&lt;a href="#kick-example-you-can-run-now" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;This repository now includes a concrete KICK graph example with real KICK resource kinds:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;docs/development/examples/kamera/kick-dependency-graph.json&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;It models:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;SourceObservationReconciler&lt;/li&gt;
+&lt;li&gt;KickRequestReconciler&lt;/li&gt;
+&lt;li&gt;core/v1 Secret + ConfigMap&lt;/li&gt;
+&lt;li&gt;apps/v1 Deployment&lt;/li&gt;
+&lt;li&gt;kick.corewire.io/v1alpha1 KickRequest&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3&gt;1) Detect hotspots in the KICK graph&lt;span class="hx:absolute hx:-mt-20" id="1-detect-hotspots-in-the-kick-graph"&gt;&lt;/span&gt;
+&lt;a href="#1-detect-hotspots-in-the-kick-graph" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h3&gt;&lt;div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code"&gt;
+&lt;div&gt;&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;bin/kamera inspect hotspots docs/development/examples/kamera/kick-dependency-graph.json&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0"&gt;
+&lt;button
+class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+title="Copy code"
+aria-label="Copy code"
+data-copied-label="Copied!"
+&gt;
+&lt;div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;/button&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;p&gt;Expected hotspot types in output:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;multi_writer on KickRequest status&lt;/li&gt;
+&lt;li&gt;feedback_cycle on KickRequestReconciler &amp;lt;-&amp;gt; KickRequest&lt;/li&gt;
+&lt;li&gt;reducer_controller on KickRequestReconciler&lt;/li&gt;
+&lt;li&gt;missing_trigger on resources KickRequestReconciler reads but does not directly watch&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;This gives a fast structural risk scan before runtime debugging.&lt;/p&gt;
+&lt;h3&gt;2) Render dependency graph PDF&lt;span class="hx:absolute hx:-mt-20" id="2-render-dependency-graph-pdf"&gt;&lt;/span&gt;
+&lt;a href="#2-render-dependency-graph-pdf" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h3&gt;&lt;div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code"&gt;
+&lt;div&gt;&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;bin/kamera inspect dependency-graph docs/development/examples/kamera/kick-dependency-graph.json&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0"&gt;
+&lt;button
+class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+title="Copy code"
+aria-label="Copy code"
+data-copied-label="Copied!"
+&gt;
+&lt;div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;/button&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;p&gt;On Linux this uses xdg-open and reports a temp PDF path such as:&lt;/p&gt;
+&lt;div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code"&gt;
+&lt;div&gt;&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-text" data-lang="text"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;opened dependency graph from docs/development/examples/kamera/kick-dependency-graph.json
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;pdf saved at /tmp/dependency-graph-&amp;lt;id&amp;gt;.pdf&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0"&gt;
+&lt;button
+class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+title="Copy code"
+aria-label="Copy code"
+data-copied-label="Copied!"
+&gt;
+&lt;div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;/button&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;p&gt;Use this graph during design reviews for controller/resource coupling.&lt;/p&gt;
+&lt;h2&gt;Exploration dumps (when you have one)&lt;span class="hx:absolute hx:-mt-20" id="exploration-dumps-when-you-have-one"&gt;&lt;/span&gt;
+&lt;a href="#exploration-dumps-when-you-have-one" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;If you have an exploration dump file or directory from a kamera harness:&lt;/p&gt;
+&lt;div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code"&gt;
+&lt;div&gt;&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;bin/kamera inspect exploration &amp;lt;dump.jsonl&amp;gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;bin/kamera inspect exploration --interactive&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="nb"&gt;false&lt;/span&gt; &amp;lt;dump.jsonl&amp;gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;bin/kamera analyze report &amp;lt;dump.jsonl&amp;gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;bin/kamera analyze diff &amp;lt;dump.jsonl&amp;gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0"&gt;
+&lt;button
+class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+title="Copy code"
+aria-label="Copy code"
+data-copied-label="Copied!"
+&gt;
+&lt;div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;/button&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;p&gt;For headless CI triage, prefer:&lt;/p&gt;
+&lt;div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code"&gt;
+&lt;div&gt;&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;bin/kamera inspect exploration --interactive&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="nb"&gt;false&lt;/span&gt; &amp;lt;dump.jsonl&amp;gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0"&gt;
+&lt;button
+class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+title="Copy code"
+aria-label="Copy code"
+data-copied-label="Copied!"
+&gt;
+&lt;div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;/button&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;p&gt;This prints DAG + node details directly to stdout.&lt;/p&gt;
+&lt;h2&gt;Determinize helper&lt;span class="hx:absolute hx:-mt-20" id="determinize-helper"&gt;&lt;/span&gt;
+&lt;a href="#determinize-helper" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;Kamera also provides deterministic time rewrite tooling:&lt;/p&gt;
+&lt;div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code"&gt;
+&lt;div&gt;&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;bin/kamera determinize &lt;span class="o"&gt;[&lt;/span&gt;paths...&lt;span class="o"&gt;]&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0"&gt;
+&lt;button
+class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+title="Copy code"
+aria-label="Copy code"
+data-copied-label="Copied!"
+&gt;
+&lt;div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;/button&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;p&gt;Use this on isolated experiments, not as a blanket rewrite of the repository.&lt;/p&gt;
+&lt;h2&gt;KICK workflow recommendation&lt;span class="hx:absolute hx:-mt-20" id="kick-workflow-recommendation"&gt;&lt;/span&gt;
+&lt;a href="#kick-workflow-recommendation" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;ol&gt;
+&lt;li&gt;Reproduce issue with existing checks (&lt;code&gt;make test&lt;/code&gt;, &lt;code&gt;make test-e2e-scenario E2E=...&lt;/code&gt;).&lt;/li&gt;
+&lt;li&gt;Run hotspot scan on a graph snapshot of the affected controllers/resources.&lt;/li&gt;
+&lt;li&gt;Inspect exploration dumps (if available) to isolate ordering-sensitive paths.&lt;/li&gt;
+&lt;li&gt;Convert findings into deterministic unit/envtest/e2e assertions in KICK.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2&gt;Notes&lt;span class="hx:absolute hx:-mt-20" id="notes"&gt;&lt;/span&gt;
+&lt;a href="#notes" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;ul&gt;
+&lt;li&gt;kamera generate currently depends on upstream translation code paths that are evolving; prefer inspect/analyze workflows for now.&lt;/li&gt;
+&lt;li&gt;kamera tagged module versions currently lag cmd/kamera availability, so this repository pins installation to main.&lt;/li&gt;
+&lt;/ul&gt;</description></item><item><title/><link>https://corewire.github.io/kick/docs/development/timeline-ui/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://corewire.github.io/kick/docs/development/timeline-ui/</guid><description>
+&lt;h1&gt;Timeline UI and Tracing&lt;/h1&gt;&lt;p&gt;KICK now exposes a timeline API and browser UI for workload restart investigations.&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;&lt;strong&gt;⚠ Experimental — do not expose.&lt;/strong&gt; The timeline UI and API are an unauthenticated, read-only debug aid intended for local development (localhost / &lt;code&gt;kubectl port-forward&lt;/code&gt;) only. They expose namespace, workload, policy, and event metadata with no authn/authz. Never expose &lt;code&gt;--timeline-bind-address&lt;/code&gt; through an Ingress, LoadBalancer, or any untrusted network.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;h2&gt;Endpoints&lt;span class="hx:absolute hx:-mt-20" id="endpoints"&gt;&lt;/span&gt;
+&lt;a href="#endpoints" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;ul&gt;
+&lt;li&gt;Root: &lt;code&gt;/&lt;/code&gt; (redirects to &lt;code&gt;/timeline/ui&lt;/code&gt;)&lt;/li&gt;
+&lt;li&gt;UI: &lt;code&gt;/timeline/ui&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;Overview API: &lt;code&gt;/timeline/overview&lt;/code&gt; (all managed workloads and their events across every namespace)&lt;/li&gt;
+&lt;li&gt;API: &lt;code&gt;/timeline?namespace=&amp;lt;ns&amp;gt;&amp;amp;kind=&amp;lt;Deployment|StatefulSet|DaemonSet&amp;gt;&amp;amp;name=&amp;lt;workload&amp;gt;&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;Discovery API: &lt;code&gt;/timeline/discovery?namespace=&amp;lt;ns&amp;gt;[&amp;amp;policy=&amp;lt;policy-name&amp;gt;][&amp;amp;kind=&amp;lt;Deployment|StatefulSet|DaemonSet|All&amp;gt;][&amp;amp;name=&amp;lt;substring&amp;gt;]&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;DAG API: &lt;code&gt;/timeline/dag?namespace=&amp;lt;ns&amp;gt;&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Cross-namespace overview&lt;span class="hx:absolute hx:-mt-20" id="cross-namespace-overview"&gt;&lt;/span&gt;
+&lt;a href="#cross-namespace-overview" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;The UI opens on a compact, all-namespace overview that answers &amp;ldquo;what happened, when&amp;rdquo; at a glance:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;one swimlane per managed workload, grouped by namespace, with a color-coded state band over time;&lt;/li&gt;
+&lt;li&gt;color-coded event markers (dependency change, restart, request, waiting/blocked, failure, k8s event) with hover details;&lt;/li&gt;
+&lt;li&gt;a chronological event log alongside the lanes;&lt;/li&gt;
+&lt;li&gt;a dedicated ruler row with a time picker (from/to), quick presets, and drag-to-zoom (draw a box on the ruler);&lt;/li&gt;
+&lt;li&gt;a text filter to narrow lanes and the log by namespace or workload.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Policy-driven discovery and filtering&lt;span class="hx:absolute hx:-mt-20" id="policy-driven-discovery-and-filtering"&gt;&lt;/span&gt;
+&lt;a href="#policy-driven-discovery-and-filtering" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;The UI now auto-loads workloads discovered from &lt;code&gt;KickPolicy&lt;/code&gt; selectors in the selected namespace.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;it lists discovered &lt;code&gt;Deployment&lt;/code&gt;, &lt;code&gt;StatefulSet&lt;/code&gt;, and &lt;code&gt;DaemonSet&lt;/code&gt; workloads;&lt;/li&gt;
+&lt;li&gt;it supports filtering by policy, workload kind, and workload name substring;&lt;/li&gt;
+&lt;li&gt;selecting a discovered workload auto-fills the timeline target and loads that workload timeline.&lt;/li&gt;
+&lt;li&gt;it renders a namespace DAG: &lt;code&gt;KickPolicy -&amp;gt; workload -&amp;gt; Secret/ConfigMap&lt;/code&gt;.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;What the timeline shows&lt;span class="hx:absolute hx:-mt-20" id="what-the-timeline-shows"&gt;&lt;/span&gt;
+&lt;a href="#what-the-timeline-shows" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;ul&gt;
+&lt;li&gt;relevant Secret/ConfigMap change timestamps from observation records;&lt;/li&gt;
+&lt;li&gt;KickRequest creation and current phase snapshots;&lt;/li&gt;
+&lt;li&gt;controller/emitted Kubernetes events for the workload and related KickRequests;&lt;/li&gt;
+&lt;li&gt;workload &lt;code&gt;kubectl.kubernetes.io/restartedAt&lt;/code&gt; updates.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Enable timeline server&lt;span class="hx:absolute hx:-mt-20" id="enable-timeline-server"&gt;&lt;/span&gt;
+&lt;a href="#enable-timeline-server" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;The manager serves timeline endpoints by default:&lt;/p&gt;
+&lt;div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code"&gt;
+&lt;div&gt;&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-text" data-lang="text"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;--timeline-bind-address=:8090&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0"&gt;
+&lt;button
+class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+title="Copy code"
+aria-label="Copy code"
+data-copied-label="Copied!"
+&gt;
+&lt;div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;/button&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;p&gt;Set empty value to disable:&lt;/p&gt;
+&lt;div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code"&gt;
+&lt;div&gt;&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-text" data-lang="text"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;--timeline-bind-address=&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0"&gt;
+&lt;button
+class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+title="Copy code"
+aria-label="Copy code"
+data-copied-label="Copied!"
+&gt;
+&lt;div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;/button&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;h2&gt;OTEL export (Tempo/Jaeger)&lt;span class="hx:absolute hx:-mt-20" id="otel-export-tempojaeger"&gt;&lt;/span&gt;
+&lt;a href="#otel-export-tempojaeger" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;KICK emits a small, high-signal set of spans built to answer one question:
+&lt;em&gt;when did the source change, and when did the workload restart?&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;Each restart cycle is a &lt;strong&gt;single trace&lt;/strong&gt; with two spans sharing one trace ID:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;dependency.changed&lt;/code&gt; — a relevant Secret/ConfigMap change with consumers, carrying a &lt;code&gt;source.changed&lt;/code&gt; event at the observed-change time.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;restart.executed&lt;/code&gt; — the actual workload patch, carrying a &lt;code&gt;workload.restarted&lt;/code&gt; event at the restart time.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Correlation is durable: the observer stamps the change&amp;rsquo;s W3C &lt;code&gt;traceparent&lt;/code&gt; onto the KickRequest (annotation &lt;code&gt;kick.corewire.io/traceparent&lt;/code&gt;), and the executor resumes that trace when it restarts the workload — even across GitOps gate waits and controller restarts. Per-reconcile bookkeeping is deliberately &lt;strong&gt;not&lt;/strong&gt; traced.&lt;/p&gt;
+&lt;p&gt;Configure OTLP export:&lt;/p&gt;
+&lt;div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code"&gt;
+&lt;div&gt;&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-text" data-lang="text"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;--otel-otlp-endpoint=&amp;lt;collector-host:4317&amp;gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;--otel-otlp-insecure=true&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0"&gt;
+&lt;button
+class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+title="Copy code"
+aria-label="Copy code"
+data-copied-label="Copied!"
+&gt;
+&lt;div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;/button&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;p&gt;Examples:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Tempo via OTLP collector service in-cluster.&lt;/li&gt;
+&lt;li&gt;Jaeger collector OTLP gRPC endpoint.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;When endpoint is unset, tracing remains disabled and has no exporter overhead.&lt;/p&gt;
+&lt;h2&gt;Tracing demo (Tilt)&lt;span class="hx:absolute hx:-mt-20" id="tracing-demo-tilt"&gt;&lt;/span&gt;
+&lt;a href="#tracing-demo-tilt" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;&lt;code&gt;tilt up&lt;/code&gt; deploys a self-contained tracing backend for local development:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Jaeger all-in-one (&lt;code&gt;hack/tracing/jaeger.yaml&lt;/code&gt;) in the &lt;code&gt;kick-tracing&lt;/code&gt; namespace, with in-memory storage and the OTLP receiver enabled.&lt;/li&gt;
+&lt;li&gt;The &lt;code&gt;config/dev&lt;/code&gt; overlay points the manager at it via &lt;code&gt;--otel-otlp-endpoint=jaeger.kick-tracing.svc.cluster.local:4317&lt;/code&gt;.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Open the Jaeger UI at &lt;a href="http://localhost:16686"target="_blank" rel="noopener"&gt;http://localhost:16686&lt;/a&gt; (port-forwarded by Tilt), select the &lt;code&gt;kick-controller&lt;/code&gt; service, and trigger a restart to see source-observation, KickRequest reconciliation, and restart-execution spans.&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;The demo backend has no persistence or auth. It is for local development only.&lt;/p&gt;
+&lt;/blockquote&gt;</description></item><item><title/><link>https://corewire.github.io/kick/docs/development/token-efficient-workflow/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://corewire.github.io/kick/docs/development/token-efficient-workflow/</guid><description>
+&lt;h1&gt;Token-efficient development workflow&lt;/h1&gt;&lt;h2&gt;Goal&lt;span class="hx:absolute hx:-mt-20" id="goal"&gt;&lt;/span&gt;
+&lt;a href="#goal" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;Enable a lower-cost coding agent to implement KICK in small, verifiable increments without repeatedly reading the entire specification or inventing missing behavior.&lt;/p&gt;
+&lt;h2&gt;Core rule&lt;span class="hx:absolute hx:-mt-20" id="core-rule"&gt;&lt;/span&gt;
+&lt;a href="#core-rule" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;One agent invocation MUST address exactly one task file from &lt;code&gt;tasks/&lt;/code&gt; and the smallest set of linked specification files.&lt;/p&gt;
+&lt;p&gt;Do not ask an agent to &amp;ldquo;implement KICK&amp;rdquo; or to read every document. The task file is the entry point and declares the required context.&lt;/p&gt;
+&lt;h2&gt;Context loading order&lt;span class="hx:absolute hx:-mt-20" id="context-loading-order"&gt;&lt;/span&gt;
+&lt;a href="#context-loading-order" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;For any implementation task, read only:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;code&gt;AGENTS.md&lt;/code&gt; — global constraints.&lt;/li&gt;
+&lt;li&gt;The selected &lt;code&gt;tasks/NN-*.md&lt;/code&gt; file.&lt;/li&gt;
+&lt;li&gt;Only the specification files listed under that task&amp;rsquo;s &lt;code&gt;Dependencies&lt;/code&gt; section.&lt;/li&gt;
+&lt;li&gt;The relevant feature entries from &lt;code&gt;traceability/features.yaml&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;Existing code in the package being changed and its direct tests.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;Read other files only when the selected task or compiler output proves they are needed.&lt;/p&gt;
+&lt;h2&gt;Prompt template&lt;span class="hx:absolute hx:-mt-20" id="prompt-template"&gt;&lt;/span&gt;
+&lt;a href="#prompt-template" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;Use this prompt for a coding agent:&lt;/p&gt;
+&lt;div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code"&gt;
+&lt;div&gt;&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-text" data-lang="text"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Implement task &amp;lt;TASK FILE&amp;gt; in the KICK repository.
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Read in this order:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;1. AGENTS.md
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;2. &amp;lt;TASK FILE&amp;gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;3. only the files listed in the task&amp;#39;s Dependencies section
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;4. the feature IDs referenced by the task in traceability/features.yaml
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;5. existing code and tests in the packages you modify
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Rules:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;- Do not implement later tasks.
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;- Do not resolve open questions by assumption.
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;- Keep the patch minimal.
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;- Add or update unit tests for every behavior changed.
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;- Add/update e2e scenario metadata when required by the feature matrix.
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;- Run the narrowest relevant checks first, then the task&amp;#39;s full acceptance checks.
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;- Report changed files, tests run, unresolved blockers, and feature IDs covered.&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0"&gt;
+&lt;button
+class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+title="Copy code"
+aria-label="Copy code"
+data-copied-label="Copied!"
+&gt;
+&lt;div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;/button&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;h2&gt;Work-unit sizing&lt;span class="hx:absolute hx:-mt-20" id="work-unit-sizing"&gt;&lt;/span&gt;
+&lt;a href="#work-unit-sizing" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;A task should normally change:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;one production package;&lt;/li&gt;
+&lt;li&gt;its unit tests;&lt;/li&gt;
+&lt;li&gt;at most one API or test fixture area;&lt;/li&gt;
+&lt;li&gt;one traceability entry when necessary.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Split a task further when it requires more than one independent reconciliation concern or more than approximately 400 lines of new production code.&lt;/p&gt;
+&lt;h2&gt;Stable interfaces first&lt;span class="hx:absolute hx:-mt-20" id="stable-interfaces-first"&gt;&lt;/span&gt;
+&lt;a href="#stable-interfaces-first" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;Implement pure, provider-neutral components before controllers:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;dependency extraction;&lt;/li&gt;
+&lt;li&gt;dependency identity and indexes;&lt;/li&gt;
+&lt;li&gt;content-change classification;&lt;/li&gt;
+&lt;li&gt;rollout inspection;&lt;/li&gt;
+&lt;li&gt;freshness evaluation;&lt;/li&gt;
+&lt;li&gt;GitOps provider contract;&lt;/li&gt;
+&lt;li&gt;Argo CD adapter;&lt;/li&gt;
+&lt;li&gt;KickRequest reconciliation;&lt;/li&gt;
+&lt;li&gt;execution and rollout observation.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;Pure functions and narrow interfaces reduce the context required for later agents and make most behavior testable without Envtest.&lt;/p&gt;
+&lt;h2&gt;Test-first sequence&lt;span class="hx:absolute hx:-mt-20" id="test-first-sequence"&gt;&lt;/span&gt;
+&lt;a href="#test-first-sequence" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;For each behavior:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;identify the feature ID;&lt;/li&gt;
+&lt;li&gt;write or update the smallest unit test;&lt;/li&gt;
+&lt;li&gt;implement the pure behavior;&lt;/li&gt;
+&lt;li&gt;add the Envtest/controller test when API behavior is involved;&lt;/li&gt;
+&lt;li&gt;add or update the isolated Chainsaw scenario;&lt;/li&gt;
+&lt;li&gt;update traceability metadata;&lt;/li&gt;
+&lt;li&gt;run the coverage checker.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;No feature is complete when its required test level is missing.&lt;/p&gt;
+&lt;h2&gt;Commands by feedback cost&lt;span class="hx:absolute hx:-mt-20" id="commands-by-feedback-cost"&gt;&lt;/span&gt;
+&lt;a href="#commands-by-feedback-cost" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;Run checks in this order:&lt;/p&gt;
+&lt;div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code"&gt;
+&lt;div&gt;&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-text" data-lang="text"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;1. go test ./path/to/changed/package
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;2. go test ./path/to/changed/package -run TestSpecificCase
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;3. go test ./...
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;4. make generate
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;5. make verify-generated
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;6. make test-envtest
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;7. make e2e-scenario SCENARIO=KICK-E2E-NNN
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;8. make e2e-pr&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0"&gt;
+&lt;button
+class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+title="Copy code"
+aria-label="Copy code"
+data-copied-label="Copied!"
+&gt;
+&lt;div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;/button&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;p&gt;Do not begin with the complete e2e suite unless the task explicitly changes shared cluster setup.&lt;/p&gt;
+&lt;h2&gt;Agent handoff record&lt;span class="hx:absolute hx:-mt-20" id="agent-handoff-record"&gt;&lt;/span&gt;
+&lt;a href="#agent-handoff-record" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;Every completed task MUST leave a short handoff in the pull request or task result:&lt;/p&gt;
+&lt;div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code"&gt;
+&lt;div&gt;&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-text" data-lang="text"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Task:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Feature IDs:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Changed packages:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Tests added/changed:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Commands executed:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Known limitations:
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;Next task unlocked:&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0"&gt;
+&lt;button
+class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+title="Copy code"
+aria-label="Copy code"
+data-copied-label="Copied!"
+&gt;
+&lt;div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;/button&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;p&gt;This allows the next agent to start from repository state rather than rereading prior conversations.&lt;/p&gt;
+&lt;h2&gt;Decision records&lt;span class="hx:absolute hx:-mt-20" id="decision-records"&gt;&lt;/span&gt;
+&lt;a href="#decision-records" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;When an implementation choice is not already specified and affects public API, persistence, ownership resolution, or compatibility:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;stop implementation;&lt;/li&gt;
+&lt;li&gt;add the question to &lt;code&gt;specs/17-open-questions.md&lt;/code&gt; or an ADR;&lt;/li&gt;
+&lt;li&gt;implement only an interface or fake needed to continue independent work.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Do not let a coding agent silently encode a product decision.&lt;/p&gt;
+&lt;h2&gt;Generated files&lt;span class="hx:absolute hx:-mt-20" id="generated-files"&gt;&lt;/span&gt;
+&lt;a href="#generated-files" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;Agents MUST NOT manually edit generated CRDs, deepcopy files, or generated API documentation. Modify sources and run the documented generation target.&lt;/p&gt;
+&lt;p&gt;Generated-diff checks prevent an agent from spending tokens reviewing derived output as if it were handwritten code.&lt;/p&gt;
+&lt;h2&gt;Efficient review strategy&lt;span class="hx:absolute hx:-mt-20" id="efficient-review-strategy"&gt;&lt;/span&gt;
+&lt;a href="#efficient-review-strategy" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;Review by feature ID rather than by file count:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;inspect the feature contract;&lt;/li&gt;
+&lt;li&gt;inspect the unit test proving local behavior;&lt;/li&gt;
+&lt;li&gt;inspect the e2e scenario proving cluster behavior;&lt;/li&gt;
+&lt;li&gt;inspect the minimal implementation path;&lt;/li&gt;
+&lt;li&gt;verify the traceability report.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h2&gt;Parallel work&lt;span class="hx:absolute hx:-mt-20" id="parallel-work"&gt;&lt;/span&gt;
+&lt;a href="#parallel-work" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;Tasks may run in parallel only when they do not modify the same API types, controller, generated manifests, or traceability entries.&lt;/p&gt;
+&lt;p&gt;Good parallel candidates:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;dependency extractor and Argo CD research spike;&lt;/li&gt;
+&lt;li&gt;rollout inspector spike and docs tooling;&lt;/li&gt;
+&lt;li&gt;observability after metric names are frozen, alongside Helm/RBAC.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Avoid parallel edits to:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;api/&lt;/code&gt;;&lt;/li&gt;
+&lt;li&gt;manager setup;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;KickRequestController&lt;/code&gt;;&lt;/li&gt;
+&lt;li&gt;generated CRDs;&lt;/li&gt;
+&lt;li&gt;shared e2e cluster bootstrap.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Completion definition&lt;span class="hx:absolute hx:-mt-20" id="completion-definition"&gt;&lt;/span&gt;
+&lt;a href="#completion-definition" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;A task is complete only when:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;acceptance criteria pass;&lt;/li&gt;
+&lt;li&gt;tests required by the feature matrix exist and pass;&lt;/li&gt;
+&lt;li&gt;generated files are current;&lt;/li&gt;
+&lt;li&gt;no unresolved assumption was hidden in code;&lt;/li&gt;
+&lt;li&gt;the handoff record is complete.&lt;/li&gt;
+&lt;/ul&gt;</description></item></channel></rss>

@@ -1,0 +1,137 @@
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>KICK – Guides</title><link>https://corewire.github.io/kick/docs/guides/</link><description>Recent content in Guides on KICK</description><generator>Hugo -- gohugo.io</generator><language>en</language><atom:link href="https://corewire.github.io/kick/docs/guides/index.xml" rel="self" type="application/rss+xml"/><item><title>Running without GitOps</title><link>https://corewire.github.io/kick/docs/guides/without-gitops/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://corewire.github.io/kick/docs/guides/without-gitops/</guid><description>
+&lt;p&gt;GitOps gating is the feature KICK is best known for, but it is &lt;strong&gt;not&lt;/strong&gt; a
+requirement. &lt;code&gt;spec.gitOps.provider&lt;/code&gt; defaults to &lt;code&gt;None&lt;/code&gt;, and a policy with no
+&lt;code&gt;gitOps&lt;/code&gt; block at all restarts workloads on any Kubernetes cluster.&lt;/p&gt;
+&lt;h2&gt;Minimal policy&lt;span class="hx:absolute hx:-mt-20" id="minimal-policy"&gt;&lt;/span&gt;
+&lt;a href="#minimal-policy" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code"&gt;
+&lt;div&gt;&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;apiVersion&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;kick.corewire.io/v1alpha1&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;kind&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;KickPolicy&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;metadata&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;name&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;default&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;namespace&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;team-a&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;spec&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;discovery&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;workloadSelector&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;matchLabels&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;kick.corewire.io/enabled&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="s2"&gt;&amp;#34;true&amp;#34;&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0"&gt;
+&lt;button
+class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+title="Copy code"
+aria-label="Copy code"
+data-copied-label="Copied!"
+&gt;
+&lt;div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;/button&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;p&gt;No &lt;code&gt;gitOps&lt;/code&gt; block means no ownership resolution and no gate evaluation. A
+detected change goes straight to the freshness check and then to the restart.
+Cron windows, rate limiting and &lt;code&gt;dryRun&lt;/code&gt; all work unchanged.&lt;/p&gt;
+&lt;h2&gt;Choosing a provider&lt;span class="hx:absolute hx:-mt-20" id="choosing-a-provider"&gt;&lt;/span&gt;
+&lt;a href="#choosing-a-provider" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;&lt;code&gt;spec.gitOps.provider&lt;/code&gt;&lt;/th&gt;
+&lt;th&gt;Behaviour&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;None&lt;/code&gt; (default)&lt;/td&gt;
+&lt;td&gt;No ownership resolution, no gate. Restarts proceed.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;Auto&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Ask every registered provider to identify the owner.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;ArgoCD&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Resolve the owning &lt;code&gt;Application&lt;/code&gt; and its &lt;code&gt;AppProject&lt;/code&gt; sync windows.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;Flux&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Resolve the owning &lt;code&gt;Kustomization&lt;/code&gt; or &lt;code&gt;HelmRelease&lt;/code&gt; and require &lt;code&gt;Ready&lt;/code&gt;.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;Kargo&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Resolve the authorised Kargo &lt;code&gt;Stage&lt;/code&gt;, then delegate to Argo CD.&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h2&gt;Do not use &lt;code&gt;Auto&lt;/code&gt; without a GitOps controller&lt;span class="hx:absolute hx:-mt-20" id="do-not-use-auto-without-a-gitops-controller"&gt;&lt;/span&gt;
+&lt;a href="#do-not-use-auto-without-a-gitops-controller" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;&lt;code&gt;Auto&lt;/code&gt; asks each provider to detect ownership. On a cluster with neither Argo CD
+nor Flux installed, no provider is confident, the gate resolves to
+&lt;code&gt;ProviderUnavailable&lt;/code&gt;, and the &lt;code&gt;KickRequest&lt;/code&gt; waits indefinitely. This is
+intentional — silently restarting a workload whose ownership could not be
+established would violate KICK&amp;rsquo;s core safety rule — but it means &lt;code&gt;Auto&lt;/code&gt; is the
+wrong choice here. Use &lt;code&gt;None&lt;/code&gt;.&lt;/p&gt;
+&lt;h2&gt;Kargo is never auto-detected&lt;span class="hx:absolute hx:-mt-20" id="kargo-is-never-auto-detected"&gt;&lt;/span&gt;
+&lt;a href="#kargo-is-never-auto-detected" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;Kargo does not write to workloads; Argo CD does. A Kargo-managed workload
+therefore looks exactly like an Argo CD-managed one, and detection cannot tell
+them apart. Set &lt;code&gt;provider: Kargo&lt;/code&gt; explicitly to also gate on in-flight Stage
+promotions.&lt;/p&gt;
+&lt;h2&gt;What you still get&lt;span class="hx:absolute hx:-mt-20" id="what-you-still-get"&gt;&lt;/span&gt;
+&lt;a href="#what-you-still-get" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;ul&gt;
+&lt;li&gt;Change detection for env, &lt;code&gt;envFrom&lt;/code&gt;, volume and Secrets Store CSI references&lt;/li&gt;
+&lt;li&gt;Freshness comparison against the running rollout, so redundant restarts are skipped&lt;/li&gt;
+&lt;li&gt;Cron restart windows and per-policy rate limiting&lt;/li&gt;
+&lt;li&gt;Durable &lt;code&gt;KickRequest&lt;/code&gt; objects, events, metrics and the timeline API&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;dryRun&lt;/code&gt; previews and &lt;code&gt;NotificationPolicy&lt;/code&gt; webhooks&lt;/li&gt;
+&lt;/ul&gt;</description></item><item><title/><link>https://corewire.github.io/kick/docs/guides/argocd/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://corewire.github.io/kick/docs/guides/argocd/</guid><description>
+&lt;h1&gt;Argo CD Guide&lt;/h1&gt;&lt;p&gt;KICK uses Argo CD as the first GitOps provider adapter.&lt;/p&gt;
+&lt;h2&gt;Ownership&lt;span class="hx:absolute hx:-mt-20" id="ownership"&gt;&lt;/span&gt;
+&lt;a href="#ownership" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;Preferred signal: &lt;code&gt;argocd.argoproj.io/tracking-id&lt;/code&gt; on workloads.&lt;/p&gt;
+&lt;p&gt;If tracking annotation is missing or invalid, fallback owner resolution is used.&lt;/p&gt;
+&lt;p&gt;Automatic restart is blocked when ownership is missing or ambiguous.&lt;/p&gt;
+&lt;h2&gt;Gates&lt;span class="hx:absolute hx:-mt-20" id="gates"&gt;&lt;/span&gt;
+&lt;a href="#gates" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;KICK evaluates:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Application sync state;&lt;/li&gt;
+&lt;li&gt;AppProject sync windows.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Blocked gates keep the request in waiting phases until re-evaluation succeeds or policy changes.&lt;/p&gt;</description></item><item><title/><link>https://corewire.github.io/kick/docs/guides/external-secrets/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://corewire.github.io/kick/docs/guides/external-secrets/</guid><description>
+&lt;h1&gt;External Secrets&lt;/h1&gt;&lt;p&gt;KICK reacts to resulting Kubernetes Secret and ConfigMap changes, not to external secret provider events directly.&lt;/p&gt;
+&lt;p&gt;Recommended pattern:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;external system updates secret source;&lt;/li&gt;
+&lt;li&gt;sync controller writes Kubernetes Secret/ConfigMap;&lt;/li&gt;
+&lt;li&gt;KICK observes content change and evaluates freshness.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;Notes:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;metadata-only updates are ignored;&lt;/li&gt;
+&lt;li&gt;unchanged data values are ignored;&lt;/li&gt;
+&lt;li&gt;Secret read RBAC is required in target namespaces.&lt;/li&gt;
+&lt;/ul&gt;</description></item><item><title/><link>https://corewire.github.io/kick/docs/guides/troubleshooting/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://corewire.github.io/kick/docs/guides/troubleshooting/</guid><description>
+&lt;h1&gt;Troubleshooting&lt;/h1&gt;&lt;h2&gt;KickRequest stays in waiting phase&lt;span class="hx:absolute hx:-mt-20" id="kickrequest-stays-in-waiting-phase"&gt;&lt;/span&gt;
+&lt;a href="#kickrequest-stays-in-waiting-phase" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;WaitingForOwner&lt;/code&gt;: owner missing or ambiguous.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;WaitingForGate&lt;/code&gt;: provider schedule/window blocks restart.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;WaitingForApplicationSync&lt;/code&gt;: Argo CD app is not synced.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;WaitingForRollout&lt;/code&gt;: existing rollout still active.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Check:&lt;/p&gt;
+&lt;div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code"&gt;
+&lt;div&gt;&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-bash" data-lang="bash"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;kubectl --kubeconfig .kubeconfig-kind-kick-dev --context kind-kick-dev -n &amp;lt;ns&amp;gt; describe kickrequest &amp;lt;name&amp;gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0"&gt;
+&lt;button
+class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+title="Copy code"
+aria-label="Copy code"
+data-copied-label="Copied!"
+&gt;
+&lt;div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;/button&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;h2&gt;Request fails&lt;span class="hx:absolute hx:-mt-20" id="request-fails"&gt;&lt;/span&gt;
+&lt;a href="#request-fails" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;Typical causes:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;rollout timeout;&lt;/li&gt;
+&lt;li&gt;patch rejection;&lt;/li&gt;
+&lt;li&gt;provider query failure.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Inspect controller logs and request conditions.&lt;/p&gt;
+&lt;h2&gt;No request created after source update&lt;span class="hx:absolute hx:-mt-20" id="no-request-created-after-source-update"&gt;&lt;/span&gt;
+&lt;a href="#no-request-created-after-source-update" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;Confirm the source is a supported dependency type and consumed by a managed Deployment.&lt;/p&gt;</description></item></channel></rss>
