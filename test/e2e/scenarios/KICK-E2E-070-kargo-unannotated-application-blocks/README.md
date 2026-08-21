@@ -1,12 +1,19 @@
 # KICK-E2E-070 - Kargo Unannotated Application Blocks
 
-Behavior under test: kargo unannotated application blocks.
+## Behavior under test
+Primary behavior: kargo unannotated application blocks.
+
+This scenario exercises provider 'kargo' in class 'behavior' (required='true') and verifies that KICK's decision flow matches the expected outcome for this case.
+
+## Why this matters
+Prevents unsafe promotion-time restarts by ensuring Kargo stage gating is enforced before rollout actions.
+It verifies fail-closed behavior for ambiguous or missing ownership signals, preventing automatic restarts on uncertain targets.
 
 ## Setup
-The initial state of this scenario is defined by the following files:
-- `resources.yaml`
-- `manifests/deployment.yaml`
-- `manifests/secret.yaml`
+The initial state of this scenario is defined by:
+- resources.yaml
+- manifests/deployment.yaml
+- manifests/secret.yaml
 
 ### Resource inventory
 - **Kind**: Namespace, **Name**: kick-e2e-070
@@ -16,16 +23,16 @@ The initial state of this scenario is defined by the following files:
 - **Kind**: Secret, **Name**: app-secret, Namespace: kick-e2e-070
 
 ## Execution and assertions
-The execution steps and assertions are driven by `chainsaw-test.yaml`.
+Execution and assertions are defined in chainsaw-test.yaml.
 
-This scenario also references the following update files:
-- `updated/deployment.yaml`
-- `updated/secret.yaml`
+Scenario update inputs:
+- updated/deployment.yaml
+- updated/secret.yaml
 
 ## Traceability
-- [`trace.yaml`](./trace.yaml)
+- [trace.yaml](./trace.yaml)
 - **Scenario ID**: KICK-E2E-070
 - **Provider**: kargo
 - **Class**: behavior
-- **Required**: True
+- **Required**: true
 - **Features**: KICK-FEAT-025

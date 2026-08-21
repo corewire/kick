@@ -1,11 +1,18 @@
 # KICK-E2E-039 - Argo Sync Rollout Satisfies Request
 
-Behavior under test: argo sync rollout satisfies request.
+## Behavior under test
+Primary behavior: argo sync rollout satisfies request.
+
+This scenario exercises provider 'argocd' in class 'behavior' (required='true') and verifies that KICK's decision flow matches the expected outcome for this case.
+
+## Why this matters
+Protects GitOps safety by ensuring restarts happen only when Argo CD ownership and sync/window conditions are correctly evaluated.
+It verifies gate timing so restarts are deferred until controller state is stable and authoritative.
 
 ## Setup
-The initial state of this scenario is defined by the following files:
-- `resources.yaml`
-- `manifests/app.yaml`
+The initial state of this scenario is defined by:
+- resources.yaml
+- manifests/app.yaml
 
 ### Resource inventory
 - **Kind**: Namespace, **Name**: kick-e2e-039
@@ -15,15 +22,15 @@ The initial state of this scenario is defined by the following files:
 - **Kind**: Deployment, **Name**: app-039, Namespace: kick-e2e-039
 
 ## Execution and assertions
-The execution steps and assertions are driven by `chainsaw-test.yaml`.
+Execution and assertions are defined in chainsaw-test.yaml.
 
-This scenario also references the following update files:
-- `updated/app.yaml`
+Scenario update inputs:
+- updated/app.yaml
 
 ## Traceability
-- [`trace.yaml`](./trace.yaml)
+- [trace.yaml](./trace.yaml)
 - **Scenario ID**: KICK-E2E-039
 - **Provider**: argocd
 - **Class**: behavior
-- **Required**: True
+- **Required**: true
 - **Features**: KICK-FEAT-013

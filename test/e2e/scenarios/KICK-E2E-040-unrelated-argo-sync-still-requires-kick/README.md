@@ -1,11 +1,18 @@
 # KICK-E2E-040 - Unrelated Argo Sync Still Requires Kick
 
-Behavior under test: unrelated argo sync still requires kick.
+## Behavior under test
+Primary behavior: unrelated argo sync still requires kick.
+
+This scenario exercises provider 'argocd' in class 'behavior' (required='true') and verifies that KICK's decision flow matches the expected outcome for this case.
+
+## Why this matters
+Protects GitOps safety by ensuring restarts happen only when Argo CD ownership and sync/window conditions are correctly evaluated.
+It verifies gate timing so restarts are deferred until controller state is stable and authoritative.
 
 ## Setup
-The initial state of this scenario is defined by the following files:
-- `resources.yaml`
-- `manifests/app.yaml`
+The initial state of this scenario is defined by:
+- resources.yaml
+- manifests/app.yaml
 
 ### Resource inventory
 - **Kind**: Namespace, **Name**: kick-e2e-040
@@ -16,15 +23,15 @@ The initial state of this scenario is defined by the following files:
 - **Kind**: Deployment, **Name**: app-040, Namespace: kick-e2e-040
 
 ## Execution and assertions
-The execution steps and assertions are driven by `chainsaw-test.yaml`.
+Execution and assertions are defined in chainsaw-test.yaml.
 
-This scenario also references the following update files:
-- `updated/app.yaml`
+Scenario update inputs:
+- updated/app.yaml
 
 ## Traceability
-- [`trace.yaml`](./trace.yaml)
+- [trace.yaml](./trace.yaml)
 - **Scenario ID**: KICK-E2E-040
 - **Provider**: argocd
 - **Class**: behavior
-- **Required**: True
+- **Required**: true
 - **Features**: KICK-FEAT-013

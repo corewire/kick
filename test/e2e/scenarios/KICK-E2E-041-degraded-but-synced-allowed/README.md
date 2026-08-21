@@ -1,11 +1,18 @@
 # KICK-E2E-041 - Degraded But Synced Allowed
 
-Behavior under test: degraded but synced allowed.
+## Behavior under test
+Primary behavior: degraded but synced allowed.
+
+This scenario exercises provider 'argocd' in class 'behavior' (required='true') and verifies that KICK's decision flow matches the expected outcome for this case.
+
+## Why this matters
+Protects GitOps safety by ensuring restarts happen only when Argo CD ownership and sync/window conditions are correctly evaluated.
+It verifies gate timing so restarts are deferred until controller state is stable and authoritative.
 
 ## Setup
-The initial state of this scenario is defined by the following files:
-- `resources.yaml`
-- `manifests/app.yaml`
+The initial state of this scenario is defined by:
+- resources.yaml
+- manifests/app.yaml
 
 ### Resource inventory
 - **Kind**: Namespace, **Name**: kick-e2e-041
@@ -16,15 +23,15 @@ The initial state of this scenario is defined by the following files:
 - **Kind**: Deployment, **Name**: broken-041, Namespace: kick-e2e-041
 
 ## Execution and assertions
-The execution steps and assertions are driven by `chainsaw-test.yaml`.
+Execution and assertions are defined in chainsaw-test.yaml.
 
-This scenario also references the following update files:
-- `updated/secret.yaml`
+Scenario update inputs:
+- updated/secret.yaml
 
 ## Traceability
-- [`trace.yaml`](./trace.yaml)
+- [trace.yaml](./trace.yaml)
 - **Scenario ID**: KICK-E2E-041
 - **Provider**: argocd
 - **Class**: behavior
-- **Required**: True
+- **Required**: true
 - **Features**: KICK-FEAT-013
