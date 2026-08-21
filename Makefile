@@ -116,6 +116,11 @@ e2e-git-server:
 e2e-argocd-config:
 	KICK_E2E_KUBECONFIG=$(KIND_KUBECONFIG) test/e2e/setup/argocd/configure-argocd.sh
 
+# Installs the Argo CD control plane and configures it for integration scenarios.
+.PHONY: e2e-argocd
+e2e-argocd:
+	KICK_E2E_KUBECONFIG=$(KIND_KUBECONFIG) test/e2e/setup/argocd/install-argocd.sh
+
 # Installs the Argo Rollouts controller and its CRDs.
 .PHONY: e2e-rollouts
 e2e-rollouts:
@@ -134,7 +139,7 @@ e2e-kargo:
 # Shared prerequisites of every integration suite. Optional integration CRDs are
 # installed by the per-suite targets before e2e-install starts the manager.
 .PHONY: e2e-base-setup
-e2e-base-setup: e2e-namespace e2e-git-server e2e-argocd-config
+e2e-base-setup: e2e-namespace e2e-git-server e2e-argocd
 
 .PHONY: e2e-integration-setup
 e2e-integration-setup: e2e-base-setup e2e-install
