@@ -114,6 +114,8 @@ jobs:
   e2e-core:
     runs-on: ubuntu-24.04
     needs: verify
+    env:
+      LOCALBIN: ${{ github.workspace }}/bin
     steps:
       - name: Checkout
         uses: actions/checkout@v4.2.2
@@ -124,6 +126,14 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Cache chainsaw binary
+        uses: actions/cache@v4.2.4
+        with:
+          path: |
+            bin/chainsaw-v0.2.15
+            bin/chainsaw
+          key: tools-chainsaw-${{ runner.os }}-v1-${{ hashFiles('Makefile') }}
+
       - name: Install kind
         run: |
           curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.24.0/kind-linux-amd64
@@ -133,8 +143,8 @@ jobs:
       - name: Create kind cluster
         run: make kind-create KIND=kind
 
-      - name: Build, load, and install operator
-        run: make kind-load install KIND=kind
+      - name: Build and load operator image
+        run: make kind-load KIND=kind
 
       - name: Run full e2e suite
         run: make test-e2e KIND=kind

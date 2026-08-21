@@ -316,7 +316,7 @@ ci-e2e-local:
 	cleanup() { $(MAKE) kind-delete KIND=kind; }; \
 	trap cleanup EXIT; \
 	$(MAKE) kind-create KIND=kind; \
-	$(MAKE) kind-load install KIND=kind; \
+	$(MAKE) kind-load KIND=kind; \
 	$(MAKE) test-e2e KIND=kind
 
 .PHONY: ci-e2e-core-local
