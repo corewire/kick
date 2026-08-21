@@ -119,7 +119,7 @@ e2e-argocd-config:
 # Installs the Argo CD control plane and configures it for integration scenarios.
 .PHONY: e2e-argocd
 e2e-argocd:
-	KICK_E2E_KUBECONFIG=$(KIND_KUBECONFIG) test/e2e/setup/argocd/install-argocd.sh
+	KICK_E2E_KUBECONFIG=$(KIND_KUBECONFIG) bash test/e2e/setup/argocd/install-argocd.sh
 
 # Installs the Argo Rollouts controller and its CRDs.
 .PHONY: e2e-rollouts
