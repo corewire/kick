@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/static/images/kick-long.png" alt="KICK — Give Stale Workloads the Boot" width="640">
+  <img src="docs/static/images/how-kick-works.drawio.svg" alt="How KICK works" width="640">
 </p>
 
 # KICK operator

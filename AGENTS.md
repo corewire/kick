@@ -80,3 +80,12 @@ make feature-coverage
 ## End-to-end tests
 
 Before adding or changing user-visible behavior, read `specs/20-e2e-suite-conventions.md`. Do not create one giant e2e test. Add or update a stable-ID scenario directory, its `trace.yaml`, and the central matrix. Assert stable convergence and exact rollout counts; Ready alone is not sufficient. Never print Secret values in diagnostics.
+
+## Documentation hard rules
+
+- Use the dedicated documentation skill at `.agents/skills/documentation-hard-rules/SKILL.md` for every docs change.
+- Every image referenced from docs or README MUST be an editable draw.io SVG named `*.drawio.svg`, matching `docs/static/images/how-kick-works.drawio.svg`.
+- Documentation MUST stay current with implementation. If behavior changes, update docs in the same change.
+- Documentation MUST be concise. Remove filler and repetition.
+- Every non-trivial claim MUST include a proof link to source of truth (spec, code path, test scenario, traceability mapping, or generated artifact).
+- Every feature MUST have documentation and at least one concrete example, usually a mapped e2e scenario.

@@ -47,6 +47,10 @@ carries the rules that matter when changing code: the required task workflow,
 framework constraints, design constraints, traceability requirements, and the
 local `make` targets.
 
+For documentation work, use the dedicated skill at
+`.agents/skills/documentation-hard-rules/SKILL.md` and follow the
+[Documentation Standards](development/documentation-standards/).
+
 ## Regenerating
 
 ```bash

@@ -51,8 +51,8 @@ params:
     displayTitle: true
     displayLogo: true
     logo:
-      path: images/kick-dark.png
-      dark: images/kick-light.png
+      path: images/kick-light.png
+      dark: images/kick-dark.png
       width: 36
       height: 36
   page:

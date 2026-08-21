@@ -10,7 +10,7 @@ dependencies, detects when one changed **after** the last rollout, optionally
 asks your GitOps tool for permission, and then issues exactly one controlled
 restart.
 
-![How KICK turns a dependency change into a gated restart](/images/kick-flow.svg "Observation → coalesce → gate → freshness → restart")
+![How KICK turns a dependency change into a gated restart](/images/how-kick-works.drawio.svg "Observation → coalesce → gate → freshness → restart")
 
 ## The pipeline
 

@@ -240,7 +240,7 @@ dependencies, detects when one changed **after** the last rollout, optionally
 asks your GitOps tool for permission, and then issues exactly one controlled
 restart.
 
-![How KICK turns a dependency change into a gated restart](/images/kick-flow.svg "Observation → coalesce → gate → freshness → restart")
+![How KICK turns a dependency change into a gated restart](/images/how-kick-works.drawio.svg "Observation → coalesce → gate → freshness → restart")
 
 ## The pipeline
 
@@ -873,6 +873,47 @@ weight: 80
 Debugging KICK, the end-to-end suites, the timeline UI, and the token-efficient
 development workflow.
 
+## Source: docs/content/docs/development/documentation-standards.md
+
+---
+title: Documentation Standards
+weight: 35
+description: "Hard documentation rules: editable images, freshness, concision, proof links, and feature-to-example coverage."
+---
+
+Hard rules for KICK documentation.
+
+## Rules
+
+1. Images
+- Every image referenced from docs or README must be editable draw.io SVG named `*.drawio.svg`.
+- Reference format: [how-kick-works.drawio.svg](/images/how-kick-works.drawio.svg).
+
+2. Freshness
+- Docs must change with behavior changes in the same PR.
+- No known stale statements.
+
+3. Concision
+- Keep pages short.
+- Remove filler and duplicates.
+
+4. Proofs for claims
+- Every non-trivial claim must link to proof.
+- Proof can be spec, code, tests, traceability mapping, or generated artifact.
+
+5. Feature coverage
+- Every feature must be documented.
+- Every feature must have at least one example, usually an e2e scenario.
+
+## Proof sources
+
+- Feature registry: [traceability/features.yaml](https://github.com/corewire/kick/blob/main/traceability/features.yaml)
+- Scenario registry: [traceability/e2e-scenarios.yaml](https://github.com/corewire/kick/blob/main/traceability/e2e-scenarios.yaml)
+- Scenario examples: [test/e2e/scenarios/](https://github.com/corewire/kick/tree/main/test/e2e/scenarios)
+- API surface: [api/v1alpha1/](https://github.com/corewire/kick/tree/main/api/v1alpha1)
+- Specs: [ai-docs/kick-operator-specs/kick-specs/](https://github.com/corewire/kick/tree/main/ai-docs/kick-operator-specs/kick-specs)
+
+For agent workflows, use the dedicated skill at `.agents/skills/documentation-hard-rules/SKILL.md` and the repository rules in `AGENTS.md`.
 ## Source: docs/content/docs/development/e2e-testing.md
 
 ---
@@ -1352,6 +1393,10 @@ carries the rules that matter when changing code: the required task workflow,
 framework constraints, design constraints, traceability requirements, and the
 local `make` targets.
 
+For documentation work, use the dedicated skill at
+`.agents/skills/documentation-hard-rules/SKILL.md` and follow the
+[Documentation Standards](development/documentation-standards/).
+
 ## Regenerating
 
 ```bash
@@ -1371,30 +1416,133 @@ weight: 40
 ---
 
 Task-focused guides for integrating KICK with GitOps tooling and diagnosing
-issues.
+issues, including Argo CD, Argo Rollouts, and Kargo.
+
+## Source: docs/content/docs/guides/argo-rollouts.md
+
+---
+title: Argo Rollouts
+weight: 42
+description: Configure KICK for Argo Rollouts with scenario-backed restart examples.
+---
+
+KICK can restart Argo Rollouts workloads when the Rollouts integration is enabled.
+
+![Argo Rollouts restart path](/images/argo-rollouts-restart.drawio.svg)
+
+## Enable the integration
+
+Set one of the supported toggles:
+
+- Helm value: `integrations.argoRollouts.enabled: true`
+- Manager flag: `--enable-argo-rollouts=true`
+
+Proof: [Configuration reference](../reference/configuration/).
+
+## Minimal policy
+
+```yaml
+apiVersion: kick.corewire.io/v1alpha1
+kind: KickPolicy
+metadata:
+  name: default
+  namespace: kick-e2e-060
+spec:
+  discovery:
+    workloadSelector: {}
+```
+
+Proof scenario: [KICK-E2E-060](https://github.com/corewire/kick/tree/main/test/e2e/scenarios/KICK-E2E-060-canary-restart-does-not-rerun-steps).
+
+Raw test manifest (implementation detail): [resources.yaml](https://github.com/corewire/kick/blob/main/test/e2e/scenarios/KICK-E2E-060-canary-restart-does-not-rerun-steps/resources.yaml).
+
+## Restart behavior that matters
+
+KICK restarts Rollouts through `spec.restartAt`, not by patching pod-template annotations.
+That avoids re-running canary/blue-green steps from step zero.
+
+Proof scenario:
+
+- [KICK-E2E-060](https://github.com/corewire/kick/tree/main/test/e2e/scenarios/KICK-E2E-060-canary-restart-does-not-rerun-steps)
+
+## WorkloadRef behavior
+
+For a Rollout with `workloadRef`, KICK targets the referenced Deployment when that
+Deployment owns the dependency.
+
+Proof scenario:
+
+- [KICK-E2E-063](https://github.com/corewire/kick/tree/main/test/e2e/scenarios/KICK-E2E-063-workloadref-rollout-restarts-referenced-deployment)
+
+## More proven examples
+
+- Canary restart keeps step index: [KICK-E2E-060](https://github.com/corewire/kick/tree/main/test/e2e/scenarios/KICK-E2E-060-canary-restart-does-not-rerun-steps)
+- Blue/green active service remains stable: [KICK-E2E-061](https://github.com/corewire/kick/tree/main/test/e2e/scenarios/KICK-E2E-061-blue-green-restart-keeps-active-service)
+- Rollout completion gates KickRequest: [KICK-E2E-062](https://github.com/corewire/kick/tree/main/test/e2e/scenarios/KICK-E2E-062-rollout-completion-gates-request)
+
+## Feature mapping
+
+- Argo Rollout workload restarts: [KICK-FEAT-024](https://github.com/corewire/kick/blob/main/traceability/features.yaml)
 
 ## Source: docs/content/docs/guides/argocd.md
 
-# Argo CD Guide
+---
+title: Argo CD
+weight: 41
+description: Configure Argo CD gating with concrete, scenario-backed examples.
+---
 
-KICK uses Argo CD as the first GitOps provider adapter.
+KICK can gate restarts on Argo CD ownership, sync state, and AppProject sync windows.
 
-## Ownership
+![Argo CD gate flow](/images/gitops-gate.drawio.svg)
 
-Preferred signal: `argocd.argoproj.io/tracking-id` on workloads.
+## Minimal policy
 
-If tracking annotation is missing or invalid, fallback owner resolution is used.
+```yaml
+apiVersion: kick.corewire.io/v1alpha1
+kind: KickPolicy
+metadata:
+  name: default
+  namespace: team-a
+spec:
+  discovery:
+    workloadSelector: {}
+  gitOps:
+    provider: ArgoCD
+```
 
-Automatic restart is blocked when ownership is missing or ambiguous.
+Proof: provider contract and fields in [KickPolicy reference](../reference/kickpolicy/).
 
-## Gates
+## Ownership resolution order
 
-KICK evaluates:
+1. Tracking annotation on workload: `argocd.argoproj.io/tracking-id`.
+2. Fallback owner search when annotation is missing or invalid.
+3. Block if owner is missing or ambiguous.
 
-- Application sync state;
-- AppProject sync windows.
+Proof scenarios:
 
-Blocked gates keep the request in waiting phases until re-evaluation succeeds or policy changes.
+- Annotation owner in Argo CD namespace: [KICK-E2E-024](https://github.com/corewire/kick/tree/main/test/e2e/scenarios/KICK-E2E-024-annotation-owner-in-argo-cd-namespace)
+- Annotation owner in other namespace: [KICK-E2E-025](https://github.com/corewire/kick/tree/main/test/e2e/scenarios/KICK-E2E-025-annotation-owner-in-other-namespace)
+- Invalid annotation fallback: [KICK-E2E-026](https://github.com/corewire/kick/tree/main/test/e2e/scenarios/KICK-E2E-026-invalid-annotation-fallback)
+- No owner blocks: [KICK-E2E-028](https://github.com/corewire/kick/tree/main/test/e2e/scenarios/KICK-E2E-028-no-owner-blocks)
+- Multiple owners block: [KICK-E2E-029](https://github.com/corewire/kick/tree/main/test/e2e/scenarios/KICK-E2E-029-multiple-owners-block)
+
+## Gate checks
+
+- `Application` sync state: waits while OutOfSync or actively syncing.
+- `AppProject` sync windows: restart only when window allows.
+
+Proof scenarios:
+
+- Open window allows restart: [KICK-E2E-032](https://github.com/corewire/kick/tree/main/test/e2e/scenarios/KICK-E2E-032-open-window-and-synced-allows-kick)
+- Closed/deny windows wait: [KICK-E2E-033](https://github.com/corewire/kick/tree/main/test/e2e/scenarios/KICK-E2E-033-closed-allow-window-waits), [KICK-E2E-034](https://github.com/corewire/kick/tree/main/test/e2e/scenarios/KICK-E2E-034-deny-window-waits)
+- OutOfSync/syncing waits: [KICK-E2E-037](https://github.com/corewire/kick/tree/main/test/e2e/scenarios/KICK-E2E-037-outofsync-waits), [KICK-E2E-038](https://github.com/corewire/kick/tree/main/test/e2e/scenarios/KICK-E2E-038-active-sync-waits)
+
+## Feature mapping
+
+- Provider-neutral gate: [KICK-FEAT-008](https://github.com/corewire/kick/blob/main/traceability/features.yaml)
+- Argo owner + fallback + ambiguity: [KICK-FEAT-009](https://github.com/corewire/kick/blob/main/traceability/features.yaml), [KICK-FEAT-010](https://github.com/corewire/kick/blob/main/traceability/features.yaml)
+- AppProject windows + sync wait: [KICK-FEAT-012](https://github.com/corewire/kick/blob/main/traceability/features.yaml), [KICK-FEAT-013](https://github.com/corewire/kick/blob/main/traceability/features.yaml)
 ## Source: docs/content/docs/guides/external-secrets.md
 
 # External Secrets
@@ -1412,6 +1560,75 @@ Notes:
 - metadata-only updates are ignored;
 - unchanged data values are ignored;
 - Secret read RBAC is required in target namespaces.
+## Source: docs/content/docs/guides/kargo.md
+
+---
+title: Kargo
+weight: 43
+description: Configure KICK Kargo gating with Stage-annotation and promotion-state examples.
+---
+
+KICK can gate restarts on Kargo Stage promotion state when `provider: Kargo` is set.
+
+![Kargo promotion gate](/images/kargo-promotion-gate.drawio.svg)
+
+## Enable the integration
+
+Set one of the supported toggles:
+
+- Helm value: `integrations.kargo.enabled: true`
+- Manager flag: `--enable-kargo=true`
+
+Proof: [Configuration reference](../reference/configuration/).
+
+## Minimal policy
+
+```yaml
+apiVersion: kick.corewire.io/v1alpha1
+kind: KickPolicy
+metadata:
+  name: default
+  namespace: kick-e2e-068
+spec:
+  discovery:
+    workloadSelector: {}
+  gitOps:
+    provider: Kargo
+```
+
+Proof example: [KICK-E2E-068 resources](https://github.com/corewire/kick/blob/main/test/e2e/scenarios/KICK-E2E-068-kargo-promotion-blocks-restart/resources.yaml).
+
+## Required Argo CD Application annotation
+
+KICK resolves the authorized Stage from this annotation on the Argo CD Application:
+
+```yaml
+metadata:
+  annotations:
+    kargo.akuity.io/authorized-stage: kick-e2e-068:prod
+```
+
+Proof example: [KICK-E2E-068 Application](https://github.com/corewire/kick/blob/main/test/e2e/scenarios/KICK-E2E-068-kargo-promotion-blocks-restart/resources.yaml).
+
+## Gate behavior
+
+- If promotion is active for the resolved Stage, KICK blocks restart with gate reason.
+- After promotion completes, KICK proceeds to Argo CD gate checks.
+
+Proof scenarios:
+
+- Promotion blocks restart: [KICK-E2E-068](https://github.com/corewire/kick/tree/main/test/e2e/scenarios/KICK-E2E-068-kargo-promotion-blocks-restart)
+- Restart after promotion: [KICK-E2E-069](https://github.com/corewire/kick/tree/main/test/e2e/scenarios/KICK-E2E-069-kargo-restart-after-promotion)
+
+## Safety cases
+
+- Missing annotation blocks: [KICK-E2E-070](https://github.com/corewire/kick/tree/main/test/e2e/scenarios/KICK-E2E-070-kargo-unannotated-application-blocks)
+- Ambiguous stage list blocks: [KICK-E2E-071](https://github.com/corewire/kick/tree/main/test/e2e/scenarios/KICK-E2E-071-kargo-ambiguous-stage-blocks)
+
+## Feature mapping
+
+- Kargo stage promotion gate: [KICK-FEAT-025](https://github.com/corewire/kick/blob/main/traceability/features.yaml)
+
 ## Source: docs/content/docs/guides/troubleshooting.md
 
 # Troubleshooting
