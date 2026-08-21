@@ -24,7 +24,7 @@ jobs:
           cache: true
 
       - name: Cache local tool binaries
-        uses: actions/cache@v4.4.3
+        uses: actions/cache@v4.2.4
         with:
           path: |
             bin/controller-gen-v0.17.2
@@ -40,7 +40,7 @@ jobs:
           key: tools-${{ runner.os }}-v1-${{ hashFiles('Makefile') }}
 
       - name: Cache envtest Kubernetes assets
-        uses: actions/cache@v4.4.3
+        uses: actions/cache@v4.2.4
         with:
           path: bin/k8s
           key: envtest-assets-${{ runner.os }}-1.36
