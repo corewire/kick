@@ -306,8 +306,8 @@ ci-verify-local: tools
 	$(MAKE) helm-template
 	$(MAKE) docs-gen-check
 	$(MAKE) feature-coverage-test
-	go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
-	govulncheck ./...
+	GOBIN=$(LOCALBIN) GOTOOLCHAIN=local go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+	$(LOCALBIN)/govulncheck ./...
 	$(MAKE) feature-coverage
 
 .PHONY: ci-e2e-core-local
