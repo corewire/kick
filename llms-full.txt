@@ -44,6 +44,60 @@ KICK watches Secret and ConfigMap changes and evaluates whether a workload resta
 - KICK never logs Secret data or content digests.
 
 
+## Source: docs/content/docs/_index.md
+
+---
+title: Documentation
+weight: 1
+description: KICK operator documentation.
+llmsDescription: |
+  Documentation index for the KICK Kubernetes operator. Sections: getting
+  started (install + quickstart), concepts (discovery, freshness, GitOps
+  gates), theory (formal operator model with notation), guides (ArgoCD,
+  running without GitOps, external-secrets, troubleshooting), reference
+  (KickPolicy/KickRequest/NotificationPolicy, metrics, events, configuration),
+  operations (RBAC, security, scalability, upgrades), development, and design
+  decisions. GitOps gating is optional; spec.gitOps.provider defaults to None.
+---
+
+KICK restarts a workload when a `Secret` or `ConfigMap` it consumes changes —
+but only when the running rollout is actually stale, and only when your GitOps
+tool permits the restart. GitOps gating is optional: KICK also runs on a cluster
+with no GitOps controller at all.
+
+### What is KICK?
+
+Kubernetes never restarts a Pod when a `Secret` or `ConfigMap` it reads changes,
+so the running Pod silently drifts from its intended configuration. KICK is a
+small operator that closes this gap: it discovers each workload's dependencies,
+detects relevant changes, checks that the running rollout predates the change,
+optionally asks your GitOps tool for permission, and then issues exactly one
+restart via the standard `kubectl.kubernetes.io/restartedAt` annotation. It
+injects no state into your workloads.
+
+### Where to start
+
+- **[Install KICK](installation/)** with Helm (or from source for local dev).
+- Run the **[Quickstart](quickstart/)** to see a Secret change restart a Deployment.
+- Read **[Concepts](concepts/)** to understand discovery, freshness, and GitOps gating.
+- Look up fields in the **[Reference](reference/)**.
+
+## Sections
+
+| Section | What you'll find |
+|---------|------------------|
+| [Installation](installation/) | Install KICK with Helm or from source |
+| [Quickstart](quickstart/) | Watch KICK restart a Deployment on Kind |
+| [Concepts](concepts/) | Discovery, freshness, and GitOps gating, explained |
+| [Comparison](comparison/) | How KICK differs from Reloader and Wave |
+| [Guides](guides/) | Argo CD, Kargo, running without GitOps, External Secrets, troubleshooting |
+| [Reference](reference/) | KickPolicy / KickRequest / NotificationPolicy API, metrics, events, config |
+| [Operations](operations/) | RBAC, security, scalability, upgrades |
+| [Theory](theory/operator-model/) | The formal operator model in scientific notation |
+| [Development](development/) | Debugging, the timeline UI, workflow |
+| [For AI Agents](for-ai-agents/) | llms.txt, Markdown output, agent instructions |
+| [Decisions](decisions/) | Architecture decision records |
+
 ## Source: docs/content/docs/comparison.md
 
 ---
@@ -171,6 +225,51 @@ change does not run the canary or blue-green strategy.
 
 Checked against the Reloader and Wave documentation in August 2026. Both
 projects move quickly; verify current behaviour before relying on this table.
+
+## Source: docs/content/docs/concepts/_index.md
+
+---
+title: Concepts
+weight: 30
+description: How KICK discovers dependencies, decides a workload is stale, and gates the restart behind GitOps.
+---
+
+Kubernetes does **not** restart your workloads when a `Secret` or `ConfigMap`
+they consume changes. KICK closes that gap. It watches a workload's
+dependencies, detects when one changed **after** the last rollout, optionally
+asks your GitOps tool for permission, and then issues exactly one controlled
+restart.
+
+![How KICK turns a dependency change into a gated restart](/images/kick-flow.svg "Observation → coalesce → gate → freshness → restart")
+
+## The pipeline
+
+Every restart decision follows the same four steps. Each concept page below
+covers one of them in depth.
+
+| Step | What happens | Concept |
+|------|--------------|---------|
+| 1. Detect the gap | A `Secret`/`ConfigMap` changes, but the running Pod keeps its old config. | [The hidden restart requirement](hidden-restart-requirement/) |
+| 2. Discover deps | Find the `Secret`s and `ConfigMap`s the workload consumes via env and volumes. `imagePullSecrets` are excluded. | [Dependency discovery](dependency-discovery/) |
+| 3. Check freshness | Compare the latest dependency change against the current rollout start. Newer dependency = stale = restart needed. | [Freshness](freshness/) |
+| 4. Gate the restart | If a provider or windows are configured, restart only when the owner is in sync and the window is open. | [GitOps gates](gitops-gates/) |
+
+By default (no `gitOps` provider) step 4 is a no-op and KICK restarts as soon as
+a workload is stale.
+
+{{< cards >}}
+  {{< card link="hidden-restart-requirement/" title="Hidden restart requirement" subtitle="Why changing a Secret or ConfigMap silently drifts your Pods." >}}
+  {{< card link="dependency-discovery/" title="Dependency discovery" subtitle="How KICK finds the Secrets and ConfigMaps a workload consumes." >}}
+  {{< card link="freshness/" title="Freshness" subtitle="How KICK decides a running rollout is stale and needs a restart." >}}
+  {{< card link="gitops-gates/" title="GitOps gates" subtitle="How native windows and a GitOps provider gate the restart." >}}
+{{< /cards >}}
+
+---
+
+For the same model in formal notation, see the
+[operator model](../theory/operator-model/). The diagrams are editable draw.io
+SVGs (`docs/static/images/*.drawio.svg`) — open them in
+[draw.io](https://app.diagrams.net) to edit, then save in place.
 
 ## Source: docs/content/docs/concepts/dependency-discovery.md
 
@@ -458,51 +557,6 @@ with no error and no signal.
 KICK closes this gap. It tracks each workload's dependencies and triggers a
 controlled rollout when one changes — immediately by default, or gated on
 [GitOps state and schedule windows](../gitops-gates/) when configured.
-## Source: docs/content/docs/concepts/_index.md
-
----
-title: Concepts
-weight: 30
-description: How KICK discovers dependencies, decides a workload is stale, and gates the restart behind GitOps.
----
-
-Kubernetes does **not** restart your workloads when a `Secret` or `ConfigMap`
-they consume changes. KICK closes that gap. It watches a workload's
-dependencies, detects when one changed **after** the last rollout, optionally
-asks your GitOps tool for permission, and then issues exactly one controlled
-restart.
-
-![How KICK turns a dependency change into a gated restart](/images/kick-flow.svg "Observation → coalesce → gate → freshness → restart")
-
-## The pipeline
-
-Every restart decision follows the same four steps. Each concept page below
-covers one of them in depth.
-
-| Step | What happens | Concept |
-|------|--------------|---------|
-| 1. Detect the gap | A `Secret`/`ConfigMap` changes, but the running Pod keeps its old config. | [The hidden restart requirement](hidden-restart-requirement/) |
-| 2. Discover deps | Find the `Secret`s and `ConfigMap`s the workload consumes via env and volumes. `imagePullSecrets` are excluded. | [Dependency discovery](dependency-discovery/) |
-| 3. Check freshness | Compare the latest dependency change against the current rollout start. Newer dependency = stale = restart needed. | [Freshness](freshness/) |
-| 4. Gate the restart | If a provider or windows are configured, restart only when the owner is in sync and the window is open. | [GitOps gates](gitops-gates/) |
-
-By default (no `gitOps` provider) step 4 is a no-op and KICK restarts as soon as
-a workload is stale.
-
-{{< cards >}}
-  {{< card link="hidden-restart-requirement/" title="Hidden restart requirement" subtitle="Why changing a Secret or ConfigMap silently drifts your Pods." >}}
-  {{< card link="dependency-discovery/" title="Dependency discovery" subtitle="How KICK finds the Secrets and ConfigMaps a workload consumes." >}}
-  {{< card link="freshness/" title="Freshness" subtitle="How KICK decides a running rollout is stale and needs a restart." >}}
-  {{< card link="gitops-gates/" title="GitOps gates" subtitle="How native windows and a GitOps provider gate the restart." >}}
-{{< /cards >}}
-
----
-
-For the same model in formal notation, see the
-[operator model](../theory/operator-model/). The diagrams are editable draw.io
-SVGs (`docs/static/images/*.drawio.svg`) — open them in
-[draw.io](https://app.diagrams.net) to edit, then save in place.
-
 ## Source: docs/content/docs/decisions/0001-observation-storage-spike.md
 
 # ADR 0001: Change Observation Storage Spike
@@ -809,6 +863,16 @@ weight: 90
 
 Architecture decision records for the KICK operator.
 
+## Source: docs/content/docs/development/_index.md
+
+---
+title: Development
+weight: 80
+---
+
+Debugging KICK, the end-to-end suites, the timeline UI, and the token-efficient
+development workflow.
+
 ## Source: docs/content/docs/development/e2e-testing.md
 
 ---
@@ -856,16 +920,6 @@ test/e2e/setup/gitea/commit-file.sh e2e-037 manifests/app.yaml ./updated/app.yam
 
 Argo CD sync windows also block Argo CD's own sync, so a scenario that closes a
 window must deliver the dependency change directly instead of through git.
-
-## Source: docs/content/docs/development/_index.md
-
----
-title: Development
-weight: 80
----
-
-Debugging KICK, the end-to-end suites, the timeline UI, and the token-efficient
-development workflow.
 
 ## Source: docs/content/docs/development/kamera-debugging.md
 
@@ -1309,6 +1363,16 @@ Markdown file under `docs/content/docs/`, and publishes a copy to
 `docs/static/` so the site serves it. `make docs-gen-check` fails the build when
 the generated files drift from the sources.
 
+## Source: docs/content/docs/guides/_index.md
+
+---
+title: Guides
+weight: 40
+---
+
+Task-focused guides for integrating KICK with GitOps tooling and diagnosing
+issues.
+
 ## Source: docs/content/docs/guides/argocd.md
 
 # Argo CD Guide
@@ -1348,16 +1412,6 @@ Notes:
 - metadata-only updates are ignored;
 - unchanged data values are ignored;
 - Secret read RBAC is required in target namespaces.
-## Source: docs/content/docs/guides/_index.md
-
----
-title: Guides
-weight: 40
----
-
-Task-focused guides for integrating KICK with GitOps tooling and diagnosing
-issues.
-
 ## Source: docs/content/docs/guides/troubleshooting.md
 
 # Troubleshooting
@@ -1458,60 +1512,6 @@ promotions.
 - Cron restart windows and per-policy rate limiting
 - Durable `KickRequest` objects, events, metrics and the timeline API
 - `dryRun` previews and `NotificationPolicy` webhooks
-
-## Source: docs/content/docs/_index.md
-
----
-title: Documentation
-weight: 1
-description: KICK operator documentation.
-llmsDescription: |
-  Documentation index for the KICK Kubernetes operator. Sections: getting
-  started (install + quickstart), concepts (discovery, freshness, GitOps
-  gates), theory (formal operator model with notation), guides (ArgoCD,
-  running without GitOps, external-secrets, troubleshooting), reference
-  (KickPolicy/KickRequest/NotificationPolicy, metrics, events, configuration),
-  operations (RBAC, security, scalability, upgrades), development, and design
-  decisions. GitOps gating is optional; spec.gitOps.provider defaults to None.
----
-
-KICK restarts a workload when a `Secret` or `ConfigMap` it consumes changes —
-but only when the running rollout is actually stale, and only when your GitOps
-tool permits the restart. GitOps gating is optional: KICK also runs on a cluster
-with no GitOps controller at all.
-
-### What is KICK?
-
-Kubernetes never restarts a Pod when a `Secret` or `ConfigMap` it reads changes,
-so the running Pod silently drifts from its intended configuration. KICK is a
-small operator that closes this gap: it discovers each workload's dependencies,
-detects relevant changes, checks that the running rollout predates the change,
-optionally asks your GitOps tool for permission, and then issues exactly one
-restart via the standard `kubectl.kubernetes.io/restartedAt` annotation. It
-injects no state into your workloads.
-
-### Where to start
-
-- **[Install KICK](installation/)** with Helm (or from source for local dev).
-- Run the **[Quickstart](quickstart/)** to see a Secret change restart a Deployment.
-- Read **[Concepts](concepts/)** to understand discovery, freshness, and GitOps gating.
-- Look up fields in the **[Reference](reference/)**.
-
-## Sections
-
-| Section | What you'll find |
-|---------|------------------|
-| [Installation](installation/) | Install KICK with Helm or from source |
-| [Quickstart](quickstart/) | Watch KICK restart a Deployment on Kind |
-| [Concepts](concepts/) | Discovery, freshness, and GitOps gating, explained |
-| [Comparison](comparison/) | How KICK differs from Reloader and Wave |
-| [Guides](guides/) | Argo CD, Kargo, running without GitOps, External Secrets, troubleshooting |
-| [Reference](reference/) | KickPolicy / KickRequest / NotificationPolicy API, metrics, events, config |
-| [Operations](operations/) | RBAC, security, scalability, upgrades |
-| [Theory](theory/operator-model/) | The formal operator model in scientific notation |
-| [Development](development/) | Debugging, the timeline UI, workflow |
-| [For AI Agents](for-ai-agents/) | llms.txt, Markdown output, agent instructions |
-| [Decisions](decisions/) | Architecture decision records |
 
 ## Source: docs/content/docs/installation.md
 
@@ -1792,6 +1792,15 @@ kubectl -n argocd rollout status deploy/argocd-server --timeout=5m
 See the [Argo CD guide](../guides/argocd/) for a full Argo CD-tracked workload
 and policy.
 
+## Source: docs/content/docs/reference/_index.md
+
+---
+title: Reference
+weight: 50
+---
+
+API fields, metrics, events, and configuration for the KICK operator.
+
 ## Source: docs/content/docs/reference/configuration.md
 
 # Configuration Reference
@@ -1882,15 +1891,6 @@ Use `kubectl describe kickrequest <name>` to inspect event history for a request
 
 `KickDryRun` is emitted instead of `KickStarted`/`KickSucceeded` when the
 matching KickPolicy sets `spec.dryRun: true`. The restart is never performed.
-## Source: docs/content/docs/reference/_index.md
-
----
-title: Reference
-weight: 50
----
-
-API fields, metrics, events, and configuration for the KICK operator.
-
 ## Source: docs/content/docs/reference/kickpolicy.md
 
 # KickPolicy API Reference

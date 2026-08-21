@@ -55,12 +55,12 @@ EOF
   cat llms.txt
   echo
 
-  for file in $(find docs/content/docs -type f -name "*.md" | sort); do
+  while IFS= read -r -d '' file; do
     echo
     echo "## Source: ${file}"
     echo
     cat "${file}"
-  done
+  done < <(find docs/content/docs -type f -name "*.md" -print0 | LC_ALL=C sort -z)
 } > llms-full.txt
 
 # Publish alongside the Hugo site so agents can fetch it over HTTP.
