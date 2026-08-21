@@ -109,12 +109,12 @@ e2e-install: manifests kustomize
 # Installs the in-cluster Git server the GitOps scenarios sync from.
 .PHONY: e2e-git-server
 e2e-git-server:
-	KICK_E2E_KUBECONFIG=$(KIND_KUBECONFIG) test/e2e/setup/gitea/install-gitea.sh
+	KICK_E2E_KUBECONFIG=$(KIND_KUBECONFIG) bash test/e2e/setup/gitea/install-gitea.sh
 
 # Applies the Argo CD settings the integration scenarios depend on.
 .PHONY: e2e-argocd-config
 e2e-argocd-config:
-	KICK_E2E_KUBECONFIG=$(KIND_KUBECONFIG) test/e2e/setup/argocd/configure-argocd.sh
+	KICK_E2E_KUBECONFIG=$(KIND_KUBECONFIG) bash test/e2e/setup/argocd/configure-argocd.sh
 
 # Installs the Argo CD control plane and configures it for integration scenarios.
 .PHONY: e2e-argocd
@@ -124,17 +124,17 @@ e2e-argocd:
 # Installs the Argo Rollouts controller and its CRDs.
 .PHONY: e2e-rollouts
 e2e-rollouts:
-	KICK_E2E_KUBECONFIG=$(KIND_KUBECONFIG) test/e2e/setup/rollouts/install-rollouts.sh
+	KICK_E2E_KUBECONFIG=$(KIND_KUBECONFIG) bash test/e2e/setup/rollouts/install-rollouts.sh
 
 # Installs the Secrets Store CSI driver, OpenBao and the OpenBao CSI provider.
 .PHONY: e2e-csi
 e2e-csi:
-	KICK_E2E_KUBECONFIG=$(KIND_KUBECONFIG) test/e2e/setup/csi/install-csi.sh
+	KICK_E2E_KUBECONFIG=$(KIND_KUBECONFIG) bash test/e2e/setup/csi/install-csi.sh
 
 # Installs cert-manager and the Kargo control plane.
 .PHONY: e2e-kargo
 e2e-kargo:
-	KICK_E2E_KUBECONFIG=$(KIND_KUBECONFIG) test/e2e/setup/kargo/install-kargo.sh
+	KICK_E2E_KUBECONFIG=$(KIND_KUBECONFIG) bash test/e2e/setup/kargo/install-kargo.sh
 
 # Shared prerequisites of every integration suite. Optional integration CRDs are
 # installed by the per-suite targets before e2e-install starts the manager.
