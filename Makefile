@@ -310,17 +310,20 @@ ci-verify-local: tools
 	$(LOCALBIN)/govulncheck ./...
 	$(MAKE) feature-coverage
 
-.PHONY: ci-e2e-core-local
-ci-e2e-core-local:
+.PHONY: ci-e2e-local
+ci-e2e-local:
 	@set -e; \
 	cleanup() { $(MAKE) kind-delete KIND=kind; }; \
 	trap cleanup EXIT; \
 	$(MAKE) kind-create KIND=kind; \
 	$(MAKE) kind-load install KIND=kind; \
-	$(MAKE) test-e2e-core KIND=kind
+	$(MAKE) test-e2e KIND=kind
+
+.PHONY: ci-e2e-core-local
+ci-e2e-core-local: ci-e2e-local
 
 .PHONY: ci-local
-ci-local: ci-verify-local ci-e2e-core-local
+ci-local: ci-verify-local ci-e2e-local
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE)

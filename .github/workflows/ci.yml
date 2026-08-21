@@ -136,8 +136,8 @@ jobs:
       - name: Build, load, and install operator
         run: make kind-load install KIND=kind
 
-      - name: Run core e2e scenarios
-        run: make test-e2e-core KIND=kind
+      - name: Run full e2e suite
+        run: make test-e2e KIND=kind
 
       - name: Delete kind cluster
         if: always()
