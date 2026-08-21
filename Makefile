@@ -292,6 +292,36 @@ $(KAMERA): $(LOCALBIN)
 .PHONY: verify
 verify: fmt vet lint static-check shellcheck test helm-lint helm-template docs-gen-check feature-coverage
 
+.PHONY: ci-verify-local
+ci-verify-local: tools
+	$(MAKE) fmt
+	$(MAKE) vet
+	$(MAKE) lint
+	$(MAKE) static-check
+	$(MAKE) test
+	go test -race ./...
+	$(MAKE) generate
+	git diff --exit-code
+	$(MAKE) helm-lint
+	$(MAKE) helm-template
+	$(MAKE) docs-gen-check
+	$(MAKE) feature-coverage-test
+	go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+	govulncheck ./...
+	$(MAKE) feature-coverage
+
+.PHONY: ci-e2e-core-local
+ci-e2e-core-local:
+	@set -e; \
+	cleanup() { $(MAKE) kind-delete KIND=kind; }; \
+	trap cleanup EXIT; \
+	$(MAKE) kind-create KIND=kind; \
+	$(MAKE) kind-load install KIND=kind; \
+	$(MAKE) test-e2e-core KIND=kind
+
+.PHONY: ci-local
+ci-local: ci-verify-local ci-e2e-core-local
+
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE)
 $(KUSTOMIZE): $(LOCALBIN)
