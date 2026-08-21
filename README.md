@@ -6,13 +6,13 @@
 
 KICK restarts your workloads when the config they depend on changes.
 
-When a Secret or ConfigMap that a workload consumes (via `env`, `envFrom`, or a mounted volume) changes after the workload's last rollout, KICK triggers a rolling restart using the standard `kubectl.kubernetes.io/restartedAt` annotation. It never uses privileged host access. By default it restarts on its own; point it at a GitOps tool (Argo CD) if you want restarts gated on sync state and deploy windows.
+When a Secret or ConfigMap that a workload consumes (via `env`, `envFrom`, or a mounted volume) changes after the workload's last rollout, KICK triggers a rolling restart using the standard `kubectl.kubernetes.io/restartedAt` annotation. It never uses privileged host access. By default it restarts on its own; you can enable optional GitOps gating with Argo CD, Flux, or Kargo.
 
-Supported workloads: `Deployment`, `StatefulSet`, `DaemonSet`.
+Supported workloads: `Deployment`, `StatefulSet`, `DaemonSet`, and `argoproj.io/Rollout` (opt-in).
 
 ![How KICK works](docs/static/images/how-kick-works.drawio.svg)
 
-> The diagrams are editable draw.io files under [docs/static/images/](docs/static/images/) — open any `*.drawio.svg` in [diagrams.net](https://app.diagrams.net) to change it. See [docs/content/docs/concepts/_index.md](docs/content/docs/concepts/_index.md) for the full picture.
+> The diagrams are editable draw.io files under [docs/static/images/](docs/static/images/) — open any `*.drawio.svg` in [diagrams.net](https://app.diagrams.net) to change it. See [the concepts docs](https://corewire.github.io/kick/docs/concepts/) for the full picture.
 
 ## Try it
 
@@ -122,13 +122,14 @@ spec:
 ```
 
 **Want a maintenance window without GitOps?** Add KICK-native windows — see
-[docs/reference/kickpolicy.md](docs/reference/kickpolicy.md).
+[KickPolicy reference](https://corewire.github.io/kick/docs/reference/kickpolicy/).
 
 ## Learn more
 
-- [How KICK works](docs/concepts/overview.md) — the full picture, with diagrams
-- [KickPolicy reference](docs/reference/kickpolicy.md) — every field
-- [Dependency discovery](docs/concepts/dependency-discovery.md) · [Freshness](docs/concepts/freshness.md) · [GitOps gates](docs/concepts/gitops-gates.md)
+- [GitHub Pages docs home](https://corewire.github.io/kick/docs/)
+- [How KICK works](https://corewire.github.io/kick/docs/concepts/)
+- [KickPolicy reference](https://corewire.github.io/kick/docs/reference/kickpolicy/)
+- [Dependency discovery](https://corewire.github.io/kick/docs/concepts/dependency-discovery/) · [Freshness](https://corewire.github.io/kick/docs/concepts/freshness/) · [GitOps gates](https://corewire.github.io/kick/docs/concepts/gitops-gates/)
 
 > **Status:** bootstrap baseline — stable, provider-neutral foundations (API, dependency extraction, controller/Argo CD boundaries, traceability). Some Kubernetes-timestamp and Argo CD ownership/window details remain explicit research tasks; do not replace them with assumptions.
 
