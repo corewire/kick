@@ -58,6 +58,9 @@ containerSecurityContext:
   capabilities:
     drop:
       - ALL
+  readOnlyRootFilesystem: true
+  seccompProfile:
+    type: RuntimeDefault
 
 probes:
   liveness:

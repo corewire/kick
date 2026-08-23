@@ -174,12 +174,14 @@ Timeline and tracing:
 ```text
 --timeline-bind-address=:8090
 --otel-otlp-endpoint=<collector-host:4317>
---otel-otlp-insecure=true
+--otel-otlp-insecure=false
 ```
 
-Timeline UI path: `/timeline/ui` — opens a compact cross-namespace overview (state-over-time swimlanes, color-coded event log, and a drag-to-zoom time ruler with a from/to picker).
-
-> **⚠ Experimental:** the timeline UI/API is unauthenticated and read-only. Use it only via localhost or `kubectl port-forward`; never expose it through an Ingress or untrusted network.
+The timeline server is **disabled by default**. Enable it only when you can
+restrict access to trusted networks, for example via `kubectl port-forward`.
+When enabled, the UI/API is unauthenticated and read-only at `/timeline/ui`; it
+exposes namespace names, workload names, and restart state, so never expose it
+through an Ingress or untrusted network.
 
 ## Security note
 
