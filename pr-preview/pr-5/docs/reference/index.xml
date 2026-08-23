@@ -1,0 +1,404 @@
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>KICK – Reference</title><link>https://corewire.github.io/kick/docs/reference/</link><description>Recent content in Reference on KICK</description><generator>Hugo -- gohugo.io</generator><language>en</language><atom:link href="https://corewire.github.io/kick/docs/reference/index.xml" rel="self" type="application/rss+xml"/><item><title/><link>https://corewire.github.io/kick/docs/reference/configuration/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://corewire.github.io/kick/docs/reference/configuration/</guid><description>
+&lt;h1&gt;Configuration Reference&lt;/h1&gt;&lt;p&gt;Primary configuration surface: Helm chart values in &lt;code&gt;charts/kick/values.yaml&lt;/code&gt;.&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Key&lt;/th&gt;
+&lt;th&gt;Description&lt;/th&gt;
+&lt;th&gt;Default&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;namespace.name&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Controller namespace&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;kick-system&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;requestRetention&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Completed request retention duration&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;24h&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;rolloutTimeout&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Restart rollout timeout&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;15m&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;leaderElection.enabled&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Enable leader election&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;true&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;podDisruptionBudget.enabled&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Protect single replica availability&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;true&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;resources&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Controller CPU/memory requests/limits&lt;/td&gt;
+&lt;td&gt;set in values&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;integrations.argocd.enabled&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Enable Argo CD adapter logic&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;true&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;integrations.argocd.namespace&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Argo CD control-plane namespace&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;argocd&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;integrations.argocd.applicationNamespaces&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Application namespaces to search&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;[]&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;integrations.flux.enabled&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Enable Flux adapter logic&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;true&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;integrations.argoRollouts.enabled&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Treat &lt;code&gt;argoproj.io&lt;/code&gt; Rollouts as restartable workloads, and grant RBAC for them&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;false&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;integrations.secretsStoreCSI.enabled&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Observe &lt;code&gt;SecretProviderClassPodStatus&lt;/code&gt; for Secrets Store CSI rotation, and grant RBAC for it&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;false&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;integrations.kargo.enabled&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Grant RBAC for Kargo &lt;code&gt;Stages&lt;/code&gt; and &lt;code&gt;Promotions&lt;/code&gt; so &lt;code&gt;provider: Kargo&lt;/code&gt; can be used&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;false&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;Example:&lt;/p&gt;
+&lt;div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code"&gt;
+&lt;div&gt;&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;integrations&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;argocd&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;enabled&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="kc"&gt;true&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;applicationNamespaces&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="p"&gt;[]&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;flux&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;enabled&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="kc"&gt;true&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;argoRollouts&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;enabled&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="kc"&gt;true&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;secretsStoreCSI&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;enabled&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="kc"&gt;true&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;kargo&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;enabled&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="kc"&gt;false&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0"&gt;
+&lt;button
+class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+title="Copy code"
+aria-label="Copy code"
+data-copied-label="Copied!"
+&gt;
+&lt;div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;/button&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;h2&gt;Manager flags&lt;span class="hx:absolute hx:-mt-20" id="manager-flags"&gt;&lt;/span&gt;
+&lt;a href="#manager-flags" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Flag&lt;/th&gt;
+&lt;th&gt;Description&lt;/th&gt;
+&lt;th&gt;Default&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;--rollout-timeout&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Maximum time KICK waits for rollout convergence before marking a request timed out.&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;15m&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;--enable-argocd&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Gate restarts on Argo CD Application state. Ignored when the CRD is absent.&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;true&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;--enable-flux&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Gate restarts on Flux Kustomization and HelmRelease state. Ignored when CRDs are absent.&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;true&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;--enable-kargo&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Block restarts while a Kargo Promotion is active. Ignored when the CRD is absent.&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;false&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;--enable-argo-rollouts&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Watch and restart &lt;code&gt;argoproj.io/v1alpha1&lt;/code&gt; Rollouts. Ignored when the CRD is absent.&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;false&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;--enable-csi-integration&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;Watch &lt;code&gt;SecretProviderClassPodStatus&lt;/code&gt;. Ignored when the CRD is absent.&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;false&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;Every integration additionally requires its CRD to exist in the cluster; the
+manager probes the REST mapper at startup and skips the integration rather than
+failing. The Helm chart sets these flags from matching
+&lt;code&gt;integrations.*.enabled&lt;/code&gt; values.&lt;/p&gt;
+&lt;h3&gt;Detection happens once at start-up&lt;span class="hx:absolute hx:-mt-20" id="detection-happens-once-at-start-up"&gt;&lt;/span&gt;
+&lt;a href="#detection-happens-once-at-start-up" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h3&gt;&lt;p&gt;Integrations — Argo CD, Flux, Kargo, Argo Rollouts and Secrets Store CSI — are
+detected exactly once while the manager starts. If their CRDs are installed
+later, the integration stays inactive until the KICK manager pod is restarted.
+The manager logs one line per skipped integration at start-up, naming the
+integration and the group/version/kind it did not find, so &lt;code&gt;kubectl logs&lt;/code&gt; on
+the manager pod tells you what is inactive. The probe is deliberately not
+dynamic: registering a watch or a field index for a kind that does not exist
+aborts the manager, so the check has to happen before the manager runs.&lt;/p&gt;
+&lt;p&gt;Controller runtime defaults and remaining flags are defined by chart templates and manager args in Kubernetes manifests.&lt;/p&gt;</description></item><item><title/><link>https://corewire.github.io/kick/docs/reference/events/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://corewire.github.io/kick/docs/reference/events/</guid><description>
+&lt;h1&gt;Events Reference&lt;/h1&gt;&lt;p&gt;KICK emits typed Kubernetes events with stable reason strings.&lt;/p&gt;
+&lt;p&gt;Reasons:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;WaitingForSchedule&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;WaitingForGitOpsSync&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;WaitingForRollout&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;KickStarted&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;KickSucceeded&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;KickNoLongerRequired&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;KickFailed&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;KickDryRun&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;OwnerUnknown&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;OwnerAmbiguous&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Use &lt;code&gt;kubectl describe kickrequest &amp;lt;name&amp;gt;&lt;/code&gt; to inspect event history for a request.&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;KickDryRun&lt;/code&gt; is emitted instead of &lt;code&gt;KickStarted&lt;/code&gt;/&lt;code&gt;KickSucceeded&lt;/code&gt; when the
+matching KickPolicy sets &lt;code&gt;spec.dryRun: true&lt;/code&gt;. The restart is never performed.&lt;/p&gt;</description></item><item><title/><link>https://corewire.github.io/kick/docs/reference/kickpolicy/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://corewire.github.io/kick/docs/reference/kickpolicy/</guid><description>
+&lt;h1&gt;KickPolicy API Reference&lt;/h1&gt;&lt;p&gt;Group/version: &lt;code&gt;kick.corewire.io/v1alpha1&lt;/code&gt;&lt;/p&gt;
+&lt;p&gt;Kind: &lt;code&gt;KickPolicy&lt;/code&gt;&lt;/p&gt;
+&lt;h2&gt;spec.discovery&lt;span class="hx:absolute hx:-mt-20" id="specdiscovery"&gt;&lt;/span&gt;
+&lt;a href="#specdiscovery" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;Two optional label selectors scope the policy. An empty or omitted selector
+matches everything on its axis.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;workloadSelector&lt;/code&gt; — which workloads the policy manages (the actors that may be
+restarted). Omit to match all supported workloads in the namespace.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;dependencySelector&lt;/code&gt; — which consumed &lt;code&gt;Secret&lt;/code&gt;/&lt;code&gt;ConfigMap&lt;/code&gt; changes count as a
+trigger. Omit to treat every discovered dependency as a trigger.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;A workload restarts when it &lt;strong&gt;consumes a changed dependency&lt;/strong&gt;, the workload is in
+&lt;code&gt;workloadSelector&lt;/code&gt; scope, and the changed dependency is in &lt;code&gt;dependencySelector&lt;/code&gt;
+scope. &lt;code&gt;dependencySelector&lt;/code&gt; also scopes freshness: out-of-scope dependencies are
+ignored entirely.&lt;/p&gt;
+&lt;h2&gt;spec.schedule&lt;span class="hx:absolute hx:-mt-20" id="specschedule"&gt;&lt;/span&gt;
+&lt;a href="#specschedule" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;&lt;code&gt;spec.schedule&lt;/code&gt; is the KICK-native time gate: pure scheduling, evaluated without
+any GitOps provider. Omit it to allow restarts at any time.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;windows[]&lt;/code&gt; KICK-native restart windows
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;type&lt;/code&gt; enum: &lt;code&gt;Allow&lt;/code&gt;, &lt;code&gt;Deny&lt;/code&gt; (required)&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;cron&lt;/code&gt; 5-field cron expression marking each window start (required)&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;duration&lt;/code&gt; how long the window stays open from each start, e.g. &lt;code&gt;1h&lt;/code&gt; (required)&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;timeZone&lt;/code&gt; IANA zone used to evaluate the cron expression (default UTC)&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;spec.gitOps&lt;span class="hx:absolute hx:-mt-20" id="specgitops"&gt;&lt;/span&gt;
+&lt;a href="#specgitops" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;&lt;code&gt;spec.gitOps&lt;/code&gt; is optional. When omitted, &lt;code&gt;provider&lt;/code&gt; defaults to &lt;code&gt;None&lt;/code&gt; and KICK
+restarts without consulting a GitOps tool (gated only by any native windows).&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;provider&lt;/code&gt; enum: &lt;code&gt;None&lt;/code&gt;, &lt;code&gt;Auto&lt;/code&gt;, &lt;code&gt;ArgoCD&lt;/code&gt;, &lt;code&gt;Flux&lt;/code&gt;, &lt;code&gt;Kargo&lt;/code&gt; (default &lt;code&gt;None&lt;/code&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;requireReconciled&lt;/code&gt; default: &lt;code&gt;true&lt;/code&gt; (applies only to a real provider)&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;code&gt;Kargo&lt;/code&gt; is never auto-detected and must be selected explicitly: Kargo does not
+write to workloads, Argo CD does, so a Kargo-managed workload is
+indistinguishable from a plain Argo CD one. With &lt;code&gt;Kargo&lt;/code&gt;, KICK resolves the
+authorised &lt;code&gt;Stage&lt;/code&gt; from the owning Application&amp;rsquo;s
+&lt;code&gt;kargo.akuity.io/authorized-stage&lt;/code&gt; annotation, blocks while a Promotion for that
+Stage is in flight, and then delegates to the Argo CD gate. More than one
+authorised stage is treated as ambiguous ownership and blocks.&lt;/p&gt;
+&lt;p&gt;See &lt;a href="../guides/without-gitops/"&gt;Running without GitOps&lt;/a&gt; for the &lt;code&gt;None&lt;/code&gt; case.&lt;/p&gt;
+&lt;h2&gt;spec.restart&lt;span class="hx:absolute hx:-mt-20" id="specrestart"&gt;&lt;/span&gt;
+&lt;a href="#specrestart" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;minInterval&lt;/code&gt; default: &lt;code&gt;30s&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;spec&lt;span class="hx:absolute hx:-mt-20" id="spec"&gt;&lt;/span&gt;
+&lt;a href="#spec" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;suspend&lt;/code&gt; pauses the policy without deleting it (default &lt;code&gt;false&lt;/code&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;dryRun&lt;/code&gt; evaluates every gate and the freshness check but never patches a
+workload (default &lt;code&gt;false&lt;/code&gt;). The &lt;code&gt;KickRequest&lt;/code&gt; ends in the terminal &lt;code&gt;DryRun&lt;/code&gt;
+phase with the decision recorded in its conditions, so you can see exactly
+what would have happened.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;status&lt;span class="hx:absolute hx:-mt-20" id="status"&gt;&lt;/span&gt;
+&lt;a href="#status" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;observedGeneration&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;matchedWorkloads&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;blockedWorkloads&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;conditions&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;</description></item><item><title/><link>https://corewire.github.io/kick/docs/reference/kickrequest/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://corewire.github.io/kick/docs/reference/kickrequest/</guid><description>
+&lt;h1&gt;KickRequest API Reference&lt;/h1&gt;&lt;p&gt;Group/version: &lt;code&gt;kick.corewire.io/v1alpha1&lt;/code&gt;&lt;/p&gt;
+&lt;p&gt;Kind: &lt;code&gt;KickRequest&lt;/code&gt;&lt;/p&gt;
+&lt;h2&gt;spec&lt;span class="hx:absolute hx:-mt-20" id="spec"&gt;&lt;/span&gt;
+&lt;a href="#spec" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;targetRef.apiVersion&lt;/code&gt; default: &lt;code&gt;apps/v1&lt;/code&gt;. Use &lt;code&gt;argoproj.io/v1alpha1&lt;/code&gt; for an
+Argo Rollout.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;targetRef.kind&lt;/code&gt; enum: &lt;code&gt;Deployment&lt;/code&gt;, &lt;code&gt;StatefulSet&lt;/code&gt;, &lt;code&gt;DaemonSet&lt;/code&gt;, &lt;code&gt;Rollout&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;targetRef.name&lt;/code&gt; required&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;code&gt;Rollout&lt;/code&gt; is only accepted with &lt;code&gt;apiVersion: argoproj.io/v1alpha1&lt;/code&gt;, and requires
+the controller to run with &lt;code&gt;--enable-argo-rollouts&lt;/code&gt; and the CRD to be present.&lt;/p&gt;
+&lt;h2&gt;status&lt;span class="hx:absolute hx:-mt-20" id="status"&gt;&lt;/span&gt;
+&lt;a href="#status" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;phase&lt;/code&gt; enum:
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;Pending&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;WaitingForGate&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;WaitingForOwner&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;WaitingForApplicationSync&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;WaitingForRollout&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;Executing&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;Succeeded&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;NoLongerRequired&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;Failed&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;DryRun&lt;/code&gt; — terminal. The policy had &lt;code&gt;spec.dryRun: true&lt;/code&gt;, so everything was
+evaluated but no workload was patched.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;owner&lt;/code&gt;: resolved GitOps owner details&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;gate&lt;/code&gt;: last gate decision (&lt;code&gt;reason&lt;/code&gt;, &lt;code&gt;message&lt;/code&gt;, &lt;code&gt;requeueAt&lt;/code&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;latestObservedDependencyChange&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;currentRollout&lt;/code&gt; (&lt;code&gt;replicaSet&lt;/code&gt;, &lt;code&gt;startedAt&lt;/code&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;conditions&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Mutated fields&lt;span class="hx:absolute hx:-mt-20" id="mutated-fields"&gt;&lt;/span&gt;
+&lt;a href="#mutated-fields" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;KICK mutates:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;status.*&lt;/code&gt; on KickRequest;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;metadata.annotations[&amp;quot;kubectl.kubernetes.io/restartedAt&amp;quot;]&lt;/code&gt; on the target
+Deployment, StatefulSet or DaemonSet PodTemplate;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;spec.restartAt&lt;/code&gt; on a target Argo &lt;code&gt;Rollout&lt;/code&gt;. The pod template is deliberately
+left untouched so the canary or blue-green strategy is not re-run for a
+configuration change.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;KICK never writes dependency hashes, environment variables, or KICK-owned state
+annotations into a workload.&lt;/p&gt;</description></item><item><title/><link>https://corewire.github.io/kick/docs/reference/metrics/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://corewire.github.io/kick/docs/reference/metrics/</guid><description>
+&lt;h1&gt;Metrics Reference&lt;/h1&gt;&lt;p&gt;Prometheus metrics are registered in controller-runtime metrics registry.&lt;/p&gt;
+&lt;h2&gt;&lt;code&gt;kick_requests_total&lt;/code&gt;&lt;span class="hx:absolute hx:-mt-20" id="kick_requests_total"&gt;&lt;/span&gt;
+&lt;a href="#kick_requests_total" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;Counter by labels:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;provider&lt;/code&gt; — GitOps provider name, or &lt;code&gt;unknown&lt;/code&gt; when none applies&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;result&lt;/code&gt; — &lt;code&gt;succeeded&lt;/code&gt;, &lt;code&gt;no_longer_required&lt;/code&gt;, &lt;code&gt;failed&lt;/code&gt;, &lt;code&gt;dry_run&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Meaning: completed KickRequest outcomes.&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;dry_run&lt;/code&gt; is recorded when a policy sets &lt;code&gt;spec.dryRun: true&lt;/code&gt;; the request reaches
+a terminal decision without a restart being performed.&lt;/p&gt;
+&lt;h2&gt;&lt;code&gt;kick_restarts_total&lt;/code&gt;&lt;span class="hx:absolute hx:-mt-20" id="kick_restarts_total"&gt;&lt;/span&gt;
+&lt;a href="#kick_restarts_total" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;Counter by labels:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;provider&lt;/code&gt; — GitOps provider name, or &lt;code&gt;unknown&lt;/code&gt; when none applies&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;result&lt;/code&gt; — &lt;code&gt;started&lt;/code&gt;, &lt;code&gt;succeeded&lt;/code&gt;, &lt;code&gt;failed&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Meaning: restart execution attempts and outcomes.&lt;/p&gt;
+&lt;h2&gt;&lt;code&gt;kick_controller_errors_total&lt;/code&gt;&lt;span class="hx:absolute hx:-mt-20" id="kick_controller_errors_total"&gt;&lt;/span&gt;
+&lt;a href="#kick_controller_errors_total" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;Counter by labels:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;controller&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;reason&lt;/code&gt; — &lt;code&gt;Unknown&lt;/code&gt; when no reason is supplied&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Meaning: controller reconciliation errors.&lt;/p&gt;
+&lt;h2&gt;&lt;code&gt;kick_notification_deliveries_total&lt;/code&gt;&lt;span class="hx:absolute hx:-mt-20" id="kick_notification_deliveries_total"&gt;&lt;/span&gt;
+&lt;a href="#kick_notification_deliveries_total" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;Counter by labels:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;namespace&lt;/code&gt; — namespace of the NotificationPolicy&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;policy&lt;/code&gt; — NotificationPolicy name&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;outcome&lt;/code&gt; — &lt;code&gt;success&lt;/code&gt; or &lt;code&gt;failure&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Meaning: NotificationPolicy webhook delivery attempts. A failed delivery never
+fails a restart.&lt;/p&gt;
+&lt;h2&gt;&lt;code&gt;kick_notification_dropped_total&lt;/code&gt;&lt;span class="hx:absolute hx:-mt-20" id="kick_notification_dropped_total"&gt;&lt;/span&gt;
+&lt;a href="#kick_notification_dropped_total" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;Counter, no labels.&lt;/p&gt;
+&lt;p&gt;Meaning: notification events discarded because the delivery queue was full. A
+non-zero value means the webhook endpoint is not keeping up.&lt;/p&gt;</description></item><item><title/><link>https://corewire.github.io/kick/docs/reference/notificationpolicy/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://corewire.github.io/kick/docs/reference/notificationpolicy/</guid><description>
+&lt;h1&gt;NotificationPolicy API Reference&lt;/h1&gt;&lt;p&gt;Group/version: &lt;code&gt;kick.corewire.io/v1alpha1&lt;/code&gt;&lt;/p&gt;
+&lt;p&gt;Kind: &lt;code&gt;NotificationPolicy&lt;/code&gt; (namespaced)&lt;/p&gt;
+&lt;p&gt;A &lt;code&gt;NotificationPolicy&lt;/code&gt; delivers an HTTP webhook when a &lt;code&gt;KickRequest&lt;/code&gt; in the same
+namespace reaches a selected phase. Delivery is best-effort: a failed webhook
+never fails a restart.&lt;/p&gt;
+&lt;h2&gt;spec&lt;span class="hx:absolute hx:-mt-20" id="spec"&gt;&lt;/span&gt;
+&lt;a href="#spec" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;suspend&lt;/code&gt; pauses delivery without deleting the policy (default &lt;code&gt;false&lt;/code&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;phases[]&lt;/code&gt; which &lt;code&gt;KickRequest&lt;/code&gt; phases to deliver. Defaults to the terminal
+phases &lt;code&gt;Succeeded&lt;/code&gt;, &lt;code&gt;Failed&lt;/code&gt;, &lt;code&gt;NoLongerRequired&lt;/code&gt;, &lt;code&gt;DryRun&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;workloadSelector&lt;/code&gt; optional label selector on the &lt;code&gt;KickRequest&lt;/code&gt; labels. Omit
+to match every request in the namespace.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;spec.webhook&lt;span class="hx:absolute hx:-mt-20" id="specwebhook"&gt;&lt;/span&gt;
+&lt;a href="#specwebhook" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;url&lt;/code&gt; required, must match &lt;code&gt;^https?://&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;method&lt;/code&gt; enum &lt;code&gt;POST&lt;/code&gt;, &lt;code&gt;PUT&lt;/code&gt; (default &lt;code&gt;POST&lt;/code&gt;)&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;timeoutSeconds&lt;/code&gt; default &lt;code&gt;10&lt;/code&gt;, min &lt;code&gt;1&lt;/code&gt;, max &lt;code&gt;120&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;headers[]&lt;/code&gt; static headers
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;name&lt;/code&gt; required&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;value&lt;/code&gt; literal value&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;valueFrom.name&lt;/code&gt; / &lt;code&gt;valueFrom.key&lt;/code&gt; read the value from a &lt;code&gt;Secret&lt;/code&gt; in the
+same namespace&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;auth.bearerToken.name&lt;/code&gt; / &lt;code&gt;.key&lt;/code&gt; — &lt;code&gt;Authorization: Bearer &amp;lt;value&amp;gt;&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;auth.basic.username&lt;/code&gt; / &lt;code&gt;auth.basic.password&lt;/code&gt; — each a Secret key reference&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;tls.caBundle.name&lt;/code&gt; / &lt;code&gt;.key&lt;/code&gt; — PEM bundle used to verify the server&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;tls.clientCertificate.name&lt;/code&gt; / &lt;code&gt;.key&lt;/code&gt; — a &lt;code&gt;kubernetes.io/tls&lt;/code&gt; Secret used for
+mutual TLS&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;All credentials are Secret references. Literal credentials cannot be set inline.&lt;/p&gt;
+&lt;h2&gt;Payload&lt;span class="hx:absolute hx:-mt-20" id="payload"&gt;&lt;/span&gt;
+&lt;a href="#payload" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;The request body is JSON with a fixed field set:&lt;/p&gt;
+&lt;div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code"&gt;
+&lt;div&gt;&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-json" data-lang="json"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="p"&gt;{&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nt"&gt;&amp;#34;namespace&amp;#34;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="s2"&gt;&amp;#34;team-a&amp;#34;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nt"&gt;&amp;#34;requestName&amp;#34;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="s2"&gt;&amp;#34;api-0f3c&amp;#34;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nt"&gt;&amp;#34;phase&amp;#34;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="s2"&gt;&amp;#34;Succeeded&amp;#34;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nt"&gt;&amp;#34;reason&amp;#34;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="s2"&gt;&amp;#34;RestartCompleted&amp;#34;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nt"&gt;&amp;#34;message&amp;#34;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="s2"&gt;&amp;#34;rollout completed&amp;#34;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nt"&gt;&amp;#34;targetKind&amp;#34;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="s2"&gt;&amp;#34;Deployment&amp;#34;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nt"&gt;&amp;#34;targetName&amp;#34;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="s2"&gt;&amp;#34;api&amp;#34;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nt"&gt;&amp;#34;gitOpsProvider&amp;#34;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="s2"&gt;&amp;#34;argocd&amp;#34;&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt; &lt;span class="nt"&gt;&amp;#34;occurredAt&amp;#34;&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt; &lt;span class="s2"&gt;&amp;#34;2026-03-01T12:00:00Z&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="p"&gt;}&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0"&gt;
+&lt;button
+class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+title="Copy code"
+aria-label="Copy code"
+data-copied-label="Copied!"
+&gt;
+&lt;div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;/button&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;p&gt;The payload never contains &lt;code&gt;Secret&lt;/code&gt; or &lt;code&gt;ConfigMap&lt;/code&gt; data, key names, or content
+digests.&lt;/p&gt;
+&lt;h2&gt;Delivery semantics&lt;span class="hx:absolute hx:-mt-20" id="delivery-semantics"&gt;&lt;/span&gt;
+&lt;a href="#delivery-semantics" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;ul&gt;
+&lt;li&gt;Events are queued in memory. The queue is bounded; when it is full the oldest
+event is dropped and &lt;code&gt;kick_notification_dropped_total&lt;/code&gt; is incremented.&lt;/li&gt;
+&lt;li&gt;Delivery is retried up to three times with exponential backoff. &lt;code&gt;4xx&lt;/code&gt;
+responses other than &lt;code&gt;429&lt;/code&gt; are not retried.&lt;/li&gt;
+&lt;li&gt;Delivery runs only on the elected leader, so a highly-available deployment
+does not duplicate webhooks.&lt;/li&gt;
+&lt;li&gt;TLS is negotiated with a minimum version of TLS 1.2.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;status&lt;span class="hx:absolute hx:-mt-20" id="status"&gt;&lt;/span&gt;
+&lt;a href="#status" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;observedGeneration&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;lastDeliveryTime&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;lastError&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;delivered&lt;/code&gt;, &lt;code&gt;failed&lt;/code&gt; counters&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;conditions&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2&gt;Metrics&lt;span class="hx:absolute hx:-mt-20" id="metrics"&gt;&lt;/span&gt;
+&lt;a href="#metrics" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;kick_notification_deliveries_total{namespace,policy,outcome}&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;kick_notification_dropped_total&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;</description></item></channel></rss>

@@ -1,0 +1,22 @@
+{
+  "nodes": [
+    {"kind": "controller", "name": "SourceObservationReconciler"},
+    {"kind": "controller", "name": "KickRequestReconciler"},
+    {"kind": "resource", "gvk": "core/v1/Secret"},
+    {"kind": "resource", "gvk": "core/v1/ConfigMap"},
+    {"kind": "resource", "gvk": "apps/v1/Deployment"},
+    {"kind": "resource", "gvk": "kick.corewire.io/v1alpha1/KickRequest"}
+  ],
+  "edges": [
+    {"kind": "watches", "from": "SourceObservationReconciler", "to": "core/v1/Secret", "watchKind": "indexed"},
+    {"kind": "watches", "from": "SourceObservationReconciler", "to": "core/v1/ConfigMap", "watchKind": "indexed"},
+    {"kind": "writes", "from": "SourceObservationReconciler", "to": "kick.corewire.io/v1alpha1/KickRequest", "target": "status"},
+
+    {"kind": "watches", "from": "KickRequestReconciler", "to": "kick.corewire.io/v1alpha1/KickRequest", "watchKind": "primary"},
+    {"kind": "reads", "from": "KickRequestReconciler", "to": "core/v1/Secret", "target": "status"},
+    {"kind": "reads", "from": "KickRequestReconciler", "to": "core/v1/ConfigMap", "target": "status"},
+    {"kind": "reads", "from": "KickRequestReconciler", "to": "apps/v1/Deployment", "target": "status"},
+    {"kind": "writes", "from": "KickRequestReconciler", "to": "apps/v1/Deployment", "target": "spec"},
+    {"kind": "writes", "from": "KickRequestReconciler", "to": "kick.corewire.io/v1alpha1/KickRequest", "target": "status"}
+  ]
+}

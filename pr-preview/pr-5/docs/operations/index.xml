@@ -1,0 +1,49 @@
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>KICK – Operations</title><link>https://corewire.github.io/kick/docs/operations/</link><description>Recent content in Operations on KICK</description><generator>Hugo -- gohugo.io</generator><language>en</language><atom:link href="https://corewire.github.io/kick/docs/operations/index.xml" rel="self" type="application/rss+xml"/><item><title/><link>https://corewire.github.io/kick/docs/operations/rbac/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://corewire.github.io/kick/docs/operations/rbac/</guid><description>
+&lt;h1&gt;RBAC&lt;/h1&gt;&lt;p&gt;Controller ClusterRole includes:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;get/list/watch&lt;/code&gt; on &lt;code&gt;secrets&lt;/code&gt; and &lt;code&gt;configmaps&lt;/code&gt;;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;get/list/watch/patch&lt;/code&gt; on &lt;code&gt;deployments&lt;/code&gt; and &lt;code&gt;replicasets&lt;/code&gt;;&lt;/li&gt;
+&lt;li&gt;full CRUD on &lt;code&gt;kickrequests&lt;/code&gt; plus status updates;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;get/list/watch&lt;/code&gt; on &lt;code&gt;kickpolicies&lt;/code&gt;;&lt;/li&gt;
+&lt;li&gt;lease permissions for leader election.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Source of truth: &lt;code&gt;config/rbac/role.yaml&lt;/code&gt;.&lt;/p&gt;</description></item><item><title/><link>https://corewire.github.io/kick/docs/operations/scalability/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://corewire.github.io/kick/docs/operations/scalability/</guid><description>
+&lt;h1&gt;Scalability&lt;/h1&gt;&lt;p&gt;Initial implementation targets correctness over horizontal scale optimization.&lt;/p&gt;
+&lt;p&gt;Current characteristics:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;one KickRequest per target Deployment;&lt;/li&gt;
+&lt;li&gt;request coalescing prevents duplicate restarts for the same target;&lt;/li&gt;
+&lt;li&gt;gate and freshness checks are recomputed from live state before action.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Operational guidance:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;monitor &lt;code&gt;kick_controller_errors_total&lt;/code&gt; and queue behavior;&lt;/li&gt;
+&lt;li&gt;scale controller resources before increasing managed namespace count;&lt;/li&gt;
+&lt;li&gt;validate provider API rate behavior in your environment.&lt;/li&gt;
+&lt;/ul&gt;</description></item><item><title/><link>https://corewire.github.io/kick/docs/operations/security/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://corewire.github.io/kick/docs/operations/security/</guid><description>
+&lt;h1&gt;Security&lt;/h1&gt;&lt;p&gt;KICK requires read access to Secrets and ConfigMaps in managed namespaces to evaluate dependency freshness.&lt;/p&gt;
+&lt;p&gt;Implications:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;treat controller ServiceAccount as sensitive;&lt;/li&gt;
+&lt;li&gt;restrict namespace scope where possible;&lt;/li&gt;
+&lt;li&gt;avoid exposing logs broadly.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;KICK safety constraints:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;no privileged containers;&lt;/li&gt;
+&lt;li&gt;no CRI socket access;&lt;/li&gt;
+&lt;li&gt;no Secret value logging.&lt;/li&gt;
+&lt;/ul&gt;</description></item><item><title/><link>https://corewire.github.io/kick/docs/operations/upgrades/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://corewire.github.io/kick/docs/operations/upgrades/</guid><description>
+&lt;h1&gt;Upgrades&lt;/h1&gt;&lt;p&gt;API maturity: &lt;code&gt;v1alpha1&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;Policy:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;breaking changes may occur before beta;&lt;/li&gt;
+&lt;li&gt;when production users persist objects, migrations or conversion guidance must be documented.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Upgrade flow:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;review release notes;&lt;/li&gt;
+&lt;li&gt;apply updated CRDs;&lt;/li&gt;
+&lt;li&gt;upgrade chart image/tag;&lt;/li&gt;
+&lt;li&gt;watch controller readiness and KickRequest reconciliation.&lt;/li&gt;
+&lt;/ol&gt;</description></item></channel></rss>
