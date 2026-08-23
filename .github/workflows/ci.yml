@@ -12,42 +12,113 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
+env:
+  LOCALBIN: ${{ github.workspace }}/bin
+
 jobs:
-  verify:
+  # Cluster work is the expensive half of this pipeline, so a change that cannot
+  # affect the operator must not pay for it.
+  changes:
     runs-on: ubuntu-24.04
-    env:
-      LOCALBIN: ${{ github.workspace }}/bin
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Classify changed files
+        id: filter
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "${EVENT_NAME}" != "pull_request" ]]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed="$(git diff --name-only "${BASE_SHA}" HEAD)"
+          echo "$changed"
+          if [[ -z "$changed" ]] || grep -qvE '^(docs/|ai-docs/|[^/]*\.md$|llms[^/]*\.txt$)' <<<"$changed"; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "code=false" >> "$GITHUB_OUTPUT"
+            echo "Documentation-only change: image build and e2e suites skipped." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  lint:
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4.2.2
 
-      - name: Setup Go
-        uses: actions/setup-go@v5.5.0
+      - name: Setup build environment
+        uses: ./.github/actions/setup-build
         with:
-          go-version-file: go.mod
-          cache: true
+          cache-key: lint
+          tools: golangci-lint govulncheck
 
-      - name: Cache local tool binaries
-        uses: actions/cache@v4.2.4
-        with:
-          path: |
-            bin/controller-gen-v0.17.2
-            bin/kustomize-v5.6.0
-            bin/setup-envtest-release-0.24
-            bin/golangci-lint-v2.12.2
-            bin/chainsaw-v0.2.15
-            bin/controller-gen
-            bin/kustomize
-            bin/setup-envtest
-            bin/golangci-lint
-            bin/chainsaw
-          key: tools-${{ runner.os }}-v1-${{ hashFiles('Makefile') }}
+      # No separate `make vet`: golangci-lint runs govet, so the vet step only
+      # paid the compile cost a second time (82s in run #54).
+      - name: Format
+        run: |
+          make fmt
+          git diff --exit-code
 
-      - name: Cache envtest Kubernetes assets
-        uses: actions/cache@v4.2.4
+      - name: Lint
+        run: make lint
+
+      - name: Static analysis (security + complexity)
+        run: make static-check
+
+      - name: Vulnerability check
+        run: make vulncheck
+
+  unit-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+
+      - name: Setup build environment
+        uses: ./.github/actions/setup-build
         with:
-          path: bin/k8s
-          key: envtest-assets-${{ runner.os }}-1.36
+          cache-key: envtest
+          tools: setup-envtest
+
+      - name: Unit and envtest tests
+        run: make test
+
+  race-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+
+      - name: Setup build environment
+        uses: ./.github/actions/setup-build
+        with:
+          cache-key: race
+
+      - name: Race tests
+        run: make test-race
+
+  generated:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+
+      - name: Setup build environment
+        uses: ./.github/actions/setup-build
+        with:
+          cache-key: generate
+          tools: controller-gen kustomize
 
       - name: Setup Python
         uses: actions/setup-python@v5.6.0
@@ -56,27 +127,6 @@ jobs:
 
       - name: Install Python dependencies
         run: python -m pip install --upgrade pip pyyaml
-
-      - name: Install local tools
-        run: make tools
-
-      - name: Format
-        run: make fmt
-
-      - name: Vet
-        run: make vet
-
-      - name: Lint
-        run: make lint
-
-      - name: Static analysis (security + complexity)
-        run: make static-check
-
-      - name: Unit and envtest smoke tests
-        run: make test
-
-      - name: Race tests
-        run: go test -race ./...
 
       - name: Generate
         run: make generate
@@ -90,16 +140,8 @@ jobs:
       - name: Helm template
         run: make helm-template
 
-      - name: Docs generation check
-        run: git diff --exit-code -- llms.txt llms-full.txt docs/static/llms-full.txt
-
-      - name: Feature coverage checker tests
-        run: make feature-coverage-test
-
-      - name: Vulnerability check
-        run: |
-          go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
-          govulncheck ./...
+      - name: Python tooling tests
+        run: make tools-test
 
       - name: Feature coverage
         run: make feature-coverage
@@ -115,44 +157,128 @@ jobs:
           name: feature-coverage-report
           path: traceability/feature-coverage-report.md
 
-  e2e-core:
+  # Built once and handed to every e2e job, instead of once per job.
+  image:
     runs-on: ubuntu-24.04
-    needs: verify
-    env:
-      LOCALBIN: ${{ github.workspace }}/bin
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v4.2.2
 
-      - name: Setup Go
-        uses: actions/setup-go@v5.5.0
-        with:
-          go-version-file: go.mod
-          cache: true
+      - name: Resolve image tag
+        id: img
+        run: echo "tag=$(make print-IMG)" >> "$GITHUB_OUTPUT"
 
-      - name: Cache chainsaw binary
-        uses: actions/cache@v4.2.4
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@v3.10.0
+
+      - name: Build operator image
+        uses: docker/build-push-action@v6.18.0
         with:
-          path: |
-            bin/chainsaw-v0.2.15
-            bin/chainsaw
-          key: tools-chainsaw-${{ runner.os }}-v1-${{ hashFiles('Makefile') }}
+          context: .
+          tags: ${{ steps.img.outputs.tag }}
+          outputs: type=docker,dest=${{ runner.temp }}/kick-image.tar
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Upload operator image
+        uses: actions/upload-artifact@v4.4.3
+        with:
+          name: kick-image
+          path: ${{ runner.temp }}/kick-image.tar
+          retention-days: 1
+
+  # One kind cluster per suite, in parallel. Suites differ in the control planes
+  # they install, which is why they are not sharded by scenario count.
+  e2e:
+    runs-on: ubuntu-24.04
+    needs: image
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: core
+            targets: test-e2e-core test-e2e-recovery
+          - suite: argocd
+            targets: test-e2e-argocd
+          - suite: rollouts
+            targets: test-e2e-rollouts
+          - suite: csi
+            targets: test-e2e-csi
+          - suite: kargo
+            targets: test-e2e-kargo
+    env:
+      IMAGE_ARCHIVE: ${{ github.workspace }}/dist/kick-image.tar
+      E2E_REPORT_DIR: ${{ github.workspace }}/dist/e2e-reports
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+
+      - name: Setup build environment
+        uses: ./.github/actions/setup-build
+        with:
+          cache-key: e2e
+          tools: chainsaw kustomize controller-gen
 
       - name: Install kind
         run: |
-          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.24.0/kind-linux-amd64
+          set -euo pipefail
+          version="$(make print-KIND_VERSION)"
+          curl -Lo ./kind "https://kind.sigs.k8s.io/dl/${version}/kind-linux-amd64"
           chmod +x ./kind
           sudo mv ./kind /usr/local/bin/kind
 
       - name: Create kind cluster
-        run: make kind-create KIND=kind
+        run: make kind-create
 
-      - name: Build and load operator image
-        run: make kind-load KIND=kind
+      - name: Download operator image
+        uses: actions/download-artifact@v4.1.8
+        with:
+          name: kick-image
+          path: dist
 
-      - name: Run full e2e suite
-        run: make test-e2e KIND=kind
+      - name: Load operator image
+        run: make kind-load-archive
+
+      - name: Run e2e suite
+        env:
+          TARGETS: ${{ matrix.targets }}
+        run: make ${TARGETS}
+
+      - name: Scenario timings
+        if: always()
+        run: make e2e-timing-summary >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload scenario timings
+        if: always()
+        uses: actions/upload-artifact@v4.4.3
+        with:
+          name: e2e-timings-${{ matrix.suite }}
+          path: ${{ env.E2E_REPORT_DIR }}
+          if-no-files-found: ignore
 
       - name: Delete kind cluster
         if: always()
-        run: make kind-delete KIND=kind
+        run: make kind-delete
+
+  # Single required status check: every job above has to have succeeded or been
+  # skipped on purpose.
+  ci:
+    runs-on: ubuntu-24.04
+    if: always()
+    needs: [changes, lint, unit-tests, race-tests, generated, image, e2e]
+    steps:
+      - name: Check job results
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$NEEDS"
+          failed="$(jq -r '[to_entries[]
+            | select(.value.result != "success" and .value.result != "skipped")
+            | .key] | join(", ")' <<<"$NEEDS")"
+          if [[ -n "$failed" ]]; then
+            echo "failed jobs: ${failed}"
+            exit 1
+          fi

@@ -1,0 +1,34 @@
+name: Setup build environment
+description: Go toolchain with module and build cache, plus version-pinned local tool binaries.
+
+inputs:
+  cache-key:
+    description: Distinguishes the tool caches of jobs that install different tools.
+    required: true
+  tools:
+    description: Space-separated make targets that install the tool binaries this job needs.
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Go
+      uses: actions/setup-go@v5.5.0
+      with:
+        go-version-file: go.mod
+        cache: true
+
+    # Keyed on the pinned versions only. Keying on the Makefile rebuilt every
+    # tool (~3 minutes) whenever an unrelated Makefile line changed.
+    - name: Cache local tool binaries
+      uses: actions/cache@v4.2.4
+      with:
+        path: bin
+        key: tools-${{ runner.os }}-${{ inputs.cache-key }}-${{ hashFiles('hack/tool-versions.mk') }}
+
+    - name: Install local tools
+      if: inputs.tools != ''
+      shell: bash
+      env:
+        TOOLS: ${{ inputs.tools }}
+      run: make ${TOOLS}
