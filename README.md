@@ -1,56 +1,66 @@
 <p align="center">
-  <img src="docs/static/images/how-kick-works.drawio.svg" alt="How KICK works" width="640">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/static/images/kick-long-dark.png">
+    <img src="docs/static/images/kick-long-light.png" alt="KICK" width="560">
+  </picture>
 </p>
 
-# KICK operator
+<p align="center">
+  Kubernetes operator that restarts workloads when the Secrets and ConfigMaps they consume change.
+</p>
 
-KICK restarts your workloads when the config they depend on changes.
+<p align="center">
+  <a href="https://corewire.github.io/kick/docs/">Documentation</a> ·
+  <a href="https://corewire.github.io/kick/docs/quickstart/">Quickstart</a> ·
+  <a href="https://corewire.github.io/kick/docs/installation/">Installation</a> ·
+  <a href="https://corewire.github.io/kick/docs/reference/kickpolicy/">API reference</a>
+</p>
 
-When a Secret or ConfigMap that a workload consumes (via `env`, `envFrom`, or a mounted volume) changes after the workload's last rollout, KICK triggers a rolling restart using the standard `kubectl.kubernetes.io/restartedAt` annotation. It never uses privileged host access. By default it restarts on its own; you can enable optional GitOps gating with Argo CD, Flux, or Kargo.
+---
 
-Supported workloads: `Deployment`, `StatefulSet`, `DaemonSet`, and `argoproj.io/Rollout` (opt-in).
+Kubernetes never restarts a Pod when a `Secret` or `ConfigMap` it uses changes.
+Environment variables are read once at Pod start, and mounted files only take
+effect if the process re-reads them. The Pod keeps serving the old config.
+
+![Updating a Secret or ConfigMap does nothing, so the Pod keeps its old config](docs/static/images/the-problem.drawio.svg)
+
+KICK watches the config a workload actually consumes and restarts it with the
+standard `kubectl.kubernetes.io/restartedAt` annotation when that config changed
+after the last rollout. The restart can be gated on your GitOps tool.
 
 ![How KICK works](docs/static/images/how-kick-works.drawio.svg)
 
-> The diagrams are editable draw.io files under [docs/static/images/](docs/static/images/) — open any `*.drawio.svg` in [diagrams.net](https://app.diagrams.net) to change it. See [the concepts docs](https://corewire.github.io/kick/docs/concepts/) for the full picture.
+## Features
 
-## Try it
+| Feature | What it does | Docs |
+|---|---|---|
+| Automatic dependency discovery | Finds the Secrets and ConfigMaps a workload uses via `env`, `envFrom`, and mounted or projected volumes. No annotations, no injected hashes. | [Dependency discovery](https://corewire.github.io/kick/docs/concepts/dependency-discovery/) |
+| Content-based change detection | Only real content changes count. `imagePullSecrets` never trigger a restart. | [Dependency discovery](https://corewire.github.io/kick/docs/concepts/dependency-discovery/) |
+| Freshness comparison | Compares the latest relevant change against the workload's current rollout, so an already-restarted workload is left alone. | [Freshness](https://corewire.github.io/kick/docs/concepts/freshness/) |
+| Workload support | `Deployment`, `StatefulSet`, `DaemonSet`, and `argoproj.io/Rollout` (opt-in, restarted via `spec.restartAt`). | [Argo Rollouts](https://corewire.github.io/kick/docs/guides/argo-rollouts/) |
+| Works without GitOps | Default mode. No Argo CD, Flux, or Kargo required. | [Without GitOps](https://corewire.github.io/kick/docs/guides/without-gitops/) |
+| GitOps gating | Restarts only when ownership is unambiguous and the sync window is open. Providers: Argo CD, Flux, Kargo, or `Auto` detection. | [GitOps gates](https://corewire.github.io/kick/docs/concepts/gitops-gates/) |
+| Native restart windows | Time windows and a `minInterval` per workload on the policy itself, independent of any GitOps tool. | [KickPolicy reference](https://corewire.github.io/kick/docs/reference/kickpolicy/) |
+| Dependency selector | Narrows which Secrets and ConfigMaps may trigger a restart. | [KickPolicy reference](https://corewire.github.io/kick/docs/reference/kickpolicy/) |
+| Dry run | Evaluates policies and reports what would happen, without restarting anything. | [KickPolicy reference](https://corewire.github.io/kick/docs/reference/kickpolicy/) |
+| Secrets Store CSI | Detects rotation of CSI-mounted secrets. | [External secrets](https://corewire.github.io/kick/docs/guides/external-secrets/) |
+| Durable state | Every decision lives in a `KickRequest`, so a controller restart loses nothing. | [KickRequest reference](https://corewire.github.io/kick/docs/reference/kickrequest/) |
+| Notifications | Webhook delivery for restart events via `NotificationPolicy`. | [NotificationPolicy reference](https://corewire.github.io/kick/docs/reference/notificationpolicy/) |
+| Observability | Events, metrics, and OpenTelemetry traces. Secret data and content digests are never logged. | [Metrics](https://corewire.github.io/kick/docs/reference/metrics/) · [Events](https://corewire.github.io/kick/docs/reference/events/) |
+| Timeline UI | Read-only cross-namespace view of what KICK did and when. Experimental, unauthenticated, localhost only. | [Timeline UI](https://corewire.github.io/kick/docs/development/timeline-ui/) |
 
-**1. A Deployment that reads a Secret**
+## Install
 
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: web-secret
-  namespace: shop
-type: Opaque
-stringData:
-  API_TOKEN: alpha
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: web
-  namespace: shop
-  labels: { app: web }
-spec:
-  replicas: 1
-  selector:
-    matchLabels: { app: web }
-  template:
-    metadata:
-      labels: { app: web }
-    spec:
-      containers:
-      - name: app
-        image: nginx
-        envFrom:
-        - secretRef:
-            name: web-secret      # the dependency KICK will watch
+```bash
+helm install kick oci://ghcr.io/corewire/charts/kick \
+  --namespace kick-system --create-namespace
 ```
 
-**2. A KickPolicy that watches it**
+Chart values and CRD upgrade handling: [Installation](https://corewire.github.io/kick/docs/installation/).
+
+## Use
+
+A `KickPolicy` selects workloads. Everything else is discovered:
 
 ```yaml
 apiVersion: kick.corewire.io/v1alpha1
@@ -62,127 +72,48 @@ spec:
   discovery:
     workloadSelector:
       matchLabels:
-        app: web                  # watch the Deployment labelled app=web
+        app: web      # {} watches every workload in scope
 ```
 
-No GitOps tool, no annotations — that's the whole setup. KICK auto-discovers the
-Secrets and ConfigMaps each matched workload uses.
-
-**3. Change the Secret**
+Change a Secret that a matched workload consumes, and KICK opens a `KickRequest`
+and rolls the workload:
 
 ```bash
 kubectl -n shop patch secret web-secret --type merge \
   -p '{"stringData":{"API_TOKEN":"bravo"}}'
+kubectl -n shop get kickrequests
+kubectl -n shop rollout status deploy/web
 ```
 
-**4. Watch KICK restart the Deployment**
+Full walkthrough: [Quickstart](https://corewire.github.io/kick/docs/quickstart/).
 
-```bash
-kubectl -n shop get kickrequests            # a KickRequest appears for web
-kubectl -n shop rollout status deploy/web   # a fresh rollout starts
-```
-
-A dependency changed, so KICK rolled the Deployment. That's it.
-
-## Go further
-
-**Watch everything automatically.** Drop the selector and KICK watches every
-`Deployment`, `StatefulSet`, and `DaemonSet` in scope, auto-discovering each
-one's Secrets and ConfigMaps:
+To gate restarts on GitOps ownership and sync windows instead of running them
+immediately:
 
 ```yaml
 spec:
-  discovery:
-    workloadSelector: {}          # explicit empty selector = watch every workload
-```
-
-**Restart only on specific config changes.** Add a `dependencySelector` and a
-workload restarts only when a Secret/ConfigMap it consumes *and* matches the
-selector changes — other config changes are ignored:
-
-```yaml
-spec:
-  discovery:
-    dependencySelector:
-      matchLabels:
-        kick-scope: watched       # only these Secrets/ConfigMaps trigger restarts
-```
-
-**Respect your Argo CD sync windows.** Already on Argo CD? Point KICK at it and
-restarts only happen when the Application is in sync and a sync window is open:
-
-```yaml
-spec:
-  discovery:
-    workloadSelector:
-      matchLabels:
-        app: web
   gitOps:
-    provider: Auto                # detect Argo CD (or Flux) ownership + windows
+    provider: Auto
 ```
 
-**Want a maintenance window without GitOps?** Add KICK-native windows — see
-[KickPolicy reference](https://corewire.github.io/kick/docs/reference/kickpolicy/).
-
-## Learn more
-
-- [GitHub Pages docs home](https://corewire.github.io/kick/docs/)
-- [How KICK works](https://corewire.github.io/kick/docs/concepts/)
-- [KickPolicy reference](https://corewire.github.io/kick/docs/reference/kickpolicy/)
-- [Dependency discovery](https://corewire.github.io/kick/docs/concepts/dependency-discovery/) · [Freshness](https://corewire.github.io/kick/docs/concepts/freshness/) · [GitOps gates](https://corewire.github.io/kick/docs/concepts/gitops-gates/)
-
-> **Status:** bootstrap baseline — stable, provider-neutral foundations (API, dependency extraction, controller/Argo CD boundaries, traceability). Some Kubernetes-timestamp and Argo CD ownership/window details remain explicit research tasks; do not replace them with assumptions.
-
-
-## Specs and references
-
-- authoritative specifications: `ai-docs/kick-operator-specs/kick-specs/`
-
-## First checks
+## Development
 
 ```bash
-make fmt
-make test
-make feature-coverage
+make kind-create   # kind cluster kick-dev
+make tilt-up       # controller and docs with live reload
+make verify        # fmt, vet, lint, unit + envtest, feature coverage
+make test-e2e      # Chainsaw suite
 ```
 
-## Local dev with Tilt (kind-kick-dev only)
+The cluster context is `kind-kick-dev` and the kubeconfig is
+`.kubeconfig-kind-kick-dev`; commands pass both explicitly. See
+[Development](https://corewire.github.io/kick/docs/development/).
 
-```bash
-make kind-create
-make tilt-up
-```
+## Security
 
-Rules enforced by this repository:
+The controller reads Secrets and ConfigMaps in the namespaces it manages. Treat
+its ServiceAccount as sensitive and scope RBAC accordingly:
+[Security](https://corewire.github.io/kick/docs/operations/security/),
+[RBAC](https://corewire.github.io/kick/docs/operations/rbac/).
 
-- cluster context is `kind-kick-dev`;
-- kubeconfig path is `.kubeconfig-kind-kick-dev` in repo root;
-- commands always pass explicit `--kubeconfig` and `--context`.
-
-Additional helpers:
-
-```bash
-make kind-load
-make install
-make test-e2e
-make uninstall
-make tilt-down
-```
-
-Timeline and tracing:
-
-```text
---timeline-bind-address=:8090
---otel-otlp-endpoint=<collector-host:4317>
---otel-otlp-insecure=true
-```
-
-Timeline UI path: `/timeline/ui` — opens a compact cross-namespace overview (state-over-time swimlanes, color-coded event log, and a drag-to-zoom time ruler with a from/to picker).
-
-> **⚠ Experimental:** the timeline UI/API is unauthenticated and read-only. Use it only via localhost or `kubectl port-forward`; never expose it through an Ingress or untrusted network.
-
-## Security note
-
-The controller ServiceAccount requires read access to Secrets and ConfigMaps in managed namespaces to evaluate dependency freshness. Treat this ServiceAccount as sensitive and scope RBAC and namespace access accordingly.
-
-Dependencies are pinned and should be reviewed before each production release.
+Diagrams are editable draw.io SVGs in [docs/static/images/](docs/static/images/).
