@@ -14,8 +14,8 @@ llmsDescription: |
 
 <div class="hx-mt-6 hx-mb-6">
   <picture>
-    <source srcset="images/kick-long-dark.png" media="(prefers-color-scheme: dark)">
-    <img src="images/kick-long-light.png" alt="KICK logo" style="max-width: 640px; width: 100%; margin: 0 auto; display: block">
+    <source srcset="images/kick-long-light.png" media="(prefers-color-scheme: dark)">
+    <img src="images/kick-long-dark.png" alt="KICK logo" style="max-width: 640px; width: 100%; margin: 0 auto; display: block">
   </picture>
 </div>
 

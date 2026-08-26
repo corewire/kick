@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/static/images/kick-long-dark.png">
-    <img src="docs/static/images/kick-long-light.png" alt="KICK" width="560">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/static/images/kick-long-light.png">
+    <img src="docs/static/images/kick-long-dark.png" alt="KICK" width="560">
   </picture>
 </p>
 
