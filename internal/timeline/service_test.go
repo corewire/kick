@@ -3,8 +3,10 @@ package timeline
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,6 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
@@ -416,5 +419,62 @@ func TestHandleOverviewAggregatesAcrossNamespaces(t *testing.T) {
 		if overview.Events[i-1].At.Before(overview.Events[i].At) {
 			t.Fatalf("events are not sorted descending at index %d", i)
 		}
+	}
+}
+
+// errorClient is a fake client that fails every List with a fixed error.
+type errorClient struct {
+	client.Client
+	err error
+}
+
+func (c *errorClient) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
+	return c.err
+}
+
+// TestTimelineHandlersDoNotLeakInternalErrors verifies that the read-only
+// timeline API returns generic error messages instead of raw API-server errors.
+func TestTimelineHandlersDoNotLeakInternalErrors(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatalf("add kube scheme: %v", err)
+	}
+	if err := kickv1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatalf("add kick scheme: %v", err)
+	}
+
+	inner := fake.NewClientBuilder().WithScheme(scheme).Build()
+	svc := &Service{Client: &errorClient{Client: inner, err: errors.New("etcd is unavailable: internal cluster detail")}, ObservationStore: observation.NewMemoryStore()}
+	mux := http.NewServeMux()
+	RegisterHandlers(mux, svc)
+
+	cases := []struct {
+		path string
+	}{
+		{"/timeline/namespaces"},
+		{"/timeline/resources?namespace=team-a"},
+		{"/timeline/discovery?namespace=team-a"},
+		{"/timeline/dag?namespace=team-a"},
+		{"/timeline/overview"},
+		{"/timeline?namespace=team-a&name=web"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.path, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "http://localhost"+tc.path, nil)
+			rr := httptest.NewRecorder()
+			mux.ServeHTTP(rr, req)
+
+			if rr.Code != http.StatusInternalServerError {
+				t.Fatalf("expected 500, got %d", rr.Code)
+			}
+			body := strings.TrimSpace(rr.Body.String())
+			if strings.Contains(body, "etcd") || strings.Contains(body, "internal cluster detail") {
+				t.Fatalf("response leaks internal error: %q", body)
+			}
+			if !strings.Contains(body, "internal server error") {
+				t.Fatalf("response missing generic message: %q", body)
+			}
+		})
 	}
 }

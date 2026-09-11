@@ -69,10 +69,10 @@ func parseFlags() options {
 	var argocdApplicationNamespaces string
 	flag.StringVar(&opts.metricsAddr, "metrics-bind-address", ":8080", "Metrics endpoint address.")
 	flag.StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "Health probe address.")
-	flag.StringVar(&opts.timelineAddr, "timeline-bind-address", ":8090", "Timeline API/UI bind address. Empty disables the timeline server.")
+	flag.StringVar(&opts.timelineAddr, "timeline-bind-address", "", "Timeline API/UI bind address. Empty disables the timeline server.")
 	flag.BoolVar(&opts.leaderElection, "leader-elect", false, "Enable leader election.")
 	flag.StringVar(&opts.otlpEndpoint, "otel-otlp-endpoint", "", "OTLP endpoint (host:port) for exporting traces to Tempo/Jaeger or another collector.")
-	flag.BoolVar(&opts.otlpInsecure, "otel-otlp-insecure", true, "Use insecure OTLP transport (no TLS).")
+	flag.BoolVar(&opts.otlpInsecure, "otel-otlp-insecure", false, "Use insecure OTLP transport (no TLS).")
 	flag.DurationVar(&opts.requestRetention, "request-retention", 24*time.Hour, "Retention duration for terminal KickRequests before deletion.")
 	flag.DurationVar(&opts.rolloutTimeout, "rollout-timeout", 15*time.Minute, "How long a restart may take before the KickRequest fails with RolloutTimeout.")
 	flag.BoolVar(&opts.enableCSIIntegration, "enable-csi-integration", false, "Watch SecretProviderClassPodStatus to restart workloads when Secrets Store CSI secrets rotate. Ignored when the CRD is absent.")

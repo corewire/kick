@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 type Entry struct {
@@ -122,6 +123,11 @@ type Service struct {
 	ObservationStore observation.Store
 }
 
+const (
+	msgInternalServerError = "internal server error"
+	msgBadRequest          = "bad request"
+)
+
 func RegisterHandlers(mux *http.ServeMux, svc *Service) {
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
@@ -139,11 +145,23 @@ func RegisterHandlers(mux *http.ServeMux, svc *Service) {
 	mux.HandleFunc("/timeline/ui", serveUI)
 }
 
+// writeError logs the full error and returns a generic message to the client.
+// Timeline endpoints are exposed without authentication, so internal details
+// must not leak through HTTP responses.
+func (s *Service) writeError(ctx context.Context, w http.ResponseWriter, err error, code int) {
+	log.FromContext(ctx).Error(err, "timeline request failed")
+	msg := msgInternalServerError
+	if code == http.StatusBadRequest {
+		msg = msgBadRequest
+	}
+	http.Error(w, msg, code)
+}
+
 func (s *Service) handleNamespaces(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var namespaces corev1.NamespaceList
 	if err := s.Client.List(ctx, &namespaces); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		s.writeError(ctx, w, err, http.StatusInternalServerError)
 		return
 	}
 
@@ -168,7 +186,7 @@ func (s *Service) handleResources(w http.ResponseWriter, r *http.Request) {
 
 	var policyList kickv1alpha1.KickPolicyList
 	if err := s.Client.List(ctx, &policyList, listOptions...); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		s.writeError(ctx, w, err, http.StatusInternalServerError)
 		return
 	}
 	policies := make([]KickPolicySummary, 0, len(policyList.Items))
@@ -184,7 +202,7 @@ func (s *Service) handleResources(w http.ResponseWriter, r *http.Request) {
 
 	var requestList kickv1alpha1.KickRequestList
 	if err := s.Client.List(ctx, &requestList, listOptions...); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		s.writeError(ctx, w, err, http.StatusInternalServerError)
 		return
 	}
 	requests := make([]KickRequestSummary, 0, len(requestList.Items))
@@ -230,7 +248,7 @@ func (s *Service) handleTimeline(w http.ResponseWriter, r *http.Request) {
 
 	items, err := s.buildTimeline(ctx, namespace, kind, name)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		s.writeError(ctx, w, err, http.StatusInternalServerError)
 		return
 	}
 
@@ -239,15 +257,16 @@ func (s *Service) handleTimeline(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) handleDiscovery(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	namespace := r.URL.Query().Get("namespace")
 	if namespace == "" {
 		http.Error(w, "namespace is required", http.StatusBadRequest)
 		return
 	}
 
-	items, policies, err := s.discoverManagedWorkloads(r.Context(), namespace)
+	items, policies, err := s.discoverManagedWorkloads(ctx, namespace)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		s.writeError(ctx, w, err, http.StatusInternalServerError)
 		return
 	}
 
@@ -274,15 +293,16 @@ func (s *Service) handleDiscovery(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) handleDAG(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	namespace := r.URL.Query().Get("namespace")
 	if namespace == "" {
 		http.Error(w, "namespace is required", http.StatusBadRequest)
 		return
 	}
 
-	dag, err := s.buildDAG(r.Context(), namespace)
+	dag, err := s.buildDAG(ctx, namespace)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		s.writeError(ctx, w, err, http.StatusInternalServerError)
 		return
 	}
 
@@ -298,7 +318,7 @@ func (s *Service) handleOverview(w http.ResponseWriter, r *http.Request) {
 
 	var namespaces corev1.NamespaceList
 	if err := s.Client.List(ctx, &namespaces); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		s.writeError(ctx, w, err, http.StatusInternalServerError)
 		return
 	}
 
