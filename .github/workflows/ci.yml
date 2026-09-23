@@ -19,22 +19,22 @@ jobs:
       LOCALBIN: ${{ github.workspace }}/bin
     steps:
       - name: Checkout
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v7.0.1
 
       - name: Setup Go
-        uses: actions/setup-go@v5.5.0
+        uses: actions/setup-go@v7.0.0
         with:
           go-version-file: go.mod
           cache: true
 
       - name: Cache local tool binaries
-        uses: actions/cache@v4.2.4
+        uses: actions/cache@v6.1.0
         with:
           path: |
-            bin/controller-gen-v0.17.2
-            bin/kustomize-v5.6.0
-            bin/setup-envtest-release-0.24
-            bin/golangci-lint-v2.12.2
+            bin/controller-gen-v0.22.0
+            bin/kustomize-v5.8.1
+            bin/setup-envtest-release-0.25
+            bin/golangci-lint-v2.13.2
             bin/chainsaw-v0.2.15
             bin/controller-gen
             bin/kustomize
@@ -44,13 +44,13 @@ jobs:
           key: tools-${{ runner.os }}-v1-${{ hashFiles('Makefile') }}
 
       - name: Cache envtest Kubernetes assets
-        uses: actions/cache@v4.2.4
+        uses: actions/cache@v6.1.0
         with:
           path: bin/k8s
-          key: envtest-assets-${{ runner.os }}-1.36
+          key: envtest-assets-${{ runner.os }}-1.37
 
       - name: Setup Python
-        uses: actions/setup-python@v5.6.0
+        uses: actions/setup-python@v7.0.0
         with:
           python-version: "3.x"
 
@@ -98,7 +98,7 @@ jobs:
 
       - name: Vulnerability check
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+          go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
           govulncheck ./...
 
       - name: Feature coverage
@@ -110,7 +110,7 @@ jobs:
 
       - name: Upload feature coverage report
         if: always()
-        uses: actions/upload-artifact@v4.4.3
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: feature-coverage-report
           path: traceability/feature-coverage-report.md
@@ -122,16 +122,16 @@ jobs:
       LOCALBIN: ${{ github.workspace }}/bin
     steps:
       - name: Checkout
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v7.0.1
 
       - name: Setup Go
-        uses: actions/setup-go@v5.5.0
+        uses: actions/setup-go@v7.0.0
         with:
           go-version-file: go.mod
           cache: true
 
       - name: Cache chainsaw binary
-        uses: actions/cache@v4.2.4
+        uses: actions/cache@v6.1.0
         with:
           path: |
             bin/chainsaw-v0.2.15
@@ -140,7 +140,7 @@ jobs:
 
       - name: Install kind
         run: |
-          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.24.0/kind-linux-amd64
+          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.33.0/kind-linux-amd64
           chmod +x ./kind
           sudo mv ./kind /usr/local/bin/kind
 

@@ -17,13 +17,16 @@ KAMERA ?= $(LOCALBIN)/kamera
 KIND ?= kind
 TILT ?= tilt
 
-KUSTOMIZE_VERSION ?= v5.6.0
-CONTROLLER_TOOLS_VERSION ?= v0.17.2
-ENVTEST_VERSION ?= release-0.24
-ENVTEST_K8S_VERSION ?= 1.36
-GOLANGCI_LINT_VERSION ?= v2.12.2
+KUSTOMIZE_VERSION ?= v5.8.1
+CONTROLLER_TOOLS_VERSION ?= v0.22.0
+ENVTEST_VERSION ?= release-0.25
+ENVTEST_K8S_VERSION ?= 1.37
+GOLANGCI_LINT_VERSION ?= v2.13.2
 CHAINSAW_VERSION ?= v0.2.15
 KAMERA_VERSION ?= main
+# Tools are built with the Go version the project targets; golangci-lint refuses
+# to lint a Go version newer than the one it was built with.
+GO_TOOLCHAIN := go$(shell awk '/^go /{print $$2}' go.mod)
 KIND_CLUSTER_NAME ?= kick-dev
 KIND_CONTEXT ?= kind-$(KIND_CLUSTER_NAME)
 KIND_KUBECONFIG ?= $(shell pwd)/.kubeconfig-kind-kick-dev
@@ -238,6 +241,7 @@ generate-deepcopy: controller-gen
 .PHONY: manifests
 manifests: controller-gen
 	$(CONTROLLER_GEN) rbac:roleName=manager-role crd paths="./..." output:crd:artifacts:config=config/crd/bases
+	cp config/crd/bases/*.yaml charts/kick/crds/
 
 .PHONY: codegen
 codegen: generate
@@ -292,7 +296,7 @@ kamera: $(KAMERA)
 
 $(KAMERA): $(LOCALBIN)
 	@echo "Downloading github.com/tgoodwin/kamera/cmd/kamera@$(KAMERA_VERSION)"
-	GOBIN=$(LOCALBIN) GOTOOLCHAIN=local go install github.com/tgoodwin/kamera/cmd/kamera@$(KAMERA_VERSION)
+	GOBIN=$(LOCALBIN) GOTOOLCHAIN=$(GO_TOOLCHAIN) go install github.com/tgoodwin/kamera/cmd/kamera@$(KAMERA_VERSION)
 
 .PHONY: verify
 verify: fmt vet lint static-check shellcheck test helm-lint helm-template docs-gen-check feature-coverage
@@ -311,7 +315,7 @@ ci-verify-local: tools
 	$(MAKE) helm-template
 	$(MAKE) docs-gen-check
 	$(MAKE) feature-coverage-test
-	GOBIN=$(LOCALBIN) GOTOOLCHAIN=local go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+	GOBIN=$(LOCALBIN) GOTOOLCHAIN=$(GO_TOOLCHAIN) go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
 	$(LOCALBIN)/govulncheck ./...
 	$(MAKE) feature-coverage
 
@@ -361,7 +365,7 @@ set -e; \
 package=$(2)@$(3); \
 echo "Downloading $$package"; \
 rm -f $(1) || true; \
-GOBIN=$(LOCALBIN) GOTOOLCHAIN=local go install $$package; \
+GOBIN=$(LOCALBIN) GOTOOLCHAIN=$(GO_TOOLCHAIN) go install $$package; \
 mv $(1) $(1)-$(3); \
 }; \
 ln -sf $(1)-$(3) $(1)
