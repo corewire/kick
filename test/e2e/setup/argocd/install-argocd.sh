@@ -11,7 +11,8 @@ ARGOCD_NS="${ARGOCD_NS:-argocd}"
 kc() { kubectl --kubeconfig "$KUBECONFIG_PATH" --context "$CONTEXT" "$@"; }
 
 kc create namespace "$ARGOCD_NS" --dry-run=client -o yaml | kc apply -f -
-kc apply -n "$ARGOCD_NS" \
+# Server-side: the applicationsets CRD exceeds the client-side-apply annotation limit.
+kc apply -n "$ARGOCD_NS" --server-side --force-conflicts \
   -f "https://raw.githubusercontent.com/argoproj/argo-cd/${ARGOCD_VERSION}/manifests/install.yaml"
 
 kc -n "$ARGOCD_NS" rollout status deploy/argocd-repo-server --timeout=300s

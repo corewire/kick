@@ -16,19 +16,36 @@ kc() { kubectl --kubeconfig "$KUBECONFIG_PATH" --context "$CONTEXT" "$@"; }
 
 kc apply -f "${script_dir}/appproject.yaml"
 
+# Argo CD 3.x defaults to annotation tracking, which rewrites the tracking-id on
+# every synced resource. The ownership scenarios (024, 025, 029) author that
+# annotation in Git to exercise KICK's parser and rely on it surviving a sync,
+# which only label tracking (the 2.x default) guarantees.
+tracking="$(kc -n "$ARGOCD_NS" get configmap argocd-cm \
+  -o jsonpath='{.data.application\.resourceTrackingMethod}' 2>/dev/null || true)"
+restart=false
+if [[ "$tracking" != "label" ]]; then
+  kc -n "$ARGOCD_NS" patch configmap argocd-cm --type merge \
+    -p '{"data":{"application.resourceTrackingMethod":"label"}}'
+  restart=true
+fi
+
 current="$(kc -n "$ARGOCD_NS" get configmap argocd-cmd-params-cm \
   -o jsonpath='{.data.application\.namespaces}' 2>/dev/null || true)"
 
-if [[ "$current" == "$APP_NAMESPACES" ]]; then
-  echo "Argo CD already allows Applications in ${APP_NAMESPACES}"
+if [[ "$current" != "$APP_NAMESPACES" ]]; then
+  kc -n "$ARGOCD_NS" patch configmap argocd-cmd-params-cm --type merge \
+    -p "{\"data\":{\"application.namespaces\":\"${APP_NAMESPACES}\"}}"
+  restart=true
+fi
+
+if [[ "$restart" == false ]]; then
+  echo "Argo CD already configured for KICK e2e (label tracking, Applications in ${APP_NAMESPACES})"
   exit 0
 fi
 
-kc -n "$ARGOCD_NS" patch configmap argocd-cmd-params-cm --type merge \
-  -p "{\"data\":{\"application.namespaces\":\"${APP_NAMESPACES}\"}}"
 kc -n "$ARGOCD_NS" rollout restart statefulset/argocd-application-controller
 kc -n "$ARGOCD_NS" rollout restart deployment/argocd-server
 kc -n "$ARGOCD_NS" rollout status statefulset/argocd-application-controller --timeout=300s
 kc -n "$ARGOCD_NS" rollout status deployment/argocd-server --timeout=300s
 
-echo "Argo CD now allows Applications in ${APP_NAMESPACES}"
+echo "Argo CD configured for KICK e2e (label tracking, Applications in ${APP_NAMESPACES})"

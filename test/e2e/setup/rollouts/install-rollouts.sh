@@ -11,7 +11,8 @@ ROLLOUTS_NS="${ROLLOUTS_NS:-argo-rollouts}"
 kc() { kubectl --kubeconfig "$KUBECONFIG_PATH" --context "$CONTEXT" "$@"; }
 
 kc create namespace "$ROLLOUTS_NS" --dry-run=client -o yaml | kc apply -f -
-kc apply -n "$ROLLOUTS_NS" \
+# Server-side: the rollouts/analysisruns CRDs exceed the client-side-apply annotation limit.
+kc apply -n "$ROLLOUTS_NS" --server-side --force-conflicts \
   -f "https://github.com/argoproj/argo-rollouts/releases/download/${ROLLOUTS_VERSION}/install.yaml"
 
 kc -n "$ROLLOUTS_NS" rollout status deploy/argo-rollouts --timeout=300s
