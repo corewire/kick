@@ -1,0 +1,223 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "docker:pinDigests",
+    ":semanticCommitsDisabled"
+  ],
+  "labels": ["dependencies"],
+  "dependencyDashboard": true,
+  "postUpdateOptions": ["gomodTidy"],
+  "kubernetes": {
+    "managerFilePatterns": [
+      "/^hack/tracing/.*\\.ya?ml$/",
+      "/^test/e2e/setup/.*\\.ya?ml$/"
+    ]
+  },
+  "packageRules": [
+    {
+      "description": "Go toolchain version: the 'go' directive in go.mod and docs/go.mod and the Dockerfile builder image must move together. Renovate does not bump the directive by default, so opt in.",
+      "matchManagers": ["gomod"],
+      "matchDepNames": ["go"],
+      "matchDepTypes": ["golang", "toolchain"],
+      "rangeStrategy": "bump",
+      "groupName": "go version",
+      "groupSlug": "go-version"
+    },
+    {
+      "description": "Go toolchain version: Dockerfile builder image, grouped with the go.mod directives above.",
+      "matchManagers": ["dockerfile"],
+      "matchDepNames": ["golang"],
+      "groupName": "go version",
+      "groupSlug": "go-version"
+    },
+    {
+      "description": "Kubernetes API/controller-runtime modules must stay mutually compatible.",
+      "matchManagers": ["gomod"],
+      "matchPackageNames": [
+        "k8s.io/**",
+        "sigs.k8s.io/controller-runtime"
+      ],
+      "groupName": "kubernetes go modules"
+    },
+    {
+      "description": "OpenTelemetry modules move together.",
+      "matchManagers": ["gomod"],
+      "matchPackageNames": ["go.opentelemetry.io/**"],
+      "groupName": "opentelemetry go modules"
+    },
+    {
+      "description": "Indirect Go modules are disabled by default; enable them so transitive dependencies (including CVE fixes govulncheck flags) get updated, in one grouped PR.",
+      "matchManagers": ["gomod"],
+      "matchDepTypes": ["indirect"],
+      "enabled": true,
+      "groupName": "go indirect modules"
+    },
+    {
+      "description": "controller-gen: Makefile pin and the CI cache path that embeds it.",
+      "matchManagers": ["custom.regex"],
+      "matchDepNames": ["sigs.k8s.io/controller-tools/cmd/controller-gen"],
+      "groupName": "controller-gen version"
+    },
+    {
+      "description": "kustomize: Makefile pin and the CI cache path that embeds it.",
+      "matchManagers": ["custom.regex"],
+      "matchDepNames": ["sigs.k8s.io/kustomize/kustomize/v5"],
+      "groupName": "kustomize version"
+    },
+    {
+      "description": "golangci-lint: Makefile pin and the CI cache path that embeds it.",
+      "matchManagers": ["custom.regex"],
+      "matchDepNames": ["github.com/golangci/golangci-lint/v2/cmd/golangci-lint"],
+      "groupName": "golangci-lint version"
+    },
+    {
+      "description": "chainsaw: Makefile pin and the CI cache paths that embed it.",
+      "matchManagers": ["custom.regex"],
+      "matchDepNames": ["github.com/kyverno/chainsaw"],
+      "groupName": "chainsaw version"
+    },
+    {
+      "description": "govulncheck is pinned identically in the Makefile and CI so local and CI vulnerability scans agree.",
+      "matchManagers": ["custom.regex"],
+      "matchDepNames": ["golang.org/x/vuln/cmd/govulncheck"],
+      "groupName": "govulncheck version"
+    },
+    {
+      "description": "Group GitHub Actions updates together.",
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions"
+    },
+    {
+      "description": "Third-party control planes the e2e suite installs. Each is a separate PR so a failing e2e run points at one component.",
+      "matchManagers": ["custom.regex", "kubernetes"],
+      "matchFileNames": ["test/e2e/setup/**"],
+      "additionalBranchPrefix": "e2e-"
+    },
+    {
+      "description": "KICK's own image is a release artifact, not a dependency; never propose updates for it.",
+      "matchPackageNames": ["ghcr.io/corewire/kick", "controller"],
+      "enabled": false
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "kustomize CLI: Makefile pin and CI cache path.",
+      "managerFilePatterns": ["/^Makefile$/", "/^\\.github/workflows/ci\\.yml$/"],
+      "matchStrings": [
+        "KUSTOMIZE_VERSION \\?= (?<currentValue>v\\d+\\.\\d+\\.\\d+)",
+        "bin/kustomize-(?<currentValue>v\\d+\\.\\d+\\.\\d+)"
+      ],
+      "depNameTemplate": "sigs.k8s.io/kustomize/kustomize/v5",
+      "datasourceTemplate": "go"
+    },
+    {
+      "customType": "regex",
+      "description": "controller-gen: Makefile pin and CI cache path.",
+      "managerFilePatterns": ["/^Makefile$/", "/^\\.github/workflows/ci\\.yml$/"],
+      "matchStrings": [
+        "CONTROLLER_TOOLS_VERSION \\?= (?<currentValue>v\\d+\\.\\d+\\.\\d+)",
+        "bin/controller-gen-(?<currentValue>v\\d+\\.\\d+\\.\\d+)"
+      ],
+      "depNameTemplate": "sigs.k8s.io/controller-tools/cmd/controller-gen",
+      "datasourceTemplate": "go"
+    },
+    {
+      "customType": "regex",
+      "description": "golangci-lint: Makefile pin and CI cache path.",
+      "managerFilePatterns": ["/^Makefile$/", "/^\\.github/workflows/ci\\.yml$/"],
+      "matchStrings": [
+        "GOLANGCI_LINT_VERSION \\?= (?<currentValue>v\\d+\\.\\d+\\.\\d+)",
+        "bin/golangci-lint-(?<currentValue>v\\d+\\.\\d+\\.\\d+)"
+      ],
+      "depNameTemplate": "github.com/golangci/golangci-lint/v2/cmd/golangci-lint",
+      "datasourceTemplate": "go"
+    },
+    {
+      "customType": "regex",
+      "description": "chainsaw: Makefile pin and CI cache paths.",
+      "managerFilePatterns": ["/^Makefile$/", "/^\\.github/workflows/ci\\.yml$/"],
+      "matchStrings": [
+        "CHAINSAW_VERSION \\?= (?<currentValue>v\\d+\\.\\d+\\.\\d+)",
+        "bin/chainsaw-(?<currentValue>v\\d+\\.\\d+\\.\\d+)"
+      ],
+      "depNameTemplate": "github.com/kyverno/chainsaw",
+      "datasourceTemplate": "go"
+    },
+    {
+      "customType": "regex",
+      "description": "govulncheck pinned identically in the Makefile and CI.",
+      "managerFilePatterns": ["/^Makefile$/", "/^\\.github/workflows/ci\\.yml$/"],
+      "matchStrings": ["go install golang\\.org/x/vuln/cmd/govulncheck@(?<currentValue>v\\d+\\.\\d+\\.\\d+)"],
+      "depNameTemplate": "golang.org/x/vuln/cmd/govulncheck",
+      "datasourceTemplate": "go"
+    },
+    {
+      "customType": "regex",
+      "description": "kind binary downloaded in CI for the e2e cluster.",
+      "managerFilePatterns": ["/^\\.github/workflows/ci\\.yml$/"],
+      "matchStrings": ["https://kind\\.sigs\\.k8s\\.io/dl/(?<currentValue>v\\d+\\.\\d+\\.\\d+)/kind-linux-amd64"],
+      "depNameTemplate": "kubernetes-sigs/kind",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "description": "Hugo version used to build the docs site.",
+      "managerFilePatterns": ["/^\\.github/workflows/docs-pages\\.yml$/"],
+      "matchStrings": ["hugo-version: (?<currentValue>\\d+\\.\\d+\\.\\d+)"],
+      "depNameTemplate": "gohugoio/hugo",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "customType": "regex",
+      "description": "Argo CD version used to install the control plane for e2e scenarios.",
+      "managerFilePatterns": ["/^test/e2e/setup/argocd/install-argocd\\.sh$/"],
+      "matchStrings": ["ARGOCD_VERSION=\"\\$\\{ARGOCD_VERSION:-(?<currentValue>v\\d+\\.\\d+\\.\\d+)\\}\""],
+      "depNameTemplate": "argoproj/argo-cd",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "description": "Argo Rollouts version used to install the controller for e2e scenarios.",
+      "managerFilePatterns": ["/^test/e2e/setup/rollouts/install-rollouts\\.sh$/"],
+      "matchStrings": ["ROLLOUTS_VERSION=\"\\$\\{ROLLOUTS_VERSION:-(?<currentValue>v\\d+\\.\\d+\\.\\d+)\\}\""],
+      "depNameTemplate": "argoproj/argo-rollouts",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "description": "Kargo control plane chart version used for e2e scenarios.",
+      "managerFilePatterns": ["/^test/e2e/setup/kargo/install-kargo\\.sh$/"],
+      "matchStrings": ["KARGO_VERSION=\"\\$\\{KARGO_VERSION:-(?<currentValue>[\\d.]+)\\}\""],
+      "depNameTemplate": "ghcr.io/akuity/kargo-charts/kargo",
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "cert-manager version required by the Kargo e2e setup.",
+      "managerFilePatterns": ["/^test/e2e/setup/kargo/install-kargo\\.sh$/"],
+      "matchStrings": ["CERT_MANAGER_VERSION=\"\\$\\{CERT_MANAGER_VERSION:-(?<currentValue>v\\d+\\.\\d+\\.\\d+)\\}\""],
+      "depNameTemplate": "cert-manager/cert-manager",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "description": "Secrets Store CSI driver Helm chart version used for e2e scenarios.",
+      "managerFilePatterns": ["/^test/e2e/setup/csi/install-csi\\.sh$/"],
+      "matchStrings": ["CSI_DRIVER_VERSION=\"\\$\\{CSI_DRIVER_VERSION:-(?<currentValue>[\\d.]+)\\}\""],
+      "depNameTemplate": "secrets-store-csi-driver",
+      "datasourceTemplate": "helm",
+      "registryUrlTemplate": "https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts"
+    },
+    {
+      "customType": "regex",
+      "description": "OpenBao CSI provider version used for e2e scenarios.",
+      "managerFilePatterns": ["/^test/e2e/setup/csi/install-csi\\.sh$/"],
+      "matchStrings": ["CSI_PROVIDER_VERSION=\"\\$\\{CSI_PROVIDER_VERSION:-(?<currentValue>v\\d+\\.\\d+\\.\\d+)\\}\""],
+      "depNameTemplate": "openbao/openbao-csi-provider",
+      "datasourceTemplate": "github-tags"
+    }
+  ]
+}
