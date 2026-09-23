@@ -5,7 +5,7 @@ set -euo pipefail
 
 CONTEXT="${KICK_E2E_CONTEXT:-kind-kick-dev}"
 KUBECONFIG_PATH="${KICK_E2E_KUBECONFIG:-.kubeconfig-kind-kick-dev}"
-ROLLOUTS_VERSION="${ROLLOUTS_VERSION:-v1.7.2}"
+ROLLOUTS_VERSION="${ROLLOUTS_VERSION:-v1.10.0}"
 ROLLOUTS_NS="${ROLLOUTS_NS:-argo-rollouts}"
 
 kc() { kubectl --kubeconfig "$KUBECONFIG_PATH" --context "$CONTEXT" "$@"; }

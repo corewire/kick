@@ -65,7 +65,7 @@ spec:
       serviceAccountName: openbao
       containers:
         - name: openbao
-          image: openbao/openbao:2.6.1
+          image: openbao/openbao:2.6.2
           args:
             - server
             - -dev

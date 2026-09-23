@@ -17,7 +17,7 @@ set -euo pipefail
 CONTEXT="${KICK_E2E_CONTEXT:-kind-kick-dev}"
 KUBECONFIG_PATH="${KICK_E2E_KUBECONFIG:-.kubeconfig-kind-kick-dev}"
 CSI_NS="${CSI_NS:-csi}"
-CSI_DRIVER_VERSION="${CSI_DRIVER_VERSION:-1.4.6}"
+CSI_DRIVER_VERSION="${CSI_DRIVER_VERSION:-1.6.1}"
 CSI_PROVIDER_VERSION="${CSI_PROVIDER_VERSION:-v2.0.3}"
 # Rotation is the signal under test, so the driver has to poll well inside the
 # integration suite's assert budget. The chart default is 2m.

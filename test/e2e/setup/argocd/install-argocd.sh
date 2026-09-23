@@ -5,7 +5,7 @@ set -euo pipefail
 
 CONTEXT="${KICK_E2E_CONTEXT:-kind-kick-dev}"
 KUBECONFIG_PATH="${KICK_E2E_KUBECONFIG:-.kubeconfig-kind-kick-dev}"
-ARGOCD_VERSION="${ARGOCD_VERSION:-v2.13.3}"
+ARGOCD_VERSION="${ARGOCD_VERSION:-v3.5.3}"
 ARGOCD_NS="${ARGOCD_NS:-argocd}"
 
 kc() { kubectl --kubeconfig "$KUBECONFIG_PATH" --context "$CONTEXT" "$@"; }

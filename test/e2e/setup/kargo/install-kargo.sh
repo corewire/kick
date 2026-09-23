@@ -21,8 +21,8 @@ set -euo pipefail
 CONTEXT="${KICK_E2E_CONTEXT:-kind-kick-dev}"
 KUBECONFIG_PATH="${KICK_E2E_KUBECONFIG:-.kubeconfig-kind-kick-dev}"
 KARGO_NS="${KARGO_NS:-kargo}"
-KARGO_VERSION="${KARGO_VERSION:-1.11.1}"
-CERT_MANAGER_VERSION="${CERT_MANAGER_VERSION:-v1.16.2}"
+KARGO_VERSION="${KARGO_VERSION:-1.11.4}"
+CERT_MANAGER_VERSION="${CERT_MANAGER_VERSION:-v1.21.2}"
 ARGOCD_NS="${ARGOCD_NS:-argocd}"
 # Floor Kargo enforces on Warehouse reconciliation. The chart default is 5m.
 KARGO_WAREHOUSE_INTERVAL="${KARGO_WAREHOUSE_INTERVAL:-20s}"
