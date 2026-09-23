@@ -98,8 +98,8 @@ test: setup-envtest
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $(PKGS) -coverprofile cover.out
 
 .PHONY: test-race
-test-race:
-	go test -race $(PKGS)
+test-race: setup-envtest
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test -race $(PKGS)
 
 # Fast local loop: strict lint + focused go tests + one e2e scenario.
 .PHONY: test-quick
