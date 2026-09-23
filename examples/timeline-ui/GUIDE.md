@@ -4,6 +4,8 @@
 
 This example is a small namespace that exists only to demo timeline discovery, DAG rendering, and per-workload timeline events in the UI.
 
+The timeline server is off by default; the Tilt dev overlay (`make tilt-up`) enables it with `--timeline-bind-address=:8090` and port-forwards `8090`.
+
 Files:
 - `00-starting-resources.yaml`: Namespace, KickPolicy, Secret, ConfigMap, and 3 workload kinds.
 - `10-patch-secret.yaml`: A relevant Secret content change.

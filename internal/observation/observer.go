@@ -50,13 +50,28 @@ type Observer struct {
 	store          Store
 	now            func() time.Time
 	baselinePolicy BaselinePolicy
+	fingerprinter  fingerprinter
 }
 
-func NewObserver(store Store, baselinePolicy BaselinePolicy) *Observer {
+// Option configures an Observer.
+type Option func(*Observer)
+
+// WithFingerprintKey sets the installation-private key Secret and ConfigMap
+// fingerprints are HMACed with. Without it the HMAC uses an empty key, which is
+// deterministic but offers no protection; production wiring must supply one.
+func WithFingerprintKey(key []byte) Option {
+	return func(o *Observer) { o.fingerprinter = newFingerprinter(key) }
+}
+
+func NewObserver(store Store, baselinePolicy BaselinePolicy, opts ...Option) *Observer {
 	if baselinePolicy == nil {
 		baselinePolicy = ConservativeBaselinePolicy{}
 	}
-	return &Observer{store: store, now: time.Now, baselinePolicy: baselinePolicy}
+	o := &Observer{store: store, now: time.Now, baselinePolicy: baselinePolicy, fingerprinter: newFingerprinter(nil)}
+	for _, opt := range opts {
+		opt(o)
+	}
+	return o
 }
 
 func (o *Observer) ObserveSecret(ctx context.Context, _ *corev1.Secret, newObj *corev1.Secret, observedAt time.Time) (ObservationResult, error) {
@@ -64,7 +79,7 @@ func (o *Observer) ObserveSecret(ctx context.Context, _ *corev1.Secret, newObj *
 		return ObservationResult{Kind: NoChange}, nil
 	}
 	identity := SourceIdentity{APIVersion: "v1", Kind: SourceKindSecret, Namespace: newObj.Namespace, Name: newObj.Name}
-	return o.observe(ctx, identity, newObj.ResourceVersion, secretFingerprint(newObj), observedAt, lastWriteTime(newObj))
+	return o.observe(ctx, identity, newObj.ResourceVersion, o.fingerprinter.secret(newObj), observedAt, lastWriteTime(newObj))
 }
 
 func (o *Observer) ObserveConfigMap(ctx context.Context, _ *corev1.ConfigMap, newObj *corev1.ConfigMap, observedAt time.Time) (ObservationResult, error) {
@@ -72,7 +87,7 @@ func (o *Observer) ObserveConfigMap(ctx context.Context, _ *corev1.ConfigMap, ne
 		return ObservationResult{Kind: NoChange}, nil
 	}
 	identity := SourceIdentity{APIVersion: "v1", Kind: SourceKindConfigMap, Namespace: newObj.Namespace, Name: newObj.Name}
-	return o.observe(ctx, identity, newObj.ResourceVersion, configMapFingerprint(newObj), observedAt, lastWriteTime(newObj))
+	return o.observe(ctx, identity, newObj.ResourceVersion, o.fingerprinter.configMap(newObj), observedAt, lastWriteTime(newObj))
 }
 
 // lastWriteTime dates the content that a first observation finds. KICK has to
@@ -136,6 +151,16 @@ func (o *Observer) observe(ctx context.Context, identity SourceIdentity, rv, fin
 			return ObservationResult{Kind: NoChange, Identity: identity, ObservedAt: observedAt}, nil
 		}
 		record.LastSeenResourceVersion = rv
+		return ObservationResult{Kind: MetadataOnlyChange, Identity: identity, ObservedAt: observedAt, pending: &record}, nil
+	}
+
+	// The stored fingerprint was made under another key (or the legacy unkeyed
+	// scheme), so the two cannot be compared. If the object has not been written
+	// since it was last observed, its content is known to be unchanged and the
+	// record is re-anchored under the current key without reporting a change.
+	// Otherwise the write cannot be classified and is treated as relevant.
+	if !sameKey(record.RelevantFingerprint, fingerprint) && record.LastSeenResourceVersion == rv {
+		record.RelevantFingerprint = fingerprint
 		return ObservationResult{Kind: MetadataOnlyChange, Identity: identity, ObservedAt: observedAt, pending: &record}, nil
 	}
 

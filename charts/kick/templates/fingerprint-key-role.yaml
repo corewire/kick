@@ -1,0 +1,27 @@
+{{- if .Values.rbac.create }}
+# Namespaced: the manager creates only its own fingerprint key Secret, and only
+# in its own namespace. Cluster-wide Secret access stays read-only.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kick-fingerprint-key-writer
+  namespace: {{ .Values.namespace.name }}
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kick-fingerprint-key-writer
+  namespace: {{ .Values.namespace.name }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kick-fingerprint-key-writer
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.serviceAccount.name }}
+    namespace: {{ .Values.namespace.name }}
+{{- end }}

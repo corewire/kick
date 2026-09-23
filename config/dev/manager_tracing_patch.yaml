@@ -1,7 +1,11 @@
-# Append OTLP tracing flags to the manager so it exports spans to Jaeger.
+# Append OTLP tracing flags to the manager so it exports spans to Jaeger, and
+# enable the timeline UI the Tiltfile port-forwards on 8090 (off by default).
 - op: add
   path: /spec/template/spec/containers/0/args/-
   value: --otel-otlp-endpoint=jaeger.kick-tracing.svc.cluster.local:4317
 - op: add
   path: /spec/template/spec/containers/0/args/-
   value: --otel-otlp-insecure=true
+- op: add
+  path: /spec/template/spec/containers/0/args/-
+  value: --timeline-bind-address=:8090

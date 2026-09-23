@@ -27,11 +27,14 @@ import (
 	"github.com/corewire/kick/internal/telemetry"
 	"github.com/corewire/kick/internal/timeline"
 	coordinationv1 "k8s.io/api/coordination/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -57,12 +60,16 @@ type options struct {
 	otlpEndpoint         string
 	otlpInsecure         bool
 	leaderElection       bool
+	managerNamespace     string
 	requestRetention     time.Duration
 	rolloutTimeout       time.Duration
 	enableCSIIntegration bool
 	enableArgoRollouts   bool
 	providers            providerConfig
 }
+
+// inClusterNamespaceFile is where the kubelet mounts the pod's own namespace.
+const inClusterNamespaceFile = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 
 func parseFlags() options {
 	var opts options
@@ -71,6 +78,7 @@ func parseFlags() options {
 	flag.StringVar(&opts.probeAddr, "health-probe-bind-address", ":8081", "Health probe address.")
 	flag.StringVar(&opts.timelineAddr, "timeline-bind-address", "", "Timeline API/UI bind address. Empty disables the timeline server.")
 	flag.BoolVar(&opts.leaderElection, "leader-elect", false, "Enable leader election.")
+	flag.StringVar(&opts.managerNamespace, "namespace", "", "Namespace KICK runs in; holds the fingerprint key Secret. Defaults to the pod's own namespace.")
 	flag.StringVar(&opts.otlpEndpoint, "otel-otlp-endpoint", "", "OTLP endpoint (host:port) for exporting traces to Tempo/Jaeger or another collector.")
 	flag.BoolVar(&opts.otlpInsecure, "otel-otlp-insecure", false, "Use insecure OTLP transport (no TLS).")
 	flag.DurationVar(&opts.requestRetention, "request-retention", 24*time.Hour, "Retention duration for terminal KickRequests before deletion.")
@@ -87,6 +95,14 @@ func parseFlags() options {
 	flag.Parse()
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&zapOptions)))
 	opts.providers.ArgoCDApplicationNamespaces = splitNamespaces(argocdApplicationNamespaces)
+	if opts.managerNamespace == "" {
+		raw, err := os.ReadFile(inClusterNamespaceFile)
+		if err != nil {
+			setupLog.Error(err, "cannot determine manager namespace; pass --namespace")
+			os.Exit(1)
+		}
+		opts.managerNamespace = strings.TrimSpace(string(raw))
+	}
 	return opts
 }
 
@@ -97,12 +113,37 @@ func main() {
 		os.Exit(1)
 	}
 
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	restConfig := ctrl.GetConfigOrDie()
+	// The key must exist before any observer runs, and the manager's cached
+	// client is not usable before Start, so it is fetched with a direct client.
+	directClient, err := client.New(restConfig, client.Options{Scheme: scheme})
+	if err != nil {
+		setupLog.Error(err, "create direct client")
+		os.Exit(1)
+	}
+	fingerprintKey, err := observation.LoadOrCreateFingerprintKey(context.Background(), directClient, opts.managerNamespace)
+	if err != nil {
+		setupLog.Error(err, "load fingerprint key")
+		os.Exit(1)
+	}
+
+	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                metricsserver.Options{BindAddress: opts.metricsAddr},
 		HealthProbeBindAddress: opts.probeAddr,
 		LeaderElection:         opts.leaderElection,
 		LeaderElectionID:       "kick.corewire.io",
+		Cache: cache.Options{
+			ByObject: map[client.Object]cache.ByObject{
+				// Helm release storage Secrets are never consumed by a pod template,
+				// are numerous (one per revision) and large (the whole rendered
+				// release). Filtering them at the API server keeps their content out
+				// of the informer cache and avoids one observation record each.
+				&corev1.Secret{}: {
+					Field: fields.OneTermNotEqualSelector("type", "helm.sh/release.v1"),
+				},
+			},
+		},
 		Client: client.Options{
 			Cache: &client.CacheOptions{
 				// KICK reads these two kinds back in read-modify-write cycles:
@@ -127,7 +168,7 @@ func main() {
 	})); err != nil {
 		os.Exit(1)
 	}
-	if err := setupControllers(mgr, opts); err != nil {
+	if err := setupControllers(mgr, opts, fingerprintKey); err != nil {
 		os.Exit(1)
 	}
 	if opts.timelineAddr != "" {
@@ -148,7 +189,7 @@ func main() {
 
 // setupControllers wires every reconciler, including the optional workload
 // kinds that may only be watched once their CRDs are known to exist.
-func setupControllers(mgr ctrl.Manager, opts options) error {
+func setupControllers(mgr ctrl.Manager, opts options, fingerprintKey []byte) error {
 	policyMatcher := &policy.DeploymentPolicyMatcher{Client: mgr.GetClient()}
 	providerRegistry := newProviderRegistry(mgr, opts.providers)
 	notifier := notify.NewWebhookDispatcher(mgr.GetClient(), notify.DefaultQueueSize)
@@ -193,7 +234,7 @@ func setupControllers(mgr ctrl.Manager, opts options) error {
 				"reason", integrations.ArgoRollouts.KindNotInstalledMessage(dependency.ArgoRolloutGVK))
 		}
 	}
-	return setupObservationControllers(mgr, policyMatcher, optionalWorkloadKinds, opts.enableCSIIntegration)
+	return setupObservationControllers(mgr, policyMatcher, optionalWorkloadKinds, opts.enableCSIIntegration, fingerprintKey)
 }
 
 // setupObservationControllers wires the Secret/ConfigMap observer, the reverse
@@ -203,6 +244,7 @@ func setupObservationControllers(
 	policyMatcher *policy.DeploymentPolicyMatcher,
 	optionalWorkloadKinds []dependency.WorkloadKind,
 	enableCSIIntegration bool,
+	fingerprintKey []byte,
 ) error {
 	newEnqueuer := func() *controller.KickRequestEnqueuer {
 		return &controller.KickRequestEnqueuer{
@@ -211,11 +253,14 @@ func setupObservationControllers(
 			PolicyMatcher: policyMatcher,
 		}
 	}
+	newObserver := func() *observation.Observer {
+		return observation.NewObserver(observation.NewLeaseStore(mgr.GetClient()), nil, observation.WithFingerprintKey(fingerprintKey))
+	}
 
 	if err := (&controller.SourceObservationReconciler{
 		Client:                mgr.GetClient(),
 		Scheme:                mgr.GetScheme(),
-		Observer:              observation.NewObserver(observation.NewLeaseStore(mgr.GetClient()), nil),
+		Observer:              newObserver(),
 		Enqueuer:              newEnqueuer(),
 		OptionalWorkloadKinds: optionalWorkloadKinds,
 	}).SetupWithManager(mgr); err != nil {
@@ -235,7 +280,7 @@ func setupObservationControllers(
 	return (&controller.SecretProviderClassObservationReconciler{
 		Client:                mgr.GetClient(),
 		Scheme:                mgr.GetScheme(),
-		Observer:              observation.NewObserver(observation.NewLeaseStore(mgr.GetClient()), nil),
+		Observer:              newObserver(),
 		Enqueuer:              newEnqueuer(),
 		OptionalWorkloadKinds: optionalWorkloadKinds,
 	}).SetupWithManager(mgr)

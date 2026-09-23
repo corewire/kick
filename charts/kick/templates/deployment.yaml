@@ -24,6 +24,7 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
             - --leader-elect={{ .Values.leaderElection.enabled }}
+            - --namespace={{ .Values.namespace.name }}
             - --health-probe-bind-address=:8081
             - --metrics-bind-address=:8080
             - --request-retention={{ .Values.requestRetention }}
@@ -38,6 +39,9 @@ spec:
 {{- with .Values.integrations.argocd.applicationNamespaces }}
             - --argocd-application-namespaces={{ join "," . }}
 {{- end }}
+{{- end }}
+{{- if .Values.timeline.enabled }}
+            - --timeline-bind-address={{ .Values.timeline.bindAddress }}
 {{- end }}
           livenessProbe:
             httpGet:

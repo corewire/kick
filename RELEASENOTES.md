@@ -1,6 +1,37 @@
 # Release Notes
 
+## Security
+
+- Observation records store an HMAC-SHA256 of Secret and ConfigMap content under
+  a per-installation key (`kick-fingerprint-key` Secret in the manager
+  namespace, created on first start) instead of a plain SHA-256. A plain digest
+  of a short password was an offline-crackable oracle for anyone able to read
+  Leases in the namespace. Existing records are re-anchored under the new key on
+  their next observation; nothing restarts because of the upgrade. The manager
+  needs `create` on Secrets in its own namespace for this (namespaced Role).
+- Helm release Secrets (`type: helm.sh/release.v1`) are filtered out at the API
+  server. They are never mounted by a workload, and one existed per release
+  revision in the informer cache and as an observation record.
+- The timeline server is disabled by default (`--timeline-bind-address` is
+  empty). Helm: `timeline.enabled`/`timeline.bindAddress`. Timeline API errors
+  return a generic message; details go to the manager log.
+- OTLP export uses TLS by default (`--otel-otlp-insecure=false`).
+- The container runs with `readOnlyRootFilesystem` and the `RuntimeDefault`
+  seccomp profile.
+
 ## Fixes
+
+- The Helm chart shipped stale CRDs (missing the `Rollout` target kind and the
+  `MicroTime` change-time field). `make manifests` now copies generated CRDs into
+  the chart.
+
+## Dependencies
+
+- Go 1.27, Kubernetes 1.37 client libraries, controller-runtime 0.25.
+- Renovate is configured (`renovate.json`); the Go toolchain moves as one PR
+  across `go.mod`, `docs/go.mod` and the Dockerfile.
+
+## Fixes (previous)
 
 - Argo Rollouts and other CRD-backed workload kinds were looked up through a
   controller-runtime field index. The manager does not cache unstructured

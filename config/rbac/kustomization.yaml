@@ -2,3 +2,5 @@ resources:
 - service_account.yaml
 - role.yaml
 - role_binding.yaml
+- fingerprint_key_role.yaml
+- fingerprint_key_role_binding.yaml

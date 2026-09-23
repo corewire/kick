@@ -1,0 +1,11 @@
+# Namespaced: the manager creates only its own fingerprint key Secret, and only
+# in its own namespace. Cluster-wide Secret access stays read-only.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: fingerprint-key-writer
+  namespace: system
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["create"]

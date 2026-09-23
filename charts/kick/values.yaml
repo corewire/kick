@@ -32,6 +32,12 @@ integrations:
   secretsStoreCSI:
     enabled: false
 
+# Read-only timeline API/UI. Unauthenticated and experimental: keep it disabled
+# unless reached only via kubectl port-forward. Never expose through an Ingress.
+timeline:
+  enabled: false
+  bindAddress: ":8090"
+
 image:
   repository: ghcr.io/corewire/kick
   tag: dev

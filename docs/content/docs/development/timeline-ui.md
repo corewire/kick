@@ -41,17 +41,17 @@ The UI now auto-loads workloads discovered from `KickPolicy` selectors in the se
 
 ## Enable timeline server
 
-The manager serves timeline endpoints by default:
+The timeline server is **disabled by default**. Enable it with a bind address:
 
 ```text
 --timeline-bind-address=:8090
 ```
 
-Set empty value to disable:
-
-```text
---timeline-bind-address=
-```
+With the Helm chart, set `timeline.enabled: true` (`timeline.bindAddress`
+defaults to `:8090`); see [charts/kick/values.yaml](https://github.com/corewire/kick/blob/main/charts/kick/values.yaml).
+The Tilt dev overlay enables it in
+[config/dev/manager_tracing_patch.yaml](https://github.com/corewire/kick/blob/main/config/dev/manager_tracing_patch.yaml)
+and port-forwards `8090`.
 
 ## OTEL export (Tempo/Jaeger)
 
@@ -69,8 +69,12 @@ Configure OTLP export:
 
 ```text
 --otel-otlp-endpoint=<collector-host:4317>
---otel-otlp-insecure=true
+--otel-otlp-insecure=false
 ```
+
+Transport is TLS by default; set `--otel-otlp-insecure=true` only for a
+collector reached over a trusted path (the dev overlay does this for the
+in-cluster Jaeger).
 
 Examples:
 

@@ -17,6 +17,8 @@ Primary configuration surface: Helm chart values in `charts/kick/values.yaml`.
 | `integrations.argoRollouts.enabled` | Treat `argoproj.io` Rollouts as restartable workloads, and grant RBAC for them | `false` |
 | `integrations.secretsStoreCSI.enabled` | Observe `SecretProviderClassPodStatus` for Secrets Store CSI rotation, and grant RBAC for it | `false` |
 | `integrations.kargo.enabled` | Grant RBAC for Kargo `Stages` and `Promotions` so `provider: Kargo` can be used | `false` |
+| `timeline.enabled` | Serve the unauthenticated, read-only timeline API/UI. Port-forward only; never expose through an Ingress | `false` |
+| `timeline.bindAddress` | Bind address passed as `--timeline-bind-address` when enabled | `:8090` |
 
 Example:
 
@@ -45,6 +47,10 @@ integrations:
 | `--enable-kargo` | Block restarts while a Kargo Promotion is active. Ignored when the CRD is absent. | `false` |
 | `--enable-argo-rollouts` | Watch and restart `argoproj.io/v1alpha1` Rollouts. Ignored when the CRD is absent. | `false` |
 | `--enable-csi-integration` | Watch `SecretProviderClassPodStatus`. Ignored when the CRD is absent. | `false` |
+| `--namespace` | Namespace KICK runs in; holds the `kick-fingerprint-key` Secret. | pod's own namespace |
+| `--timeline-bind-address` | Bind address of the timeline API/UI. Empty disables the server. | `""` (disabled) |
+| `--otel-otlp-endpoint` | OTLP gRPC endpoint for trace export. Empty disables tracing. | `""` |
+| `--otel-otlp-insecure` | Use plaintext OTLP transport instead of TLS. | `false` |
 
 Every integration additionally requires its CRD to exist in the cluster; the
 manager probes the REST mapper at startup and skips the integration rather than
