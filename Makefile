@@ -12,24 +12,22 @@ KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 GOLANGCI_LINT ?= $(LOCALBIN)/golangci-lint
+GOVULNCHECK ?= $(LOCALBIN)/govulncheck
 CHAINSAW ?= $(LOCALBIN)/chainsaw
 KAMERA ?= $(LOCALBIN)/kamera
 KIND ?= kind
 TILT ?= tilt
 
-KUSTOMIZE_VERSION ?= v5.8.1
-CONTROLLER_TOOLS_VERSION ?= v0.22.0
-ENVTEST_VERSION ?= release-0.25
-ENVTEST_K8S_VERSION ?= 1.37
-GOLANGCI_LINT_VERSION ?= v2.13.2
-CHAINSAW_VERSION ?= v0.2.15
-KAMERA_VERSION ?= main
+include hack/tool-versions.mk
+
 # Tools are built with the Go version the project targets; golangci-lint refuses
 # to lint a Go version newer than the one it was built with.
 GO_TOOLCHAIN := go$(shell awk '/^go /{print $$2}' go.mod)
+
 KIND_CLUSTER_NAME ?= kick-dev
 KIND_CONTEXT ?= kind-$(KIND_CLUSTER_NAME)
 KIND_KUBECONFIG ?= $(shell pwd)/.kubeconfig-kind-kick-dev
+IMAGE_ARCHIVE ?= $(shell pwd)/dist/kick-image.tar
 E2E_NAMESPACE ?= kick-e2e
 PKGS := $(shell go list ./... | grep -v '/ai-docs/' || true)
 
@@ -48,6 +46,16 @@ QUICK_E2E ?= 073
 E2E_CHAINSAW_CONFIG := test/e2e/chainsaw-configuration.yaml
 E2E_CHAINSAW_CONFIG_INTEGRATION := test/e2e/chainsaw-configuration-integration.yaml
 
+# Per-scenario timings. Off by default so local runs stay side-effect free; set
+# E2E_REPORT_DIR (CI does) to write one JUnit report per suite, which
+# tools/e2e_timing_summary.py turns into a slowest-scenarios table.
+E2E_REPORT_DIR ?=
+E2E_REPORT_NAME ?= all
+E2E_REPORT_FLAGS = $(if $(E2E_REPORT_DIR),--report-format JUNIT-TEST --report-path $(E2E_REPORT_DIR) --report-name $(E2E_REPORT_NAME),)
+# chainsaw does not create the report directory and fails after the run if it is
+# missing, which would turn a green suite into a red job.
+E2E_REPORT_MKDIR = $(if $(E2E_REPORT_DIR),mkdir -p $(E2E_REPORT_DIR);,)
+
 empty :=
 space := $(empty) $(empty)
 # Turn "024 025" into "/KICK-E2E-(024|025)\b".
@@ -60,7 +68,8 @@ if [[ -z "$$scenario_dirs" ]]; then \
 	echo "no $(1) scenarios selected"; \
 	exit 1; \
 fi; \
-KUBECONFIG=$(KIND_KUBECONFIG) $(CHAINSAW) test --config $(4) --kube-context $(KIND_CONTEXT) $$scenario_dirs
+$(E2E_REPORT_MKDIR) \
+KUBECONFIG=$(KIND_KUBECONFIG) $(CHAINSAW) test --config $(4) --kube-context $(KIND_CONTEXT) $(E2E_REPORT_FLAGS) $$scenario_dirs
 endef
 
 .PHONY: fmt
@@ -87,6 +96,10 @@ shellcheck:
 .PHONY: test
 test: setup-envtest
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $(PKGS) -coverprofile cover.out
+
+.PHONY: test-race
+test-race:
+	go test -race $(PKGS)
 
 # Fast local loop: strict lint + focused go tests + one e2e scenario.
 .PHONY: test-quick
@@ -144,6 +157,10 @@ e2e-kargo:
 .PHONY: e2e-base-setup
 e2e-base-setup: e2e-namespace e2e-git-server e2e-argocd
 
+# Prerequisites of the suites that only need KICK itself.
+.PHONY: e2e-core-setup
+e2e-core-setup: e2e-namespace e2e-install
+
 .PHONY: e2e-integration-setup
 e2e-integration-setup: e2e-base-setup e2e-install
 
@@ -158,29 +175,36 @@ e2e-kargo-setup: e2e-base-setup e2e-kargo e2e-install
 
 .PHONY: test-e2e
 test-e2e: chainsaw e2e-base-setup e2e-rollouts e2e-csi e2e-kargo e2e-install
-	KUBECONFIG=$(KIND_KUBECONFIG) $(CHAINSAW) test --config $(E2E_CHAINSAW_CONFIG_INTEGRATION) --kube-context $(KIND_CONTEXT) test/e2e/scenarios
+	@$(E2E_REPORT_MKDIR) true
+	KUBECONFIG=$(KIND_KUBECONFIG) $(CHAINSAW) test --config $(E2E_CHAINSAW_CONFIG_INTEGRATION) --kube-context $(KIND_CONTEXT) $(E2E_REPORT_FLAGS) test/e2e/scenarios
 
 .PHONY: test-e2e-core
-test-e2e-core: chainsaw e2e-namespace
+test-e2e-core: E2E_REPORT_NAME = core
+test-e2e-core: chainsaw e2e-core-setup
 	$(call e2e_suite,core,-Ev,$(E2E_IDS_NONCORE),$(E2E_CHAINSAW_CONFIG))
 
 .PHONY: test-e2e-argocd
+test-e2e-argocd: E2E_REPORT_NAME = argocd
 test-e2e-argocd: chainsaw e2e-integration-setup
 	$(call e2e_suite,argocd,-E,$(E2E_IDS_ARGOCD),$(E2E_CHAINSAW_CONFIG_INTEGRATION))
 
 .PHONY: test-e2e-recovery
-test-e2e-recovery: chainsaw e2e-namespace
+test-e2e-recovery: E2E_REPORT_NAME = recovery
+test-e2e-recovery: chainsaw e2e-core-setup
 	$(call e2e_suite,recovery,-E,$(E2E_IDS_RECOVERY),$(E2E_CHAINSAW_CONFIG))
 
 .PHONY: test-e2e-rollouts
+test-e2e-rollouts: E2E_REPORT_NAME = rollouts
 test-e2e-rollouts: chainsaw e2e-rollouts-setup
 	$(call e2e_suite,argo-rollouts,-E,$(E2E_IDS_ROLLOUTS),$(E2E_CHAINSAW_CONFIG_INTEGRATION))
 
 .PHONY: test-e2e-csi
+test-e2e-csi: E2E_REPORT_NAME = csi
 test-e2e-csi: chainsaw e2e-csi-setup
 	$(call e2e_suite,csi,-E,$(E2E_IDS_CSI),$(E2E_CHAINSAW_CONFIG_INTEGRATION))
 
 .PHONY: test-e2e-kargo
+test-e2e-kargo: E2E_REPORT_NAME = kargo
 test-e2e-kargo: chainsaw e2e-kargo-setup
 	$(call e2e_suite,kargo,-E,$(E2E_IDS_KARGO),$(E2E_CHAINSAW_CONFIG_INTEGRATION))
 
@@ -218,9 +242,23 @@ uninstall: manifests kustomize
 	$(KUSTOMIZE) build config/default | $(KUBECTL) --kubeconfig $(KIND_KUBECONFIG) --context $(KIND_CONTEXT) delete --ignore-not-found -f -
 
 .PHONY: kind-load
-kind-load:
-	docker build -t $(IMG) .
+kind-load: docker-build
 	$(KIND) load docker-image $(IMG) --name $(KIND_CLUSTER_NAME)
+
+.PHONY: docker-build
+docker-build:
+	docker build -t $(IMG) .
+
+# Build the manager image once and hand it to every e2e job as an artifact,
+# instead of rebuilding it in each of them.
+.PHONY: image-archive
+image-archive: docker-build
+	mkdir -p $(dir $(IMAGE_ARCHIVE))
+	docker save -o $(IMAGE_ARCHIVE) $(IMG)
+
+.PHONY: kind-load-archive
+kind-load-archive:
+	$(KIND) load image-archive $(IMAGE_ARCHIVE) --name $(KIND_CLUSTER_NAME)
 
 .PHONY: tilt-up
 tilt-up:
@@ -284,12 +322,23 @@ feature-coverage:
 api-field-coverage-gen:
 	python3 tools/gen_api_field_coverage.py --output traceability/api-field-coverage.generated.yaml
 
-.PHONY: feature-coverage-test
-feature-coverage-test:
-	python3 -m unittest tools/check_feature_coverage_test.py
+# Every Python helper under tools/, in one gate.
+.PHONY: tools-test
+tools-test:
+	python3 -m unittest tools/check_feature_coverage_test.py tools/e2e_timing_summary_test.py
+
+# Renders the JUnit reports written by the e2e suites as a markdown table.
+.PHONY: e2e-timing-summary
+e2e-timing-summary:
+	@if [[ -z "$(E2E_REPORT_DIR)" ]]; then echo "E2E_REPORT_DIR is required"; exit 1; fi
+	@python3 tools/e2e_timing_summary.py $(E2E_REPORT_DIR)
 
 .PHONY: tools
 tools: kustomize controller-gen setup-envtest golangci-lint chainsaw
+
+# Lets CI read a pinned version without duplicating it, e.g. `make print-KIND_VERSION`.
+print-%:
+	@echo "$($*)"
 
 .PHONY: kamera
 kamera: $(KAMERA)
@@ -301,23 +350,32 @@ $(KAMERA): $(LOCALBIN)
 .PHONY: verify
 verify: fmt vet lint static-check shellcheck test helm-lint helm-template docs-gen-check feature-coverage
 
+# Mirrors the CI jobs. `vet` is not repeated here: golangci-lint runs govet as
+# part of `make lint`, so a separate pass only pays the compile cost twice.
 .PHONY: ci-verify-local
 ci-verify-local: tools
 	$(MAKE) fmt
-	$(MAKE) vet
 	$(MAKE) lint
 	$(MAKE) static-check
 	$(MAKE) test
-	go test -race ./...
+	$(MAKE) test-race
 	$(MAKE) generate
 	git diff --exit-code
 	$(MAKE) helm-lint
 	$(MAKE) helm-template
 	$(MAKE) docs-gen-check
-	$(MAKE) feature-coverage-test
-	GOBIN=$(LOCALBIN) GOTOOLCHAIN=$(GO_TOOLCHAIN) go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
-	$(LOCALBIN)/govulncheck ./...
+	$(MAKE) tools-test
+	$(MAKE) vulncheck
 	$(MAKE) feature-coverage
+
+.PHONY: vulncheck
+vulncheck: govulncheck
+	$(GOVULNCHECK) ./...
+
+.PHONY: govulncheck
+govulncheck: $(GOVULNCHECK)
+$(GOVULNCHECK): $(LOCALBIN)
+	$(call go-install-tool,$(GOVULNCHECK),golang.org/x/vuln/cmd/govulncheck,$(GOVULNCHECK_VERSION))
 
 .PHONY: ci-e2e-local
 ci-e2e-local:

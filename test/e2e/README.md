@@ -27,6 +27,10 @@ Two other targets help while writing scenarios:
   (for example `make e2e-rollouts-setup`).
 - `make test-e2e-render` renders every scenario without a cluster.
 
+Set `E2E_REPORT_DIR` on any suite target to write a JUnit report, and render the
+slowest scenarios with `make e2e-timing-summary E2E_REPORT_DIR=...`. CI runs the
+suites in parallel and publishes that table per job.
+
 ## Timeout budgets
 
 Core scenarios use `test/e2e/chainsaw-configuration.yaml`. Integration

@@ -31,6 +31,19 @@ make test-e2e-scenario E2E=060     # one scenario, integration timeout budget
 make test-e2e-render               # render every scenario without a cluster
 ```
 
+## Scenario timings
+
+Set `E2E_REPORT_DIR` to write a JUnit report per suite and render the slowest
+scenarios as a table:
+
+```bash
+make test-e2e-core E2E_REPORT_DIR=dist/e2e-reports
+make e2e-timing-summary E2E_REPORT_DIR=dist/e2e-reports
+```
+
+CI runs the suites in parallel and publishes that table in each job summary, see
+[Continuous integration](../ci/).
+
 ## GitOps fixtures
 
 Scenarios that need a real GitOps source push manifests into the in-cluster
