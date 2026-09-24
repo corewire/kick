@@ -13,18 +13,17 @@ runs:
   using: composite
   steps:
     - name: Setup Go
+      id: go
       uses: actions/setup-go@v7.0.0
       with:
         go-version-file: go.mod
         cache: true
 
-    # Keyed on the pinned versions only. Keying on the Makefile rebuilt every
-    # tool (~3 minutes) whenever an unrelated Makefile line changed.
     - name: Cache local tool binaries
       uses: actions/cache@v6.1.0
       with:
         path: bin
-        key: tools-${{ runner.os }}-${{ inputs.cache-key }}-${{ hashFiles('hack/tool-versions.mk') }}
+        key: tools-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-${{ inputs.cache-key }}-${{ hashFiles('hack/tool-versions.mk') }}
 
     - name: Install local tools
       if: inputs.tools != ''

@@ -9,13 +9,24 @@
     "dependencies"
   ],
   "dependencyDashboard": true,
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/vendor/**",
+    "bin/**",
+    "dist/**",
+    "docs/public/**",
+    "docs/resources/**",
+    "ai-docs/**"
+  ],
   "postUpdateOptions": [
     "gomodTidy"
   ],
+  "lockFileMaintenance": {
+    "enabled": true
+  },
   "kubernetes": {
     "managerFilePatterns": [
-      "/^hack/tracing/.*\\.ya?ml$/",
-      "/^test/e2e/setup/.*\\.ya?ml$/"
+      "/^(?:hack|test|config|examples)/.*\\.ya?ml$/"
     ]
   },
   "packageRules": [
@@ -33,7 +44,9 @@
       ],
       "rangeStrategy": "bump",
       "groupName": "go version",
-      "groupSlug": "go-version"
+      "groupSlug": "go-version",
+      "separateMajorMinor": false,
+      "separateMinorPatch": false
     },
     {
       "description": "Go toolchain version: Dockerfile builder image, grouped with the go.mod directives above.",
@@ -44,7 +57,16 @@
         "golang"
       ],
       "groupName": "go version",
-      "groupSlug": "go-version"
+      "groupSlug": "go-version",
+      "separateMajorMinor": false,
+      "separateMinorPatch": false
+    },
+    {
+      "description": "Enable all indirect Go module updates, including transitive security fixes.",
+      "matchManagers": ["gomod"],
+      "matchDepTypes": ["indirect"],
+      "enabled": true,
+      "groupName": "go indirect modules"
     },
     {
       "description": "Kubernetes API/controller-runtime modules must stay mutually compatible.",
@@ -66,17 +88,6 @@
         "go.opentelemetry.io/**"
       ],
       "groupName": "opentelemetry go modules"
-    },
-    {
-      "description": "Indirect Go modules are disabled by default; enable them so transitive dependencies (including CVE fixes govulncheck flags) get updated, in one grouped PR.",
-      "matchManagers": [
-        "gomod"
-      ],
-      "matchDepTypes": [
-        "indirect"
-      ],
-      "enabled": true,
-      "groupName": "go indirect modules"
     },
     {
       "description": "Group GitHub Actions updates together.",
@@ -108,6 +119,48 @@
   "customManagers": [
     {
       "customType": "regex",
+      "managerFilePatterns": ["/^hack/tool-versions\\.mk$/"],
+      "matchStrings": ["ENVTEST_VERSION \\?= (?<currentValue>v\\d+\\.\\d+\\.\\d+)"],
+      "depNameTemplate": "sigs.k8s.io/controller-runtime/tools/setup-envtest",
+      "datasourceTemplate": "go"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^hack/tool-versions\\.mk$/"],
+      "matchStrings": ["ENVTEST_K8S_VERSION \\?= (?<currentValue>\\d+\\.\\d+\\.\\d+)"],
+      "depNameTemplate": "kubernetes-sigs/controller-tools",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^envtest-v(?<version>\\d+\\.\\d+\\.\\d+)$"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^hack/tool-versions\\.mk$/"],
+      "matchStrings": ["KAMERA_VERSION \\?= (?<currentValue>v\\d+\\.\\d+\\.\\d+)"],
+      "depNameTemplate": "github.com/tgoodwin/kamera",
+      "datasourceTemplate": "go"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^hack/tool-versions\\.mk$/"],
+      "matchStrings": ["HELM_VERSION \\?= (?<currentValue>v\\d+\\.\\d+\\.\\d+)"],
+      "depNameTemplate": "helm/helm",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^hack/tool-versions\\.mk$/"],
+      "matchStrings": ["ACTIONLINT_VERSION \\?= (?<currentValue>v\\d+\\.\\d+\\.\\d+)"],
+      "depNameTemplate": "github.com/rhysd/actionlint",
+      "datasourceTemplate": "go"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^(?:hack|test|tools|internal)/.*\\.(?:sh|py|go)$/"],
+      "matchStrings": ["[iI]mage:\\s*\"?(?<depName>[a-z0-9./_-]+):(?<currentValue>[a-zA-Z0-9._-]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?"],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
       "description": "sigs.k8s.io/kustomize/kustomize/v5 pinned in hack/tool-versions.mk.",
       "managerFilePatterns": [
         "/^hack/tool-versions\\.mk$/"
@@ -127,7 +180,7 @@
       "matchStrings": [
         "CONTROLLER_TOOLS_VERSION \\?= (?<currentValue>v\\d+\\.\\d+\\.\\d+)"
       ],
-      "depNameTemplate": "sigs.k8s.io/controller-tools/cmd/controller-gen",
+      "depNameTemplate": "sigs.k8s.io/controller-tools",
       "datasourceTemplate": "go"
     },
     {
@@ -139,7 +192,7 @@
       "matchStrings": [
         "GOLANGCI_LINT_VERSION \\?= (?<currentValue>v\\d+\\.\\d+\\.\\d+)"
       ],
-      "depNameTemplate": "github.com/golangci/golangci-lint/v2/cmd/golangci-lint",
+      "depNameTemplate": "github.com/golangci/golangci-lint/v2",
       "datasourceTemplate": "go"
     },
     {
@@ -163,7 +216,7 @@
       "matchStrings": [
         "GOVULNCHECK_VERSION \\?= (?<currentValue>v\\d+\\.\\d+\\.\\d+)"
       ],
-      "depNameTemplate": "golang.org/x/vuln/cmd/govulncheck",
+      "depNameTemplate": "golang.org/x/vuln",
       "datasourceTemplate": "go"
     },
     {

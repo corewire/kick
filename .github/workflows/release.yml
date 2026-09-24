@@ -4,29 +4,69 @@ on:
   push:
     tags:
       - "v*"
+  schedule:
+    - cron: "0 6 * * 1"
   workflow_dispatch:
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 permissions:
-  contents: write
-  packages: write
-  id-token: write
+  contents: read
 
 jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      publish: ${{ steps.plan.outputs.publish }}
+      tag: ${{ steps.plan.outputs.tag }}
+      version: ${{ steps.plan.outputs.version }}
+      sha: ${{ steps.plan.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: "3.x"
+      - run: python -m pip install -r tools/requirements.txt
+      - name: Plan release
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          args=()
+          if [[ "$REF_TYPE" == "tag" ]]; then
+            args+=(--tag "$REF_NAME")
+          elif [[ "$REF_NAME" != "main" ]]; then
+            echo "Scheduled and manual releases must run from main" >&2
+            exit 1
+          fi
+          python tools/release_plan.py "${args[@]}"
+
   ci:
+    needs: plan
+    if: needs.plan.outputs.publish == 'true'
     uses: ./.github/workflows/ci.yml
 
   container:
-    needs: ci
+    needs: [plan, ci]
     runs-on: ubuntu-24.04
-    outputs:
-      image: ${{ steps.meta.outputs.tags }}
-      digest: ${{ steps.build.outputs.digest }}
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
-
-      - name: Setup QEMU
-        uses: docker/setup-qemu-action@v4.4.0
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
 
       - name: Setup Buildx
         uses: docker/setup-buildx-action@v4.4.1
@@ -38,53 +78,71 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Docker metadata
-        id: meta
-        uses: docker/metadata-action@v6.2.0
-        with:
-          images: ghcr.io/${{ github.repository }}
-          tags: |
-            type=ref,event=tag
-            type=sha
-
       - name: Build and push image
         id: build
         uses: docker/build-push-action@v7.4.0
         with:
           context: .
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ghcr.io/${{ github.repository }}:${{ needs.plan.outputs.tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Install cosign
         uses: sigstore/cosign-installer@v4.1.2
 
       - name: Sign image (keyless)
         env:
-          COSIGN_EXPERIMENTAL: "1"
-        run: |
-          first_tag="$(echo "${{ steps.meta.outputs.tags }}" | head -n 1)"
-          cosign sign --yes "${first_tag}@${{ steps.build.outputs.digest }}"
+          IMAGE: ghcr.io/${{ github.repository }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: cosign sign --yes "${IMAGE}@${DIGEST}"
 
   artifacts:
-    needs: ci
+    needs: [plan, container]
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: "3.x"
+      - run: python -m pip install -r tools/requirements.txt
+
+      - name: Resolve Helm version
+        id: helm
+        run: echo "version=$(make print-HELM_VERSION)" >> "$GITHUB_OUTPUT"
 
       - name: Setup Helm
         uses: azure/setup-helm@v5.0.1
+        with:
+          version: ${{ steps.helm.outputs.version }}
 
       - name: Package chart
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+          RELEASE_IMAGE: ghcr.io/${{ github.repository }}
+        run: make release-chart
+
+      - name: Publish OCI chart
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_ACTOR: ${{ github.actor }}
+          OWNER: ${{ github.repository_owner }}
+          VERSION: ${{ needs.plan.outputs.version }}
         run: |
-          mkdir -p dist
-          helm package charts/kick --destination dist
+          printf '%s' "$GH_TOKEN" | helm registry login ghcr.io --username "$GH_ACTOR" --password-stdin
+          helm push "dist/kick-${VERSION}.tgz" "oci://ghcr.io/${OWNER}/charts"
 
       - name: Bundle CRDs
-        run: |
-          mkdir -p dist
-          tar -czf dist/kick-crds-${GITHUB_REF_NAME}.tar.gz config/crd/bases
+        env:
+          TAG: ${{ needs.plan.outputs.tag }}
+        run: tar -czf "dist/kick-crds-${TAG}.tar.gz" config/crd/bases
 
       - name: Generate SBOM
         uses: anchore/sbom-action@v0.24.2
@@ -93,15 +151,34 @@ jobs:
           output-file: dist/kick-sbom.spdx.json
           path: .
           format: spdx-json
+          upload-release-assets: false
 
       - name: Generate checksums
         run: |
           cd dist
-          sha256sum * > checksums.txt
+          sha256sum -- *.tgz *.tar.gz *.json > checksums.txt
 
       - name: Upload release artifacts
-        uses: softprops/action-gh-release@v3.0.3
+        uses: actions/upload-artifact@v7.0.1
         with:
-          body_path: RELEASENOTES.md
-          files: |
-            dist/*
+          name: release-artifacts
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    needs: [plan, artifacts]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          name: release-artifacts
+          path: dist
+      - name: Publish release and tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.plan.outputs.tag }}
+          SHA: ${{ needs.plan.outputs.sha }}
+        run: gh release create "$TAG" dist/* --target "$SHA" --title "$TAG" --generate-notes --latest

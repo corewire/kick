@@ -61,7 +61,10 @@ jobs:
         uses: ./.github/actions/setup-build
         with:
           cache-key: lint
-          tools: golangci-lint govulncheck
+          tools: golangci-lint govulncheck actionlint
+
+      - name: Workflow validation
+        run: make workflow-lint
 
       # No separate `make vet`: golangci-lint runs govet, so the vet step only
       # paid the compile cost a second time (82s in run #54).
@@ -127,7 +130,15 @@ jobs:
           python-version: "3.x"
 
       - name: Install Python dependencies
-        run: python -m pip install --upgrade pip pyyaml
+        run: python -m pip install -r tools/requirements.txt
+
+      - name: Resolve Helm version
+        id: helm
+        run: echo "version=$(make print-HELM_VERSION)" >> "$GITHUB_OUTPUT"
+
+      - uses: azure/setup-helm@v5.0.1
+        with:
+          version: ${{ steps.helm.outputs.version }}
 
       - name: Generate
         run: make generate
@@ -140,6 +151,9 @@ jobs:
 
       - name: Helm template
         run: make helm-template
+
+      - name: Release chart packaging
+        run: make release-chart VERSION=0.0.0-ci
 
       - name: Python tooling tests
         run: make tools-test
@@ -222,6 +236,14 @@ jobs:
           cache-key: e2e
           tools: chainsaw kustomize controller-gen
 
+      - name: Resolve Helm version
+        id: helm
+        run: echo "version=$(make print-HELM_VERSION)" >> "$GITHUB_OUTPUT"
+
+      - uses: azure/setup-helm@v5.0.1
+        with:
+          version: ${{ steps.helm.outputs.version }}
+
       - name: Install kind
         run: |
           set -euo pipefail
@@ -245,7 +267,9 @@ jobs:
       - name: Run e2e suite
         env:
           TARGETS: ${{ matrix.targets }}
-        run: make ${TARGETS}
+        run: |
+          read -r -a targets <<< "$TARGETS"
+          make "${targets[@]}"
 
       - name: Scenario timings
         if: always()
@@ -277,8 +301,11 @@ jobs:
           set -euo pipefail
           jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$NEEDS"
           failed="$(jq -r '[to_entries[]
-            | select(.value.result != "success" and .value.result != "skipped")
-            | .key] | join(", ")' <<<"$NEEDS")"
+            | select(.value.result != "success"
+              and (.value.result != "skipped"
+                or (.key != "image" and .key != "e2e")
+                or $code != "false"))
+            | .key] | join(", ")' --arg code "$(jq -r '.changes.outputs.code' <<<"$NEEDS")" <<<"$NEEDS")"
           if [[ -n "$failed" ]]; then
             echo "failed jobs: ${failed}"
             exit 1

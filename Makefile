@@ -13,6 +13,7 @@ CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 GOLANGCI_LINT ?= $(LOCALBIN)/golangci-lint
 GOVULNCHECK ?= $(LOCALBIN)/govulncheck
+ACTIONLINT ?= $(LOCALBIN)/actionlint
 CHAINSAW ?= $(LOCALBIN)/chainsaw
 KAMERA ?= $(LOCALBIN)/kamera
 KIND ?= kind
@@ -87,6 +88,15 @@ lint: golangci-lint
 .PHONY: static-check
 static-check: golangci-lint
 	$(GOLANGCI_LINT) run --config .golangci.static.yml
+
+.PHONY: workflow-lint
+workflow-lint: actionlint
+	$(ACTIONLINT)
+
+.PHONY: actionlint
+actionlint: $(ACTIONLINT)
+$(ACTIONLINT): $(LOCALBIN)
+	$(call go-install-tool,$(ACTIONLINT),github.com/rhysd/actionlint/cmd/actionlint,$(ACTIONLINT_VERSION))
 
 .PHONY: shellcheck
 shellcheck:
@@ -292,6 +302,20 @@ helm-lint:
 helm-template:
 	helm template kick charts/kick >/dev/null
 
+RELEASE_IMAGE ?= ghcr.io/corewire/kick
+
+.PHONY: release-chart
+release-chart:
+	@test -n "$(VERSION)" || { echo 'VERSION is required'; exit 1; }
+	@staging=$$(mktemp -d); \
+	trap 'rm -rf "$$staging"' EXIT; \
+	cp -R charts/kick "$$staging/kick"; \
+	RELEASE_IMAGE="$(RELEASE_IMAGE)" RELEASE_TAG="v$(VERSION)" python3 -c 'import os, pathlib, sys, yaml; path = pathlib.Path(sys.argv[1]); values = yaml.safe_load(path.read_text()); values["image"].update(repository=os.environ["RELEASE_IMAGE"], tag=os.environ["RELEASE_TAG"]); path.write_text(yaml.safe_dump(values, sort_keys=False))' "$$staging/kick/values.yaml"; \
+	helm lint "$$staging/kick"; \
+	mkdir -p dist; \
+	helm package "$$staging/kick" --version "$(VERSION)" --app-version "v$(VERSION)" --destination dist; \
+	helm template kick "dist/kick-$(VERSION).tgz" >/dev/null
+
 .PHONY: docs-gen
 docs-gen:
 	bash hack/gen-docs.sh
@@ -325,7 +349,7 @@ api-field-coverage-gen:
 # Every Python helper under tools/, in one gate.
 .PHONY: tools-test
 tools-test:
-	python3 -m unittest tools/check_feature_coverage_test.py tools/e2e_timing_summary_test.py
+	python3 -m unittest discover -s tools -p '*_test.py'
 
 # Renders the JUnit reports written by the e2e suites as a markdown table.
 .PHONY: e2e-timing-summary
@@ -355,6 +379,7 @@ verify: fmt vet lint static-check shellcheck test helm-lint helm-template docs-g
 .PHONY: ci-verify-local
 ci-verify-local: tools
 	$(MAKE) fmt
+	$(MAKE) workflow-lint
 	$(MAKE) lint
 	$(MAKE) static-check
 	$(MAKE) test
