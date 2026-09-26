@@ -30,10 +30,10 @@ var terminalVerificationPhases = map[string]struct{}{
 // Freight history can still advance between this read and the restart patch.
 // Those writes are not atomic.
 type verificationView struct {
-	active             bool
-	message            string
-	collectionID       string
-	verificationID     string
+	active          bool
+	message         string
+	collectionID    string
+	verificationID  string
 	hasVerification bool
 }
 
