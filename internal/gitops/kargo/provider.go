@@ -100,9 +100,9 @@ func (p *Provider) ResolveOwner(ctx context.Context, workload client.Object) (gi
 	}, nil
 }
 
-// EvaluateGate blocks while the Stage has an in-flight Promotion and otherwise
-// falls through to the Argo CD gate for the Application that actually applies
-// the manifests.
+// EvaluateGate blocks while the Stage has an in-flight Promotion or an active
+// verification, then falls through to the Argo CD gate for the Application
+// that actually applies the manifests. Verification outcome is not a gate.
 func (p *Provider) EvaluateGate(ctx context.Context, owner gitops.Owner, now time.Time) (gitops.GateDecision, error) {
 	if owner.Name == "" || owner.Namespace == "" {
 		return blocked(gitops.GateOwnerUnknown, "empty kargo owner"), nil
@@ -117,16 +117,23 @@ func (p *Provider) EvaluateGate(ctx context.Context, owner gitops.Owner, now tim
 	// status.currentPromotion is set for the whole duration of a promotion,
 	// including the phases where Kargo has already written to Git but Argo CD has
 	// not observed it yet.
-	if name, found, _ := unstructured.NestedString(stage.Object, "status", "currentPromotion", "name"); found && name != "" {
-		return reconciling("kargo stage has a promotion in progress"), nil
-	}
-
-	inFlight, err := p.hasInFlightPromotion(ctx, owner.Namespace, owner.Name)
+	active, err := p.promotionActive(ctx, owner.Namespace, owner.Name, stage)
 	if err != nil {
 		return blocked(gitops.GateProviderUnavailable, err.Error()), nil
 	}
-	if inFlight {
+	if active {
+		if name, found, _ := unstructured.NestedString(stage.Object, "status", "currentPromotion", "name"); found && name != "" {
+			return reconciling("kargo stage has a promotion in progress"), nil
+		}
 		return reconciling("kargo promotion is pending or running"), nil
+	}
+
+	decision, blockedVerification, err := verificationGate(stage)
+	if err != nil {
+		return blocked(gitops.GateProviderUnavailable, err.Error()), nil
+	}
+	if blockedVerification {
+		return decision, nil
 	}
 
 	appNamespace, appName, ok := strings.Cut(owner.Project, "/")

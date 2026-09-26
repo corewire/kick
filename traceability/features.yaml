@@ -485,3 +485,22 @@ features:
     - test/envtest/kickpolicy_readiness_test.go
   e2e:
   - KICK-E2E-073
+- id: KICK-FEAT-029
+  name: Kargo verification-aware restarts
+  spec: ai-docs/features-1/01-kargo-verification-aware-restarts.md
+  task: ai-docs/features-1/01-kargo-verification-aware-restarts.md
+  tests:
+    unit: required
+    envtest: required
+    e2e: required
+  coverage:
+    unit:
+    - internal/gitops/kargo/verification_test.go
+    - internal/controller/kargo_reverify_test.go
+    envtest:
+    - test/envtest/kickpolicy_api_test.go
+    - test/envtest/kickrequest_api_test.go
+  e2e:
+  - KICK-E2E-074
+  - KICK-E2E-075
+  - KICK-E2E-076

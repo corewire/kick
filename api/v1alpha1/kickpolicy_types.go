@@ -70,6 +70,10 @@ type KickPolicyGitOpsSpec struct {
 	// owning application has finished applying before restarting.
 	// +kubebuilder:default:=true
 	RequireReconciled *bool `json:"requireReconciled,omitempty"`
+	// ReverifyAfterRestart asks Kargo to rerun verification after KICK restarts a
+	// stale workload. Ignored unless provider is Kargo. Default false.
+	// +optional
+	ReverifyAfterRestart bool `json:"reverifyAfterRestart,omitempty"`
 }
 
 // KickPolicyRestartSpec groups restart behavior so future knobs are additive.

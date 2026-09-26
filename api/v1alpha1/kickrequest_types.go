@@ -85,6 +85,40 @@ type KickRequestStatus struct {
 	LatestObservedDependencyChange *metav1.MicroTime  `json:"latestObservedDependencyChange,omitempty"`
 	CurrentRollout                 RolloutStatus      `json:"currentRollout,omitempty"`
 	Conditions                     []metav1.Condition `json:"conditions,omitempty"`
+	// KargoReverification records an optional reverification request for the
+	// restart this KickRequest already performed.
+	// +optional
+	KargoReverification *KargoReverificationStatus `json:"kargoReverification,omitempty"`
+}
+
+// KargoReverificationState is durable progress for one reverification request.
+type KargoReverificationState string
+
+const (
+	// KargoReverificationPending means the restart identity is stored and the
+	// annotation has not been sent.
+	KargoReverificationPending KargoReverificationState = "Pending"
+	// KargoReverificationRequested means the annotation was sent, or a newer
+	// verification for the same Freight already exists.
+	KargoReverificationRequested KargoReverificationState = "Requested"
+	// KargoReverificationSkipped means KICK will not send the annotation.
+	KargoReverificationSkipped KargoReverificationState = "Skipped"
+)
+
+// KargoReverificationStatus is the Stage and verification identity captured
+// before a restart, plus whether the reverify annotation was sent.
+type KargoReverificationStatus struct {
+	// StageNamespace is the namespace of the Stage that owned the workload.
+	StageNamespace string `json:"stageNamespace,omitempty"`
+	// StageName is the name of the Stage that owned the workload.
+	StageName string `json:"stageName,omitempty"`
+	// FreightCollectionID is status.freightHistory[0].id captured before restart.
+	FreightCollectionID string `json:"freightCollectionID,omitempty"`
+	// VerificationID is the current verification id captured before restart.
+	VerificationID string `json:"verificationID,omitempty"`
+	// State is Pending, Requested, or Skipped.
+	// +kubebuilder:validation:Enum=Pending;Requested;Skipped
+	State KargoReverificationState `json:"state,omitempty"`
 }
 
 // +kubebuilder:object:root=true

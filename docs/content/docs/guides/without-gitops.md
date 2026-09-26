@@ -57,7 +57,7 @@ wrong choice here. Use `None`.
 Kargo does not write to workloads; Argo CD does. A Kargo-managed workload
 therefore looks exactly like an Argo CD-managed one, and detection cannot tell
 them apart. Set `provider: Kargo` explicitly to also gate on in-flight Stage
-promotions.
+promotions and verification.
 
 ## What you still get
 

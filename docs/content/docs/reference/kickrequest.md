@@ -33,6 +33,7 @@ the controller to run with `--enable-argo-rollouts` and the CRD to be present.
 - `latestObservedDependencyChange`
 - `currentRollout` (`replicaSet`, `startedAt`)
 - `conditions`
+- `kargoReverification` (`stageNamespace`, `stageName`, `freightCollectionID`, `verificationID`, `state`). Present only when `spec.gitOps.reverifyAfterRestart` was set. `state` is `Pending`, `Requested`, or `Skipped`.
 
 ## Mutated fields
 

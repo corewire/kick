@@ -56,7 +56,10 @@ rules:
 {{- end }}
 {{- if .Values.integrations.kargo.enabled }}
   - apiGroups: ["kargo.akuity.io"]
-    resources: ["stages", "promotions"]
+    resources: ["stages"]
+    verbs: ["get", "list", "watch", "patch"]
+  - apiGroups: ["kargo.akuity.io"]
+    resources: ["promotions"]
     verbs: ["get", "list", "watch"]
 {{- end }}
   - apiGroups: ["coordination.k8s.io"]

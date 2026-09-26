@@ -73,6 +73,9 @@ func TestKickPolicyValidationEnvtest(t *testing.T) {
 	if persisted.Spec.Restart.MinInterval != "45s" {
 		t.Fatalf("unexpected minInterval: %s", persisted.Spec.Restart.MinInterval)
 	}
+	if persisted.Spec.GitOps.ReverifyAfterRestart {
+		t.Fatal("reverifyAfterRestart must default to false")
+	}
 
 	// A policy without a gitOps block is accepted; provider defaults to None.
 	noGitOps := &kickv1alpha1.KickPolicy{
@@ -92,6 +95,29 @@ func TestKickPolicyValidationEnvtest(t *testing.T) {
 	}
 	if persistedNoGitOps.Spec.GitOps.Provider != kickv1alpha1.KickPolicyProviderNone {
 		t.Fatalf("provider default not applied: %q", persistedNoGitOps.Spec.GitOps.Provider)
+	}
+
+	reverify := &kickv1alpha1.KickPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "reverify", Namespace: "payments"},
+		Spec: kickv1alpha1.KickPolicySpec{
+			Discovery: kickv1alpha1.KickPolicyDiscoverySpec{
+				WorkloadSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "reverify"}},
+			},
+			GitOps: kickv1alpha1.KickPolicyGitOpsSpec{
+				Provider:             kickv1alpha1.KickPolicyProviderKargo,
+				ReverifyAfterRestart: true,
+			},
+		},
+	}
+	if err := c.Create(ctx, reverify); err != nil {
+		t.Fatalf("create reverify kickpolicy: %v", err)
+	}
+	var persistedReverify kickv1alpha1.KickPolicy
+	if err := c.Get(ctx, client.ObjectKeyFromObject(reverify), &persistedReverify); err != nil {
+		t.Fatalf("get reverify kickpolicy: %v", err)
+	}
+	if !persistedReverify.Spec.GitOps.ReverifyAfterRestart || persistedReverify.Spec.GitOps.Provider != kickv1alpha1.KickPolicyProviderKargo {
+		t.Fatalf("reverifyAfterRestart not persisted: %#v", persistedReverify.Spec.GitOps)
 	}
 
 	// A dependencySelector is accepted and round-trips.

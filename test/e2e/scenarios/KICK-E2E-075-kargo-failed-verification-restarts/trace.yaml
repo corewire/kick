@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-075
+name: kargo-failed-verification-restarts
+features:
+  - KICK-FEAT-029
+provider: kargo
+class: behavior
+required: true

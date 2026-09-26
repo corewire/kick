@@ -191,7 +191,7 @@ func main() {
 // kinds that may only be watched once their CRDs are known to exist.
 func setupControllers(mgr ctrl.Manager, opts options, fingerprintKey []byte) error {
 	policyMatcher := &policy.DeploymentPolicyMatcher{Client: mgr.GetClient()}
-	providerRegistry := newProviderRegistry(mgr, opts.providers)
+	providerRegistry, kargoProvider := newProviderRegistry(mgr, opts.providers)
 	notifier := notify.NewWebhookDispatcher(mgr.GetClient(), notify.DefaultQueueSize)
 	if err := mgr.Add(notifier); err != nil {
 		return err
@@ -204,6 +204,7 @@ func setupControllers(mgr ctrl.Manager, opts options, fingerprintKey []byte) err
 		ObservationStore:   observation.NewLeaseStore(mgr.GetClient()),
 		FreshnessEvaluator: &freshness.Evaluator{Inspector: &rollout.LiveRolloutInspector{Client: mgr.GetClient()}},
 		RestartExecutor:    executor.NewRestartExecutor(mgr.GetClient(), opts.rolloutTimeout),
+		KargoReverifier:    kargoProvider,
 		Notifier:           notifier,
 		RequeueInterval:    30 * time.Second,
 		RequestRetention:   opts.requestRetention,
@@ -301,7 +302,7 @@ func splitNamespaces(value string) []string {
 // registered when its integration is enabled and its CRDs are served; every
 // other case is recorded so a policy naming the provider can be told which
 // switch to flip instead of just failing.
-func newProviderRegistry(mgr ctrl.Manager, cfg providerConfig) *gitops.Registry {
+func newProviderRegistry(mgr ctrl.Manager, cfg providerConfig) (*gitops.Registry, *kargoprovider.Provider) {
 	argocdProvider := &argocdprovider.Provider{
 		Client:                mgr.GetClient(),
 		ControlPlaneNamespace: cfg.ArgoCDNamespace,
@@ -314,10 +315,12 @@ func newProviderRegistry(mgr ctrl.Manager, cfg providerConfig) *gitops.Registry 
 	if register(registry, integrations.Flux, cfg.FluxEnabled, mgr, fluxprovider.KustomizationGVK) {
 		registry.Register(&fluxprovider.Provider{Client: mgr.GetClient()})
 	}
+	var kargoProvider *kargoprovider.Provider
 	if register(registry, integrations.Kargo, cfg.KargoEnabled, mgr, kargoprovider.StageGVK) {
-		registry.Register(&kargoprovider.Provider{Client: mgr.GetClient(), ArgoCD: argocdProvider})
+		kargoProvider = &kargoprovider.Provider{Client: mgr.GetClient(), ArgoCD: argocdProvider}
+		registry.Register(kargoProvider)
 	}
-	return registry
+	return registry, kargoProvider
 }
 
 // providerConfig collects the GitOps provider switches resolved from flags.

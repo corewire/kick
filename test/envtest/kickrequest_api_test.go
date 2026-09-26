@@ -215,6 +215,13 @@ func TestKickRequestStatusRoundTripEnvtest(t *testing.T) {
 			StartedAt:  &startedAt,
 		},
 		Conditions: []metav1.Condition{{Type: "Progressing", Status: metav1.ConditionTrue, Reason: "WaitingForGate", Message: "window closed", LastTransitionTime: metav1.NewTime(time.Date(2026, 8, 6, 12, 4, 0, 0, time.UTC))}},
+		KargoReverification: &kickv1alpha1.KargoReverificationStatus{
+			StageNamespace:      "shop",
+			StageName:           "prod",
+			FreightCollectionID: "fc-1",
+			VerificationID:      "ver-1",
+			State:               kickv1alpha1.KargoReverificationRequested,
+		},
 	}
 	if err := c.Status().Update(ctx, &got); err != nil {
 		t.Fatalf("update kickrequest status: %v", err)
@@ -238,6 +245,9 @@ func TestKickRequestStatusRoundTripEnvtest(t *testing.T) {
 	}
 	if len(updated.Status.Conditions) != 1 || updated.Status.Conditions[0].Type != "Progressing" || updated.Status.Conditions[0].Reason != "WaitingForGate" {
 		t.Fatalf("unexpected conditions: %#v", updated.Status.Conditions)
+	}
+	if updated.Status.KargoReverification == nil || updated.Status.KargoReverification.StageNamespace != "shop" || updated.Status.KargoReverification.StageName != "prod" || updated.Status.KargoReverification.FreightCollectionID != "fc-1" || updated.Status.KargoReverification.VerificationID != "ver-1" || updated.Status.KargoReverification.State != kickv1alpha1.KargoReverificationRequested {
+		t.Fatalf("unexpected kargo reverification: %#v", updated.Status.KargoReverification)
 	}
 }
 

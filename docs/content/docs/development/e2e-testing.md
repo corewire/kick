@@ -16,7 +16,7 @@ carries a `trace.yaml` linking it to the features it proves.
 | `make test-e2e-recovery` | crash and restart recovery | KICK |
 | `make test-e2e-rollouts` | Argo Rollouts restarts | Argo Rollouts |
 | `make test-e2e-csi` | Secrets Store CSI rotation | CSI driver and provider |
-| `make test-e2e-kargo` | Kargo promotion gating | cert-manager, Kargo |
+| `make test-e2e-kargo` | Kargo promotion and verification gating | cert-manager, Kargo, Argo Rollouts |
 
 Each target installs its own prerequisites and then redeploys the manager from
 the `config/e2e` overlay. The manager probes the optional integration CRDs once

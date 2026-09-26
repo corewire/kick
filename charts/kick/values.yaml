@@ -21,8 +21,9 @@ integrations:
   # Gate restarts on Flux Kustomization and HelmRelease state.
   flux:
     enabled: true
-  # Block restarts while a Kargo Promotion is in flight. Requires
-  # spec.gitOps.provider: Kargo on the KickPolicy.
+  # Block restarts while a Kargo Promotion or verification is active. Requires
+  # spec.gitOps.provider: Kargo on the KickPolicy. patch on Stages is used only
+  # when spec.gitOps.reverifyAfterRestart is true.
   kargo:
     enabled: false
   # Restart Argo Rollouts through spec.restartAt.

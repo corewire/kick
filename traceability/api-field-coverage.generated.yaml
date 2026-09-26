@@ -14,6 +14,7 @@ resources:
   - path: schedule.windows.timeZone
   - path: gitOps.provider
   - path: gitOps.requireReconciled
+  - path: gitOps.reverifyAfterRestart
   - path: restart.minInterval
 - type: KickPolicyStatus
   file: api/v1alpha1/kickpolicy_types.go
@@ -49,6 +50,11 @@ resources:
   - path: currentRollout.replicaSet
   - path: currentRollout.startedAt
   - path: conditions
+  - path: kargoReverification.stageNamespace
+  - path: kargoReverification.stageName
+  - path: kargoReverification.freightCollectionID
+  - path: kargoReverification.verificationID
+  - path: kargoReverification.state
 - type: NotificationPolicySpec
   file: api/v1alpha1/notificationpolicy_types.go
   generated: true

@@ -186,6 +186,11 @@ spec:
                       RequireReconciled is a correctness gate (not a schedule): wait until the
                       owning application has finished applying before restarting.
                     type: boolean
+                  reverifyAfterRestart:
+                    description: |-
+                      ReverifyAfterRestart asks Kargo to rerun verification after KICK restarts a
+                      stale workload. Ignored unless provider is Kargo. Default false.
+                    type: boolean
                 type: object
               restart:
                 description: KickPolicyRestartSpec groups restart behavior so future

@@ -13,7 +13,7 @@ scenario to the features it covers.
 | `make test-e2e-recovery` | 048-051 | KICK only |
 | `make test-e2e-rollouts` | 060-063 | Argo Rollouts |
 | `make test-e2e-csi` | 064-067 | Secrets Store CSI driver, OpenBao + its CSI provider |
-| `make test-e2e-kargo` | 068-071 | cert-manager, Kargo |
+| `make test-e2e-kargo` | 068-071, 074-076 | cert-manager, Kargo, Argo Rollouts |
 | `make test-e2e` | all of the above | all of the above |
 
 Each suite target installs its own prerequisites first, then redeploys the
@@ -82,10 +82,13 @@ from the previous run and the first sync is served from stale content.
 
 ## Kargo scenarios
 
-The Kargo scenarios (068-071) drive a real promotion: a Warehouse subscribes to
-`main`, the Stage renders `manifests/` onto the `stage/prod` branch and the
-`argocd-update` step syncs the Argo CD Application. Three things make that
-reproducible:
+The Kargo scenarios (068-071, 074-076) drive a real promotion: a Warehouse
+subscribes to `main`, the Stage renders `manifests/` onto the `stage/prod`
+branch and the `argocd-update` step syncs the Argo CD Application. 074-076 add
+`spec.verification` AnalysisTemplates; the installer enables Kargo's Rollouts
+integration only after Argo Rollouts CRDs exist, because Kargo otherwise
+disables that integration for the process lifetime. Three things make the
+promotion reproducible:
 
 - The Application has no `syncPolicy.automated`. Kargo owns the sync, so the
   promotion is what drives it and what waits for the result.

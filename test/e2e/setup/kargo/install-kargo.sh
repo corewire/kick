@@ -36,9 +36,12 @@ for deploy in cert-manager cert-manager-webhook cert-manager-cainjector; do
 done
 
 # Argo CD integration on: the controller factors Application health and sync
-# state into Stage health and runs the argocd-update promotion step. Argo
-# Rollouts integration off: the suite never verifies Freight through analysis,
-# and disabling it grants the controller fewer permissions.
+# state into Stage health and runs the argocd-update promotion step.
+#
+# Argo Rollouts integration on: Freight verification is AnalysisRuns. Kargo
+# checks for those CRDs once at startup and, if they are missing, runs as if
+# the integration were disabled for the life of the process. Rollouts is
+# therefore installed before this chart.
 #
 # The chart enforces a five-minute floor on Warehouse reconciliation, which is
 # longer than a scenario is willing to wait for a commit to be discovered. The
@@ -48,6 +51,10 @@ done
 # The in-cluster Gitea used by the suite serves plain HTTP, and Kargo refuses to
 # send Git credentials over HTTP unless told otherwise. This is a test-only
 # concession; a real installation should keep the default.
+export KICK_E2E_CONTEXT="$CONTEXT"
+export KICK_E2E_KUBECONFIG="$KUBECONFIG_PATH"
+bash "$(dirname "$0")/../rollouts/install-rollouts.sh"
+
 helm_kargo upgrade --install kargo oci://ghcr.io/akuity/kargo-charts/kargo \
   --version "$KARGO_VERSION" \
   --namespace "$KARGO_NS" --create-namespace \
@@ -57,7 +64,7 @@ helm_kargo upgrade --install kargo oci://ghcr.io/akuity/kargo-charts/kargo \
   --set externalWebhooksServer.enabled=false \
   --set controller.argocd.integrationEnabled=true \
   --set controller.argocd.namespace="$ARGOCD_NS" \
-  --set controller.rollouts.integrationEnabled=false \
+  --set controller.rollouts.integrationEnabled=true \
   --set controller.allowCredentialsOverHTTP=true \
   --set controller.reconcilers.warehouses.minReconciliationInterval="$KARGO_WAREHOUSE_INTERVAL"
 
@@ -67,7 +74,8 @@ kc -n "$KARGO_NS" rollout status deployment/kargo-webhooks-server --timeout=300s
 
 # Fail loudly rather than leaving the manager to start without the integration.
 for crd in projects.kargo.akuity.io stages.kargo.akuity.io \
-  warehouses.kargo.akuity.io promotions.kargo.akuity.io; do
+  warehouses.kargo.akuity.io promotions.kargo.akuity.io \
+  analysistemplates.argoproj.io analysisruns.argoproj.io; do
   kc get crd "$crd" >/dev/null
 done
 

@@ -1,0 +1,152 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kick-e2e-075
+  labels:
+    kargo.akuity.io/project: "true"
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Project
+metadata:
+  name: kick-e2e-075
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: ProjectConfig
+metadata:
+  name: kick-e2e-075
+  namespace: kick-e2e-075
+spec:
+  promotionPolicies:
+    - stage: prod
+      autoPromotionEnabled: true
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gitea-credentials
+  namespace: kick-e2e-075
+  labels:
+    kargo.akuity.io/cred-type: git
+type: Opaque
+stringData:
+  repoURL: http://gitea.kick-e2e-git.svc.cluster.local:3000/kick-e2e/e2e-075.git
+  username: kick-e2e
+  password: kick-e2e-throwaway
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: hold
+  namespace: kick-e2e-075
+spec:
+  metrics:
+    - name: hold
+      count: 1
+      provider:
+        job:
+          spec:
+            backoffLimit: 0
+            template:
+              spec:
+                restartPolicy: Never
+                containers:
+                  - name: hold
+                    image: docker.io/library/busybox:1.36
+                    command: ["false"]
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Warehouse
+metadata:
+  name: repo
+  namespace: kick-e2e-075
+spec:
+  interval: 20s
+  subscriptions:
+    - git:
+        repoURL: http://gitea.kick-e2e-git.svc.cluster.local:3000/kick-e2e/e2e-075.git
+        branch: main
+        includePaths:
+          - manifests
+---
+apiVersion: kargo.akuity.io/v1alpha1
+kind: Stage
+metadata:
+  name: prod
+  namespace: kick-e2e-075
+spec:
+  vars:
+    - name: gitRepo
+      value: http://gitea.kick-e2e-git.svc.cluster.local:3000/kick-e2e/e2e-075.git
+  requestedFreight:
+    - origin:
+        kind: Warehouse
+        name: repo
+      sources:
+        direct: true
+  verification:
+    analysisTemplates:
+      - name: hold
+  promotionTemplate:
+    spec:
+      steps:
+        - uses: git-clone
+          config:
+            repoURL: ${{ vars.gitRepo }}
+            checkout:
+              - commit: ${{ commitFrom(vars.gitRepo).ID }}
+                path: ./src
+              - branch: stage/prod
+                create: true
+                path: ./out
+        - uses: git-clear
+          config:
+            path: ./out
+        - uses: copy
+          config:
+            inPath: ./src/manifests
+            outPath: ./out
+        - uses: git-commit
+          as: commit
+          config:
+            path: ./out
+            message: promote ${{ ctx.stage }}
+        - uses: git-push
+          config:
+            path: ./out
+        - uses: argocd-update
+          config:
+            apps:
+              - name: kick-e2e-075
+                namespace: argocd
+                sources:
+                  - repoURL: ${{ vars.gitRepo }}
+                    desiredRevision: ${{ outputs.commit.commit }}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kick-e2e-075
+  namespace: argocd
+  annotations:
+    kargo.akuity.io/authorized-stage: kick-e2e-075:prod
+spec:
+  project: default
+  source:
+    repoURL: http://gitea.kick-e2e-git.svc.cluster.local:3000/kick-e2e/e2e-075.git
+    targetRevision: stage/prod
+    path: .
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kick-e2e-075
+  # Deliberately no automated sync: Kargo owns the sync of this Application.
+---
+apiVersion: kick.corewire.io/v1alpha1
+kind: KickPolicy
+metadata:
+  name: default
+  namespace: kick-e2e-075
+spec:
+  discovery:
+    workloadSelector: {}
+  gitOps:
+    provider: Kargo

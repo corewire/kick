@@ -39,7 +39,7 @@ E2E_IDS_ARGOCD ?= 024 025 026 027 028 029 030 031 032 033 034 035 036 037 038 03
 E2E_IDS_RECOVERY ?= 048 049 050 051
 E2E_IDS_ROLLOUTS ?= 060 061 062 063
 E2E_IDS_CSI ?= 064 065 066 067
-E2E_IDS_KARGO ?= 068 069 070 071
+E2E_IDS_KARGO ?= 068 069 070 071 074 075 076
 E2E_IDS_NONCORE := $(E2E_IDS_ARGOCD) $(E2E_IDS_RECOVERY) $(E2E_IDS_ROLLOUTS) $(E2E_IDS_CSI) $(E2E_IDS_KARGO)
 QUICK_GO_TEST_REGEX ?= KickPolicy|RegistryGateResolver
 QUICK_E2E ?= 073
@@ -181,7 +181,7 @@ e2e-rollouts-setup: e2e-base-setup e2e-rollouts e2e-install
 e2e-csi-setup: e2e-base-setup e2e-csi e2e-install
 
 .PHONY: e2e-kargo-setup
-e2e-kargo-setup: e2e-base-setup e2e-kargo e2e-install
+e2e-kargo-setup: e2e-base-setup e2e-rollouts e2e-kargo e2e-install
 
 .PHONY: test-e2e
 test-e2e: chainsaw e2e-base-setup e2e-rollouts e2e-csi e2e-kargo e2e-install

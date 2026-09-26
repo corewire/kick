@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-076
+name: kargo-reverify-after-restart
+features:
+  - KICK-FEAT-029
+provider: kargo
+class: behavior
+required: true

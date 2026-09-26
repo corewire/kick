@@ -1065,7 +1065,7 @@ carries a `trace.yaml` linking it to the features it proves.
 | `make test-e2e-recovery` | crash and restart recovery | KICK |
 | `make test-e2e-rollouts` | Argo Rollouts restarts | Argo Rollouts |
 | `make test-e2e-csi` | Secrets Store CSI rotation | CSI driver and provider |
-| `make test-e2e-kargo` | Kargo promotion gating | cert-manager, Kargo |
+| `make test-e2e-kargo` | Kargo promotion and verification gating | cert-manager, Kargo, Argo Rollouts |
 
 Each target installs its own prerequisites and then redeploys the manager from
 the `config/e2e` overlay. The manager probes the optional integration CRDs once
@@ -1713,10 +1713,10 @@ Notes:
 ---
 title: Kargo
 weight: 43
-description: Configure KICK Kargo gating with Stage-annotation and promotion-state examples.
+description: Configure KICK Kargo gating with Stage, promotion, and verification examples.
 ---
 
-KICK can gate restarts on Kargo Stage promotion state when `provider: Kargo` is set.
+KICK can gate restarts on Kargo Stage promotion and verification activity when `provider: Kargo` is set.
 
 ![Kargo promotion gate](/images/kargo-promotion-gate.drawio.svg)
 
@@ -1760,13 +1760,37 @@ Proof example: [KICK-E2E-068 Application](https://github.com/corewire/kick/blob/
 
 ## Gate behavior
 
-- If promotion is active for the resolved Stage, KICK blocks restart with gate reason.
-- After promotion completes, KICK proceeds to Argo CD gate checks.
+- Active Promotion or verification blocks the restart. Empty and non-terminal verification phases wait. `Successful`, `Failed`, `Error`, `Aborted`, and `Inconclusive` do not.
+- A configured verification with no record yet also waits when `status.lastPromotion` for the current Freight succeeded.
+- `status.health` is not a gate. A failed verification can still be the stale-Secret case.
+- After that activity settles, KICK proceeds to the Argo CD gate. Freshness still decides whether a restart is necessary.
+- Stages without `spec.verification` keep the promotion-only gate.
+
+Proof: [verification gate](https://github.com/corewire/kick/blob/main/internal/gitops/kargo/verification.go), [unit tests](https://github.com/corewire/kick/blob/main/internal/gitops/kargo/verification_test.go).
 
 Proof scenarios:
 
 - Promotion blocks restart: [KICK-E2E-068](https://github.com/corewire/kick/tree/main/test/e2e/scenarios/KICK-E2E-068-kargo-promotion-blocks-restart)
 - Restart after promotion: [KICK-E2E-069](https://github.com/corewire/kick/tree/main/test/e2e/scenarios/KICK-E2E-069-kargo-restart-after-promotion)
+- Running verification blocks, then one restart: [KICK-E2E-074](https://github.com/corewire/kick/tree/main/test/e2e/scenarios/KICK-E2E-074-kargo-verification-blocks-restart)
+- Failed verification still restarts a stale workload: [KICK-E2E-075](https://github.com/corewire/kick/tree/main/test/e2e/scenarios/KICK-E2E-075-kargo-failed-verification-restarts)
+
+The e2e installer enables Kargo's Rollouts integration and installs Argo Rollouts first. Kargo checks for AnalysisRun CRDs once at startup and otherwise runs as if verification were disabled ([install-kargo.sh](https://github.com/corewire/kick/blob/main/test/e2e/setup/kargo/install-kargo.sh)).
+
+## Optional reverification
+
+`spec.gitOps.reverifyAfterRestart` defaults to false. When true, KICK stores the Stage, Freight-collection ID, and verification ID before the restart, then patches `kargo.akuity.io/reverify` with `{"id":"<verification id>"}` only after the rollout is fresh and those IDs are unchanged. It does not create a Promotion. A failed patch does not restart again.
+
+The pre-restart read and the restart patch are not atomic. Freight history can advance in between; KICK then skips the annotation.
+
+```yaml
+spec:
+  gitOps:
+    provider: Kargo
+    reverifyAfterRestart: true
+```
+
+Proof: [follow-up](https://github.com/corewire/kick/blob/main/internal/controller/kargo_reverify.go), [KICK-E2E-076](https://github.com/corewire/kick/tree/main/test/e2e/scenarios/KICK-E2E-076-kargo-reverify-after-restart).
 
 ## Safety cases
 
@@ -1776,6 +1800,7 @@ Proof scenarios:
 ## Feature mapping
 
 - Kargo stage promotion gate: [KICK-FEAT-025](https://github.com/corewire/kick/blob/main/traceability/features.yaml)
+- Kargo verification-aware restarts: [KICK-FEAT-029](https://github.com/corewire/kick/blob/main/traceability/features.yaml)
 
 ## Source: docs/content/docs/guides/troubleshooting.md
 
@@ -1868,7 +1893,7 @@ wrong choice here. Use `None`.
 Kargo does not write to workloads; Argo CD does. A Kargo-managed workload
 therefore looks exactly like an Argo CD-managed one, and detection cannot tell
 them apart. Set `provider: Kargo` explicitly to also gate on in-flight Stage
-promotions.
+promotions and verification.
 
 ## What you still get
 
@@ -2211,7 +2236,7 @@ Primary configuration surface: Helm chart values in `charts/kick/values.yaml`.
 | `integrations.flux.enabled` | Enable Flux adapter logic | `true` |
 | `integrations.argoRollouts.enabled` | Treat `argoproj.io` Rollouts as restartable workloads, and grant RBAC for them | `false` |
 | `integrations.secretsStoreCSI.enabled` | Observe `SecretProviderClassPodStatus` for Secrets Store CSI rotation, and grant RBAC for it | `false` |
-| `integrations.kargo.enabled` | Grant RBAC for Kargo `Stages` and `Promotions` so `provider: Kargo` can be used | `false` |
+| `integrations.kargo.enabled` | Grant get/list/watch on Kargo Stages and Promotions, plus patch on Stages for optional reverification | `false` |
 | `timeline.enabled` | Serve the unauthenticated, read-only timeline API/UI. Port-forward only; never expose through an Ingress | `false` |
 | `timeline.bindAddress` | Bind address passed as `--timeline-bind-address` when enabled | `:8090` |
 
@@ -2328,14 +2353,16 @@ restarts without consulting a GitOps tool (gated only by any native windows).
 
 - `provider` enum: `None`, `Auto`, `ArgoCD`, `Flux`, `Kargo` (default `None`)
 - `requireReconciled` default: `true` (applies only to a real provider)
+- `reverifyAfterRestart` default: `false`. Only `provider: Kargo` uses it. After a stale restart, KICK asks Kargo to rerun the current verification. It does not create a Promotion.
 
 `Kargo` is never auto-detected and must be selected explicitly: Kargo does not
 write to workloads, Argo CD does, so a Kargo-managed workload is
 indistinguishable from a plain Argo CD one. With `Kargo`, KICK resolves the
 authorised `Stage` from the owning Application's
-`kargo.akuity.io/authorized-stage` annotation, blocks while a Promotion for that
-Stage is in flight, and then delegates to the Argo CD gate. More than one
-authorised stage is treated as ambiguous ownership and blocks.
+`kargo.akuity.io/authorized-stage` annotation, blocks while a Promotion or
+verification for that Stage is active, and then delegates to the Argo CD gate.
+Verification success or failure does not replace the freshness check. More than
+one authorised stage is treated as ambiguous ownership and blocks.
 
 See [Running without GitOps](../guides/without-gitops/) for the `None` case.
 
@@ -2394,6 +2421,7 @@ the controller to run with `--enable-argo-rollouts` and the CRD to be present.
 - `latestObservedDependencyChange`
 - `currentRollout` (`replicaSet`, `startedAt`)
 - `conditions`
+- `kargoReverification` (`stageNamespace`, `stageName`, `freightCollectionID`, `verificationID`, `state`). Present only when `spec.gitOps.reverifyAfterRestart` was set. `state` is `Pending`, `Requested`, or `Skipped`.
 
 ## Mutated fields
 

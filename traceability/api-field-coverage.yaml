@@ -118,6 +118,31 @@ resources:
     coverage:
       envtest:
       - test/envtest/kickrequest_api_test.go
+  - path: kargoReverification.stageNamespace
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/kickrequest_api_test.go
+  - path: kargoReverification.stageName
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/kickrequest_api_test.go
+  - path: kargoReverification.freightCollectionID
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/kickrequest_api_test.go
+  - path: kargoReverification.verificationID
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/kickrequest_api_test.go
+  - path: kargoReverification.state
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/kickrequest_api_test.go
 - type: KickPolicySpec
   file: api/v1alpha1/kickpolicy_types.go
   fields:
@@ -180,6 +205,11 @@ resources:
       envtest:
       - test/envtest/kickpolicy_api_test.go
   - path: gitOps.requireReconciled
+    required: true
+    coverage:
+      envtest:
+      - test/envtest/kickpolicy_api_test.go
+  - path: gitOps.reverifyAfterRestart
     required: true
     coverage:
       envtest:

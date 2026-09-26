@@ -16,7 +16,7 @@ Primary configuration surface: Helm chart values in `charts/kick/values.yaml`.
 | `integrations.flux.enabled` | Enable Flux adapter logic | `true` |
 | `integrations.argoRollouts.enabled` | Treat `argoproj.io` Rollouts as restartable workloads, and grant RBAC for them | `false` |
 | `integrations.secretsStoreCSI.enabled` | Observe `SecretProviderClassPodStatus` for Secrets Store CSI rotation, and grant RBAC for it | `false` |
-| `integrations.kargo.enabled` | Grant RBAC for Kargo `Stages` and `Promotions` so `provider: Kargo` can be used | `false` |
+| `integrations.kargo.enabled` | Grant get/list/watch on Kargo Stages and Promotions, plus patch on Stages for optional reverification | `false` |
 | `timeline.enabled` | Serve the unauthenticated, read-only timeline API/UI. Port-forward only; never expose through an Ingress | `false` |
 | `timeline.bindAddress` | Bind address passed as `--timeline-bind-address` when enabled | `:8090` |
 

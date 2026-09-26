@@ -1,0 +1,154 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: kick-e2e-074-kargo-verification-blocks-restart
+spec:
+  steps:
+    - name: seed-repository
+      try:
+        - script:
+            content: ../../setup/gitea/reset-repo.sh e2e-074
+        - script:
+            content: ../../setup/gitea/seed.sh e2e-074 manifests manifests
+    - name: create-fixtures
+      try:
+        - apply:
+            file: resources.yaml
+    - name: wait-for-baseline-verification
+      try:
+        - script:
+            content: |
+              set -eu
+              NS=kick-e2e-074
+              APP=app-074
+              WANT=Successful
+              MARK=/tmp/kick-e2e-074-collection
+              deadline=$((SECONDS+480))
+              phase=""
+              gen=0
+              while [ "$SECONDS" -lt "$deadline" ]; do
+                phase=$(kubectl -n "$NS" get stage prod -o jsonpath='{.status.freightHistory[0].verificationHistory[0].phase}' 2>/dev/null || true)
+                promo=$(kubectl -n "$NS" get stage prod -o jsonpath='{.status.currentPromotion.name}' 2>/dev/null || true)
+                gen=$(kubectl -n "$NS" get deployment "$APP" -o jsonpath='{.metadata.generation}' 2>/dev/null || echo 0)
+                cid=$(kubectl -n "$NS" get stage prod -o jsonpath='{.status.freightHistory[0].id}' 2>/dev/null || true)
+                if [ "$gen" != "1" ]; then
+                  echo "baseline restarted; generation=$gen phase=$phase" >&2
+                  exit 1
+                fi
+                if [ -z "$promo" ] && [ "$phase" = "$WANT" ] && [ -n "$cid" ]; then
+                  printf '%s' "$cid" > "$MARK"
+                  exit 0
+                fi
+                sleep 2
+              done
+              echo "timed out waiting for baseline verification $WANT; phase=$phase generation=$gen" >&2
+              kubectl -n "$NS" get stage prod -o yaml >&2 || true
+              exit 1
+    - name: promote-rotated-secret
+      try:
+        - script:
+            content: ../../setup/gitea/seed.sh e2e-074 manifests updated "rotate app-secret"
+        - script:
+            content: |
+              set -eu
+              kubectl -n kick-e2e-074 annotate warehouse repo \
+                kargo.akuity.io/refresh="$(date +%s)" --overwrite
+    - name: assert-verification-blocks-then-one-restart
+      try:
+        - script:
+            content: |
+              set -eu
+              NS=kick-e2e-074
+              APP=app-074
+              BETA=YmV0YQ==
+              BASE=$(cat /tmp/kick-e2e-074-collection)
+              deadline=$((SECONDS+480))
+              saw=0
+              phase=""
+              gen=0
+              while [ "$SECONDS" -lt "$deadline" ]; do
+                phase=$(kubectl -n "$NS" get stage prod -o jsonpath='{.status.freightHistory[0].verificationHistory[0].phase}' 2>/dev/null || true)
+                promo=$(kubectl -n "$NS" get stage prod -o jsonpath='{.status.currentPromotion.name}' 2>/dev/null || true)
+                gen=$(kubectl -n "$NS" get deployment "$APP" -o jsonpath='{.metadata.generation}' 2>/dev/null || echo 0)
+                token=$(kubectl -n "$NS" get secret app-secret -o jsonpath='{.data.token}' 2>/dev/null || true)
+                cid=$(kubectl -n "$NS" get stage prod -o jsonpath='{.status.freightHistory[0].id}' 2>/dev/null || true)
+                if [ "$gen" != "1" ]; then
+                  echo "restarted before verification settled; generation=$gen phase=$phase" >&2
+                  kubectl -n "$NS" get kickrequests -o yaml >&2 || true
+                  exit 1
+                fi
+                if [ "$cid" = "$BASE" ] || [ -n "$promo" ] || [ "$token" != "$BETA" ]; then
+                  sleep 2
+                  continue
+                fi
+                msg=$(kubectl -n "$NS" get kickrequests -o jsonpath='{range .items[*]}{.status.conditions[?(@.type=="Progressing")].message}{"\n"}{end}' 2>/dev/null || true)
+                case "$phase" in
+                  ""|Pending|Running)
+                    case "$msg" in
+                      *verification*) saw=1; break ;;
+                    esac
+                    ;;
+                  Successful|Failed|Error|Aborted|Inconclusive)
+                    echo "new verification reached $phase before the gate was observed" >&2
+                    kubectl -n "$NS" get kickrequests -o yaml >&2 || true
+                    exit 1
+                    ;;
+                esac
+                sleep 2
+              done
+              if [ "$saw" -ne 1 ]; then
+                echo "never observed a verification gate on the new freight" >&2
+                kubectl -n "$NS" get stage prod -o yaml >&2 || true
+                kubectl -n "$NS" get kickrequests -o yaml >&2 || true
+                exit 1
+              fi
+              while [ "$SECONDS" -lt "$deadline" ]; do
+                phase=$(kubectl -n "$NS" get stage prod -o jsonpath='{.status.freightHistory[0].verificationHistory[0].phase}' 2>/dev/null || true)
+                gen=$(kubectl -n "$NS" get deployment "$APP" -o jsonpath='{.metadata.generation}' 2>/dev/null || echo 0)
+                case "$phase" in
+                  Failed|Error|Aborted|Inconclusive)
+                    echo "verification ended $phase; expected Successful" >&2
+                    exit 1
+                    ;;
+                esac
+                if [ "$gen" != "1" ] && [ "$phase" != "Successful" ]; then
+                  echo "restarted while verification was $phase" >&2
+                  exit 1
+                fi
+                if [ "$phase" = "Successful" ] && [ "$gen" = "2" ]; then
+                  break
+                fi
+                sleep 2
+              done
+              if [ "$phase" != "Successful" ] || [ "$gen" != "2" ]; then
+                echo "timed out after verification; phase=$phase generation=$gen" >&2
+                exit 1
+              fi
+              ann=$(kubectl -n "$NS" get stage prod -o go-template='{{if .metadata.annotations}}{{index .metadata.annotations "kargo.akuity.io/reverify"}}{{end}}')
+              if [ -n "$ann" ] && [ "$ann" != "<no value>" ]; then
+                echo "reverify annotation set without reverifyAfterRestart" >&2
+                exit 1
+              fi
+              sleep 60
+              gen=$(kubectl -n "$NS" get deployment "$APP" -o jsonpath='{.metadata.generation}')
+              sets=$(kubectl -n "$NS" get replicaset -l app="$APP" -o name | wc -l)
+              if [ "$gen" -ne 2 ] || [ "$sets" -ne 2 ]; then
+                echo "expected generation 2 and two ReplicaSets; generation=$gen replicasets=$sets" >&2
+                exit 1
+              fi
+    - name: cleanup
+      try:
+        - script:
+            content: |
+              set -eu
+              # Promotions must go before the Stage they belong to. Kargo indexes
+              # running Promotions by Argo CD Application and resolves the Stage
+              # while doing so; a Promotion that outlives its Stage poisons that
+              # index with a nil entry and no Promotion in the cluster is
+              # reconciled again until the Kargo controller restarts.
+              kubectl -n kick-e2e-074 delete promotions.kargo.akuity.io --all \
+                --ignore-not-found --timeout=120s
+              kubectl delete project.kargo.akuity.io kick-e2e-074 \
+                --ignore-not-found --timeout=120s
+              kubectl delete namespace kick-e2e-074 \
+                --ignore-not-found --timeout=120s

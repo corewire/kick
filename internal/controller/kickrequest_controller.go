@@ -144,6 +144,9 @@ type KickRequestReconciler struct {
 	ObservationStore   observation.Store
 	FreshnessEvaluator FreshnessEvaluator
 	RestartExecutor    RestartExecutor
+	// KargoReverifier sends an optional reverification annotation after a
+	// successful restart. Nil disables that follow-up.
+	KargoReverifier KargoReverifier
 	// Notifier receives phase transitions. Delivery is best-effort and never
 	// influences reconciliation.
 	Notifier         notify.Dispatcher
@@ -166,6 +169,9 @@ func (r *KickRequestReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 	if isTerminalPhase(request.Status.Phase) {
+		if kargoReverifyPending(&request) {
+			return r.finishReverification(ctx, req, &request)
+		}
 		return r.reconcileTerminalRequest(ctx, &request)
 	}
 
@@ -386,6 +392,9 @@ func (r *KickRequestReconciler) evaluateFreshnessAndExecute(
 	// (the time KICK issues the restart); pre-seeding it from the existing
 	// ReplicaSet would make the executor treat the restart as already issued.
 	if request.Status.Phase != kickv1alpha1.KickRequestPhaseExecuting {
+		if err := r.captureReverification(ctx, req, request, matchedPolicy, ownerStatus); err != nil {
+			return ctrl.Result{}, err
+		}
 		if err := r.markExecuting(ctx, req, request, ownerStatus, gateDecision, freshnessDecision); err != nil {
 			return ctrl.Result{}, err
 		}
@@ -536,6 +545,9 @@ func (r *KickRequestReconciler) finalizeRestart(ctx context.Context, req ctrl.Re
 			observeControllerError("kickrequest", "GetUpdatedRequest")
 		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+	if kargoReverifyPending(&updated) {
+		return r.finishReverification(ctx, req, &updated)
 	}
 	if updated.Status.Phase == kickv1alpha1.KickRequestPhaseSucceeded {
 		r.recordTransition(request, kickv1alpha1.KickRequestPhaseSucceeded, "Completed", "rollout completed", ownerStatus.Provider)

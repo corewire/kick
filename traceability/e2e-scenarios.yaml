@@ -453,3 +453,21 @@ scenarios:
     status: required
     features:
       - KICK-FEAT-028
+  - id: KICK-E2E-074
+    name: kargo verification blocks restart
+    directory: test/e2e/scenarios/KICK-E2E-074-kargo-verification-blocks-restart
+    status: required
+    features:
+      - KICK-FEAT-029
+  - id: KICK-E2E-075
+    name: kargo failed verification restarts
+    directory: test/e2e/scenarios/KICK-E2E-075-kargo-failed-verification-restarts
+    status: required
+    features:
+      - KICK-FEAT-029
+  - id: KICK-E2E-076
+    name: kargo reverify after restart
+    directory: test/e2e/scenarios/KICK-E2E-076-kargo-reverify-after-restart
+    status: required
+    features:
+      - KICK-FEAT-029

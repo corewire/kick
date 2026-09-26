@@ -30,6 +30,7 @@
 | KICK-FEAT-026 | Pass | Pass | Pass | KICK-E2E-059 | PASS |
 | KICK-FEAT-027 | Pass | Pass | Pass | KICK-E2E-072 | PASS |
 | KICK-FEAT-028 | Pass | Pass | Pass | KICK-E2E-073 | PASS |
+| KICK-FEAT-029 | Pass | Pass | Pass | KICK-E2E-074, KICK-E2E-075, KICK-E2E-076 | PASS |
 
 # API Field Coverage Report
 
@@ -53,6 +54,11 @@
 | KickRequestStatus | currentRollout.replicaSet | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickrequest_api_test.go |
 | KickRequestStatus | currentRollout.startedAt | yes | Covered | Covered | Covered | PASS | unit=internal/executor/restart_test.go,internal/controller/kickrequest_controller_test.go; envtest=test/envtest/kickrequest_api_test.go; e2e=KICK-E2E-043(covered) |
 | KickRequestStatus | conditions | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickrequest_api_test.go |
+| KickRequestStatus | kargoReverification.stageNamespace | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickrequest_api_test.go |
+| KickRequestStatus | kargoReverification.stageName | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickrequest_api_test.go |
+| KickRequestStatus | kargoReverification.freightCollectionID | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickrequest_api_test.go |
+| KickRequestStatus | kargoReverification.verificationID | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickrequest_api_test.go |
+| KickRequestStatus | kargoReverification.state | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickrequest_api_test.go |
 | KickPolicySpec | suspend | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickpolicy_api_test.go |
 | KickPolicySpec | dryRun | yes | Covered | Missing | Missing | PASS | unit=internal/controller/dryrun_test.go |
 | KickPolicySpec | discovery.workloadSelector | yes | Covered | Covered | Missing | PASS | unit=internal/policy/matcher_test.go; envtest=test/envtest/kickpolicy_api_test.go |
@@ -63,6 +69,7 @@
 | KickPolicySpec | schedule.windows.timeZone | yes | Missing | Missing | Covered | PASS | e2e=KICK-E2E-015(covered),KICK-E2E-036(covered),KICK-E2E-048(covered) |
 | KickPolicySpec | gitOps.provider | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickpolicy_api_test.go |
 | KickPolicySpec | gitOps.requireReconciled | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickpolicy_api_test.go |
+| KickPolicySpec | gitOps.reverifyAfterRestart | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickpolicy_api_test.go |
 | KickPolicySpec | restart.minInterval | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickpolicy_api_test.go |
 | KickPolicyStatus | observedGeneration | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickpolicy_api_test.go |
 | KickPolicyStatus | matchedWorkloads | yes | Missing | Covered | Missing | PASS | envtest=test/envtest/kickpolicy_api_test.go |

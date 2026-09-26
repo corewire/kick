@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-074
+name: kargo-verification-blocks-restart
+features:
+  - KICK-FEAT-029
+provider: kargo
+class: behavior
+required: true

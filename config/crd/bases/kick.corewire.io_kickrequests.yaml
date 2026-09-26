@@ -176,6 +176,35 @@ spec:
                     format: date-time
                     type: string
                 type: object
+              kargoReverification:
+                description: |-
+                  KargoReverification records an optional reverification request for the
+                  restart this KickRequest already performed.
+                properties:
+                  freightCollectionID:
+                    description: FreightCollectionID is status.freightHistory[0].id
+                      captured before restart.
+                    type: string
+                  stageName:
+                    description: StageName is the name of the Stage that owned the
+                      workload.
+                    type: string
+                  stageNamespace:
+                    description: StageNamespace is the namespace of the Stage that
+                      owned the workload.
+                    type: string
+                  state:
+                    description: State is Pending, Requested, or Skipped.
+                    enum:
+                    - Pending
+                    - Requested
+                    - Skipped
+                    type: string
+                  verificationID:
+                    description: VerificationID is the current verification id captured
+                      before restart.
+                    type: string
+                type: object
               latestObservedDependencyChange:
                 description: |-
                   LatestObservedDependencyChange is the moment of the newest relevant
