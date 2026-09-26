@@ -29,7 +29,7 @@ spec:
     spec:
       containers:
         - name: slow
-          image: docker.io/library/busybox:1.36
+          image: docker.io/library/busybox:1.38@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e
           command: ["sleep", "3600"]
           readinessProbe:
             exec:
