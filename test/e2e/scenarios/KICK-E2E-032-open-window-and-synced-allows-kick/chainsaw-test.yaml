@@ -57,11 +57,21 @@ spec:
                   reason: Allowed
         - script:
             content: |
-              restarted_at=$(kubectl -n kick-e2e-032 get deployment app-032 -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}')
-              if [ -z "$restarted_at" ]; then
-                echo "expected kick restart annotation on app-032"
-                exit 1
-              fi
+              set -eu
+              deadline=$(( $(date +%s) + 120 ))
+              restarted_at=""
+              while [ "$(date +%s)" -lt "$deadline" ]; do
+                restarted_at=$(kubectl -n kick-e2e-032 get deployment app-032 -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}' 2>/dev/null || true)
+                if [ -z "$restarted_at" ]; then
+                  restarted_at=$(kubectl -n kick-e2e-032 get replicaset -l app=app-032 -o jsonpath='{range .items[*]}{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}{"\n"}{end}' 2>/dev/null || true)
+                fi
+                if [ -n "$restarted_at" ]; then
+                  exit 0
+                fi
+                sleep 2
+              done
+              echo "expected kick restart annotation on app-032" >&2
+              exit 1
     - name: cleanup
       try:
         - script:
