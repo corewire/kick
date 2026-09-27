@@ -104,15 +104,23 @@ spec:
                 if [ -n "$recorded" ]; then
                   recorded_phase=$(kubectl -n "$NS" get stage prod -o go-template='{{range .status.freightHistory}}{{range .verificationHistory}}{{if eq .id "'"$recorded"'"}}{{.phase}}{{end}}{{end}}{{end}}')
                 fi
-                want="{\"id\":\"$recorded\"}"
-                if [ "$state" = "Requested" ] && [ "$recorded_phase" = "Successful" ] && { [ -z "$ann" ] || [ "$ann" = "$want" ]; }; then
+                case "$ann" in
+                  *"$recorded"*) ann_ok=1 ;;
+                  *) ann_ok=0 ;;
+                esac
+                # Kargo's Stage webhook keeps the annotation and adds the actor,
+                # so the value is not the exact object KICK wrote.
+                if [ "$state" = "Requested" ] && [ "$recorded_phase" = "Successful" ] && [ "$ann_ok" = "1" ]; then
                   break
                 fi
                 sleep 2
               done
-              want="{\"id\":\"$recorded\"}"
-              if [ "$state" != "Requested" ] || [ "$recorded_phase" != "Successful" ] || { [ -n "$ann" ] && [ "$ann" != "$want" ]; }; then
-                echo "reverify not requested for the settled verification; state=$state recorded_phase=$recorded_phase" >&2
+              case "$ann" in
+                *"$recorded"*) ann_ok=1 ;;
+                *) ann_ok=0 ;;
+              esac
+              if [ "$state" != "Requested" ] || [ "$recorded_phase" != "Successful" ] || [ "$ann_ok" != "1" ]; then
+                echo "reverify not requested for the settled verification; state=$state recorded_phase=$recorded_phase annotation=$ann" >&2
                 kubectl -n "$NS" get kickrequests -o yaml >&2 || true
                 exit 1
               fi
