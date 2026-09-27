@@ -13,6 +13,7 @@ import yaml
 
 
 VERSION = re.compile(r"v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)")
+REQUESTED = re.compile(r"v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-rc)?")
 CONVENTIONAL = re.compile(r"^([a-z]+)(?:\([^\n]+\))?(!)?:\s", re.MULTILINE)
 
 
@@ -20,6 +21,13 @@ def version_tuple(tag: str) -> tuple[int, ...]:
     match = VERSION.fullmatch(tag)
     if not match:
         raise ValueError(f"Not a stable release tag: {tag}")
+    return tuple(int(part) for part in match.groups())
+
+
+def requested_version(tag: str) -> tuple[int, ...]:
+    match = REQUESTED.fullmatch(tag)
+    if not match:
+        raise ValueError(f"Not a release tag: {tag}")
     return tuple(int(part) for part in match.groups())
 
 
@@ -76,7 +84,7 @@ def plan(repository: str, requested_tag: str = "") -> dict[str, str]:
     sha = run("git", "rev-parse", "HEAD")
     run("git", "merge-base", "--is-ancestor", sha, "origin/main")
     if requested_tag:
-        version_tuple(requested_tag)
+        requested_version(requested_tag)
         if run("git", "rev-parse", f"{requested_tag}^{{commit}}") != sha:
             raise ValueError("Release tag does not point to the checked-out commit")
     tags = run("git", "tag", "--merged", sha, "--list", "v*").splitlines()
@@ -85,7 +93,7 @@ def plan(repository: str, requested_tag: str = "") -> dict[str, str]:
     revision = f"{previous}..{sha}" if previous else sha
     commits = run("git", "rev-list", revision).splitlines()
     if requested_tag:
-        if previous and version_tuple(requested_tag) <= version_tuple(previous):
+        if previous and requested_version(requested_tag) <= version_tuple(previous):
             raise ValueError("Release tag must be newer than the previous stable release")
         tag = requested_tag
     elif not previous:
@@ -96,7 +104,7 @@ def plan(repository: str, requested_tag: str = "") -> dict[str, str]:
         tag = next_tag(previous, bump_level(messages, merged_pull_requests(repository, commits)))
     else:
         tag = previous
-    version_tuple(tag)
+    requested_version(tag)
     return {
         "publish": str(bool(commits) or bool(requested_tag)).lower(),
         "sha": sha,

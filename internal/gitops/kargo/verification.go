@@ -196,54 +196,77 @@ func readVerification(stage *unstructured.Unstructured) (verificationView, error
 	if err != nil {
 		return view, err
 	}
-
-	history, found, err := unstructured.NestedSlice(stage.Object, "status", "freightHistory")
-	if err != nil {
-		return view, fmt.Errorf("unreadable freight history: %w", err)
-	}
-	if !found || len(history) == 0 {
-		return view, nil
-	}
-	collection, ok := history[0].(map[string]any)
-	if !ok {
-		return view, fmt.Errorf("unreadable freight history: current entry is not an object")
+	collection, found, err := currentFreightCollection(stage)
+	if err != nil || !found {
+		return view, err
 	}
 	view.collectionID, _, err = unstructured.NestedString(collection, "id")
 	if err != nil {
 		return view, fmt.Errorf("unreadable freight history: %w", err)
 	}
-
-	records, recordsFound, err := unstructured.NestedSlice(collection, "verificationHistory")
-	if err != nil {
-		return view, fmt.Errorf("unreadable verification history: %w", err)
+	if err := applyVerificationHistory(&view, collection); err != nil {
+		return view, err
 	}
-	if recordsFound {
-		for i, raw := range records {
-			entry, ok := raw.(map[string]any)
-			if !ok {
-				return view, fmt.Errorf("unreadable verification history: entry %d is not an object", i)
-			}
-			phase, _, err := unstructured.NestedString(entry, "phase")
-			if err != nil {
-				return view, fmt.Errorf("unreadable verification history: %w", err)
-			}
-			if _, terminal := terminalVerificationPhases[phase]; !terminal {
-				view.active = true
-				view.message = "kargo verification is pending or running"
-			}
-			if i == 0 {
-				view.hasVerification = true
-				view.verificationID, _, err = unstructured.NestedString(entry, "id")
-				if err != nil {
-					return view, fmt.Errorf("unreadable verification history: %w", err)
-				}
-			}
+	return pendingVerification(stage, collection, configured, view)
+}
+
+func currentFreightCollection(stage *unstructured.Unstructured) (map[string]any, bool, error) {
+	history, found, err := unstructured.NestedSlice(stage.Object, "status", "freightHistory")
+	if err != nil {
+		return nil, false, fmt.Errorf("unreadable freight history: %w", err)
+	}
+	if !found || len(history) == 0 {
+		return nil, false, nil
+	}
+	collection, ok := history[0].(map[string]any)
+	if !ok {
+		return nil, false, fmt.Errorf("unreadable freight history: current entry is not an object")
+	}
+	return collection, true, nil
+}
+
+func applyVerificationHistory(view *verificationView, collection map[string]any) error {
+	records, found, err := unstructured.NestedSlice(collection, "verificationHistory")
+	if err != nil {
+		return fmt.Errorf("unreadable verification history: %w", err)
+	}
+	if !found {
+		return nil
+	}
+	for i, raw := range records {
+		if err := applyVerificationEntry(view, raw, i); err != nil {
+			return err
 		}
 	}
-	if view.active {
-		return view, nil
+	return nil
+}
+
+func applyVerificationEntry(view *verificationView, raw any, index int) error {
+	entry, ok := raw.(map[string]any)
+	if !ok {
+		return fmt.Errorf("unreadable verification history: entry %d is not an object", index)
 	}
-	if !configured || view.hasVerification {
+	phase, _, err := unstructured.NestedString(entry, "phase")
+	if err != nil {
+		return fmt.Errorf("unreadable verification history: %w", err)
+	}
+	if _, terminal := terminalVerificationPhases[phase]; !terminal {
+		view.active = true
+		view.message = "kargo verification is pending or running"
+	}
+	if index != 0 {
+		return nil
+	}
+	view.hasVerification = true
+	view.verificationID, _, err = unstructured.NestedString(entry, "id")
+	if err != nil {
+		return fmt.Errorf("unreadable verification history: %w", err)
+	}
+	return nil
+}
+
+func pendingVerification(stage *unstructured.Unstructured, collection map[string]any, configured bool, view verificationView) (verificationView, error) {
+	if view.active || !configured || view.hasVerification {
 		return view, nil
 	}
 	matched, err := lastPromotionMatchesCollection(stage, collection)

@@ -79,8 +79,10 @@ make ci-e2e-local      # kind cluster, image, full e2e suite
 ## Releases
 
 The [release workflow](https://github.com/corewire/kick/blob/main/.github/workflows/release.yml)
-runs Mondays at 06:00 UTC, on stable `vMAJOR.MINOR.PATCH` tags, or manually from
-`main`. Unchanged weeks are skipped; the first release uses the chart version.
+runs Mondays at 06:00 UTC, on stable `vMAJOR.MINOR.PATCH` tags, on an explicit
+`vMAJOR.MINOR.PATCH-rc` tag, or manually from `main`. An `-rc` tag is a
+prerelease and is not the baseline for the next stable bump. Unchanged weeks
+are skipped; the first release uses the chart version.
 Subsequent releases inspect commits and merged PRs since the previous stable tag:
 
 | Signal | Bump | Example |

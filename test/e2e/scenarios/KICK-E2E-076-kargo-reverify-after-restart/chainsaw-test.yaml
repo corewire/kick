@@ -23,10 +23,10 @@ spec:
               APP=app-076
               WANT=Successful
               MARK=/tmp/kick-e2e-076-collection
-              deadline=$((SECONDS+480))
+              deadline=$(( $(date +%s) + 480 ))
               phase=""
               gen=0
-              while [ "$SECONDS" -lt "$deadline" ]; do
+              while [ "$(date +%s)" -lt "$deadline" ]; do
                 phase=$(kubectl -n "$NS" get stage prod -o jsonpath='{.status.freightHistory[0].verificationHistory[0].phase}' 2>/dev/null || true)
                 promo=$(kubectl -n "$NS" get stage prod -o jsonpath='{.status.currentPromotion.name}' 2>/dev/null || true)
                 gen=$(kubectl -n "$NS" get deployment "$APP" -o jsonpath='{.metadata.generation}' 2>/dev/null || echo 0)
@@ -62,12 +62,12 @@ spec:
               APP=app-076
               BETA=YmV0YQ==
               BASE=$(cat /tmp/kick-e2e-076-collection)
-              deadline=$((SECONDS+480))
+              deadline=$(( $(date +%s) + 480 ))
               phase=""
               gen=0
               cid=""
               vid=""
-              while [ "$SECONDS" -lt "$deadline" ]; do
+              while [ "$(date +%s)" -lt "$deadline" ]; do
                 phase=$(kubectl -n "$NS" get stage prod -o jsonpath='{.status.freightHistory[0].verificationHistory[0].phase}' 2>/dev/null || true)
                 promo=$(kubectl -n "$NS" get stage prod -o jsonpath='{.status.currentPromotion.name}' 2>/dev/null || true)
                 gen=$(kubectl -n "$NS" get deployment "$APP" -o jsonpath='{.metadata.generation}' 2>/dev/null || echo 0)
@@ -93,7 +93,7 @@ spec:
               fi
               want="{\"id\":\"$vid\"}"
               ann=""
-              while [ "$SECONDS" -lt "$deadline" ]; do
+              while [ "$(date +%s)" -lt "$deadline" ]; do
                 ann=$(kubectl -n "$NS" get stage prod -o go-template='{{if .metadata.annotations}}{{index .metadata.annotations "kargo.akuity.io/reverify"}}{{end}}')
                 state=$(kubectl -n "$NS" get kickrequests -o jsonpath='{.items[0].status.kargoReverification.state}' 2>/dev/null || true)
                 if [ "$ann" = "$want" ] && [ "$state" = "Requested" ]; then

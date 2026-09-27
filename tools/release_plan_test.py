@@ -80,6 +80,13 @@ class ReleasePlanTests(unittest.TestCase):
         with patch("release_plan.run", side_effect=self.mock_git(tags="v0.1.0\nv0.2.0")):
             self.assertEqual(plan("owner/repo", "v0.2.0")["tag"], "v0.2.0")
 
+    def test_explicit_release_candidate_is_not_a_stable_baseline(self) -> None:
+        with patch("release_plan.run", side_effect=self.mock_git(tags="")):
+            result = plan("owner/repo", "v0.1.0-rc")
+        self.assertEqual(result["tag"], "v0.1.0-rc")
+        self.assertEqual(result["version"], "0.1.0-rc")
+        self.assertEqual(result["publish"], "true")
+
     def test_old_tag_is_rejected(self) -> None:
         with patch("release_plan.run", side_effect=self.mock_git(tags="v0.1.0\nv0.2.0")):
             with self.assertRaises(ValueError):

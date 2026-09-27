@@ -190,9 +190,12 @@ func (r *KickRequestReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return result, err
 	}
 
-	now := r.now().UTC()
+	return r.reconcileAfterPolicy(ctx, req, &request, workload, targetKey, matchedPolicy)
+}
 
-	result, done, err = r.evaluateNativeWindows(ctx, req, &request, workload, targetKey, matchedPolicy, now)
+func (r *KickRequestReconciler) reconcileAfterPolicy(ctx context.Context, req ctrl.Request, request *kickv1alpha1.KickRequest, workload client.Object, targetKey types.NamespacedName, matchedPolicy *kickv1alpha1.KickPolicy) (ctrl.Result, error) {
+	now := r.now().UTC()
+	result, done, err := r.evaluateNativeWindows(ctx, req, request, workload, targetKey, matchedPolicy, now)
 	if done || err != nil {
 		return result, err
 	}
@@ -200,7 +203,7 @@ func (r *KickRequestReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	// No GitOps provider configured: KICK gates on its own. With no native
 	// windows above, a stale dependency restarts immediately.
 	if !policyGitOpsGated(matchedPolicy) {
-		return r.evaluateFreshnessAndExecute(ctx, req, &request, workload, targetKey, matchedPolicy,
+		return r.evaluateFreshnessAndExecute(ctx, req, request, workload, targetKey, matchedPolicy,
 			kickv1alpha1.GitOpsOwnerStatus{},
 			gitops.GateDecision{Allowed: true, Reconciled: true, Reason: gitops.GateAllowed, Message: "no GitOps provider configured"})
 	}
@@ -210,12 +213,10 @@ func (r *KickRequestReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		observeControllerError("kickrequest", "ResolveOwnerAndGate")
 		return ctrl.Result{}, err
 	}
-
 	if !gitops.MayExecute(gateDecision) {
-		return r.handleClosedGate(ctx, req, &request, ownerStatus, gateDecision, now)
+		return r.handleClosedGate(ctx, req, request, ownerStatus, gateDecision, now)
 	}
-
-	return r.evaluateFreshnessAndExecute(ctx, req, &request, workload, targetKey, matchedPolicy, ownerStatus, gateDecision)
+	return r.evaluateFreshnessAndExecute(ctx, req, request, workload, targetKey, matchedPolicy, ownerStatus, gateDecision)
 }
 
 // dependenciesConfigured reports whether all injected collaborators are set.

@@ -181,4 +181,10 @@ jobs:
           GH_REPO: ${{ github.repository }}
           TAG: ${{ needs.plan.outputs.tag }}
           SHA: ${{ needs.plan.outputs.sha }}
-        run: gh release create "$TAG" dist/* --target "$SHA" --title "$TAG" --generate-notes --latest
+        run: |
+          set -eu
+          if [[ "$TAG" == *-* ]]; then
+            gh release create "$TAG" dist/* --target "$SHA" --title "$TAG" --generate-notes --prerelease --latest=false
+          else
+            gh release create "$TAG" dist/* --target "$SHA" --title "$TAG" --generate-notes --latest
+          fi
