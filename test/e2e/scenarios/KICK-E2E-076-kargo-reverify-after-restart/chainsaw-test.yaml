@@ -90,29 +90,29 @@ spec:
                 echo "timed out waiting for one restart after Successful verification; phase=$phase generation=$gen" >&2
                 exit 1
               fi
-              vid=$(kubectl -n "$NS" get stage prod -o jsonpath='{.status.freightHistory[0].verificationHistory[0].id}')
-              if [ -z "$vid" ]; then
-                echo "verification id is empty" >&2
-                exit 1
-              fi
-              want="{\"id\":\"$vid\"}"
+              # Reverification prepends a new history entry, so the live head is not
+              # the verification KICK recorded. Match the recorded ID anywhere in
+              # history, and accept a consumed annotation.
               ann=""
               state=""
               recorded=""
+              recorded_phase=""
               while [ "$(date +%s)" -lt "$deadline" ]; do
                 ann=$(kubectl -n "$NS" get stage prod -o go-template='{{if .metadata.annotations}}{{index .metadata.annotations "kargo.akuity.io/reverify"}}{{end}}')
                 state=$(kubectl -n "$NS" get kickrequests -o jsonpath='{.items[0].status.kargoReverification.state}' 2>/dev/null || true)
                 recorded=$(kubectl -n "$NS" get kickrequests -o jsonpath='{.items[0].status.kargoReverification.verificationID}' 2>/dev/null || true)
-                # Kargo consumes the annotation after accepting it, so the durable
-                # proof is the recorded verification ID. A still-present annotation
-                # must name that same verification.
-                if [ "$state" = "Requested" ] && [ "$recorded" = "$vid" ] && { [ -z "$ann" ] || [ "$ann" = "$want" ]; }; then
+                if [ -n "$recorded" ]; then
+                  recorded_phase=$(kubectl -n "$NS" get stage prod -o go-template='{{range .status.freightHistory}}{{range .verificationHistory}}{{if eq .id "'"$recorded"'"}}{{.phase}}{{end}}{{end}}{{end}}')
+                fi
+                want="{\"id\":\"$recorded\"}"
+                if [ "$state" = "Requested" ] && [ "$recorded_phase" = "Successful" ] && { [ -z "$ann" ] || [ "$ann" = "$want" ]; }; then
                   break
                 fi
                 sleep 2
               done
-              if [ "$state" != "Requested" ] || [ "$recorded" != "$vid" ] || { [ -n "$ann" ] && [ "$ann" != "$want" ]; }; then
-                echo "reverify not requested for the settled verification; state=$state" >&2
+              want="{\"id\":\"$recorded\"}"
+              if [ "$state" != "Requested" ] || [ "$recorded_phase" != "Successful" ] || { [ -n "$ann" ] && [ "$ann" != "$want" ]; }; then
+                echo "reverify not requested for the settled verification; state=$state recorded_phase=$recorded_phase" >&2
                 kubectl -n "$NS" get kickrequests -o yaml >&2 || true
                 exit 1
               fi

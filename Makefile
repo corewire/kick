@@ -62,7 +62,7 @@ space := $(empty) $(empty)
 # Turn "024 025" into "/KICK-E2E-(024|025)\b".
 e2e_regex = /KICK-E2E-($(subst $(space),|,$(strip $(1))))\b
 
-# $(1) suite name, $(2) grep flags, $(3) ID list, $(4) chainsaw config
+# $(1) suite name, $(2) grep flags, $(3) ID list, $(4) chainsaw config, $(5) extra chainsaw flags
 define e2e_suite
 @scenario_dirs="$$(find test/e2e/scenarios -mindepth 1 -maxdepth 1 -type d | sort | grep $(2) '$(call e2e_regex,$(3))')"; \
 if [[ -z "$$scenario_dirs" ]]; then \
@@ -70,7 +70,7 @@ if [[ -z "$$scenario_dirs" ]]; then \
 	exit 1; \
 fi; \
 $(E2E_REPORT_MKDIR) \
-KUBECONFIG=$(KIND_KUBECONFIG) $(CHAINSAW) test --config $(4) --kube-context $(KIND_CONTEXT) $(E2E_REPORT_FLAGS) $$scenario_dirs
+KUBECONFIG=$(KIND_KUBECONFIG) $(CHAINSAW) test --config $(4) --kube-context $(KIND_CONTEXT) $(5) $(E2E_REPORT_FLAGS) $$scenario_dirs
 endef
 
 .PHONY: fmt
@@ -216,7 +216,9 @@ test-e2e-csi: chainsaw e2e-csi-setup
 .PHONY: test-e2e-kargo
 test-e2e-kargo: E2E_REPORT_NAME = kargo
 test-e2e-kargo: chainsaw e2e-kargo-setup
-	$(call e2e_suite,kargo,-E,$(E2E_IDS_KARGO),$(E2E_CHAINSAW_CONFIG_INTEGRATION))
+	# Verification scenarios run AnalysisRuns. Full parallelism leaves Argo CD
+	# Applications Healthy with sync status Unknown until the assert budget ends.
+	$(call e2e_suite,kargo,-E,$(E2E_IDS_KARGO),$(E2E_CHAINSAW_CONFIG_INTEGRATION),--parallel 2)
 
 # Runs a single scenario by ID or directory-name fragment. Uses the integration
 # timeout budget so it works for both core and integration scenarios; the
