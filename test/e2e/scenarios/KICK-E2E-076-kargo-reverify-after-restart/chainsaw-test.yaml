@@ -29,8 +29,12 @@ spec:
               while [ "$(date +%s)" -lt "$deadline" ]; do
                 phase=$(kubectl -n "$NS" get stage prod -o jsonpath='{.status.freightHistory[0].verificationHistory[0].phase}' 2>/dev/null || true)
                 promo=$(kubectl -n "$NS" get stage prod -o jsonpath='{.status.currentPromotion.name}' 2>/dev/null || true)
-                gen=$(kubectl -n "$NS" get deployment "$APP" -o jsonpath='{.metadata.generation}' 2>/dev/null || echo 0)
+                gen=$(kubectl -n "$NS" get deployment "$APP" -o jsonpath='{.metadata.generation}' 2>/dev/null || true)
                 cid=$(kubectl -n "$NS" get stage prod -o jsonpath='{.status.freightHistory[0].id}' 2>/dev/null || true)
+                if [ -z "$gen" ]; then
+                  sleep 2
+                  continue
+                fi
                 if [ "$gen" -gt 1 ]; then
                   echo "baseline restarted; generation=$gen phase=$phase" >&2
                   exit 1
@@ -86,32 +90,45 @@ spec:
                 echo "timed out waiting for one restart after Successful verification; phase=$phase generation=$gen" >&2
                 exit 1
               fi
-              vid=$(kubectl -n "$NS" get stage prod -o jsonpath='{.status.freightHistory[0].verificationHistory[0].id}')
-              if [ -z "$vid" ]; then
-                echo "verification id is empty" >&2
-                exit 1
-              fi
-              want="{\"id\":\"$vid\"}"
+              # Reverification prepends a new history entry, so the live head is not
+              # the verification KICK recorded. Match the recorded ID anywhere in
+              # history, and accept a consumed annotation.
               ann=""
+              state=""
+              recorded=""
+              recorded_phase=""
               while [ "$(date +%s)" -lt "$deadline" ]; do
                 ann=$(kubectl -n "$NS" get stage prod -o go-template='{{if .metadata.annotations}}{{index .metadata.annotations "kargo.akuity.io/reverify"}}{{end}}')
                 state=$(kubectl -n "$NS" get kickrequests -o jsonpath='{.items[0].status.kargoReverification.state}' 2>/dev/null || true)
-                if [ "$ann" = "$want" ] && [ "$state" = "Requested" ]; then
+                recorded=$(kubectl -n "$NS" get kickrequests -o jsonpath='{.items[0].status.kargoReverification.verificationID}' 2>/dev/null || true)
+                if [ -n "$recorded" ]; then
+                  recorded_phase=$(kubectl -n "$NS" get stage prod -o go-template='{{range .status.freightHistory}}{{range .verificationHistory}}{{if eq .id "'"$recorded"'"}}{{.phase}}{{end}}{{end}}{{end}}')
+                fi
+                case "$ann" in
+                  *"$recorded"*) ann_ok=1 ;;
+                  *) ann_ok=0 ;;
+                esac
+                # Kargo's Stage webhook keeps the annotation and adds the actor,
+                # so the value is not the exact object KICK wrote.
+                if [ "$state" = "Requested" ] && [ "$recorded_phase" = "Successful" ] && [ "$ann_ok" = "1" ]; then
                   break
                 fi
                 sleep 2
               done
-              if [ "$ann" != "$want" ] || [ "$state" != "Requested" ]; then
-                echo "reverify not requested for the settled verification; state=$state" >&2
+              case "$ann" in
+                *"$recorded"*) ann_ok=1 ;;
+                *) ann_ok=0 ;;
+              esac
+              if [ "$state" != "Requested" ] || [ "$recorded_phase" != "Successful" ] || [ "$ann_ok" != "1" ]; then
+                echo "reverify not requested for the settled verification; state=$state recorded_phase=$recorded_phase annotation=$ann" >&2
                 kubectl -n "$NS" get kickrequests -o yaml >&2 || true
                 exit 1
               fi
               sleep 60
               gen=$(kubectl -n "$NS" get deployment "$APP" -o jsonpath='{.metadata.generation}')
-              ann2=$(kubectl -n "$NS" get stage prod -o go-template='{{if .metadata.annotations}}{{index .metadata.annotations "kargo.akuity.io/reverify"}}{{end}}')
               sets=$(kubectl -n "$NS" get replicaset -l app="$APP" -o name | wc -l)
-              if [ "$gen" -ne 2 ] || [ "$sets" -ne 2 ] || [ "$ann2" != "$want" ]; then
-                echo "restart or annotation changed after reverification; generation=$gen replicasets=$sets" >&2
+              if [ "$gen" -ne 2 ] || [ "$sets" -ne 2 ]; then
+                echo "restart changed after reverification; generation=$gen replicasets=$sets" >&2
                 exit 1
               fi
     - name: cleanup
