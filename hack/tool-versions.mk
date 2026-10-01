@@ -3,7 +3,7 @@
 # Kept in its own file so CI can key its tool cache on this file and Go. Keying
 # on the Makefile invalidated every cached binary on unrelated Makefile edits,
 # which cost a full tool rebuild (~3 minutes) per run.
-KUSTOMIZE_VERSION ?= v5.8.1
+KUSTOMIZE_VERSION ?= v5.8.2
 CONTROLLER_TOOLS_VERSION ?= v0.22.0
 ENVTEST_VERSION ?= v0.25.1
 ENVTEST_K8S_VERSION ?= 1.37.0
