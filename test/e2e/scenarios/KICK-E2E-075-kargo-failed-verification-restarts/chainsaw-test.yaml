@@ -35,7 +35,7 @@ spec:
                   sleep 2
                   continue
                 fi
-                if [ "$gen" != "1" ]; then
+                if [ "$gen" -gt 1 ]; then
                   echo "baseline restarted; generation=$gen phase=$phase" >&2
                   exit 1
                 fi
