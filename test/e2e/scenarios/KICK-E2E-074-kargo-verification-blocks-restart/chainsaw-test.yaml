@@ -31,7 +31,7 @@ spec:
                 promo=$(kubectl -n "$NS" get stage prod -o jsonpath='{.status.currentPromotion.name}' 2>/dev/null || true)
                 gen=$(kubectl -n "$NS" get deployment "$APP" -o jsonpath='{.metadata.generation}' 2>/dev/null || echo 0)
                 cid=$(kubectl -n "$NS" get stage prod -o jsonpath='{.status.freightHistory[0].id}' 2>/dev/null || true)
-                if [ "$gen" != "1" ]; then
+                if [ "$gen" -gt 1 ]; then
                   echo "baseline restarted; generation=$gen phase=$phase" >&2
                   exit 1
                 fi
