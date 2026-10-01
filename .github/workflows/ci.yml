@@ -172,6 +172,25 @@ jobs:
           name: feature-coverage-report
           path: traceability/feature-coverage-report.md
 
+  verify:
+    runs-on: ubuntu-24.04
+    needs: [lint, unit-tests, race-tests, generated]
+    if: always()
+    steps:
+      - name: Check verification jobs
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$NEEDS"
+          failed="$(jq -r '[to_entries[]
+            | select(.value.result != "success")]
+            | map(.key) | join(", ")' <<<"$NEEDS")"
+          if [[ -n "$failed" ]]; then
+            echo "failed verification jobs: ${failed}"
+            exit 1
+          fi
+
   # Built once and handed to every e2e job, instead of once per job.
   image:
     runs-on: ubuntu-24.04
@@ -207,6 +226,7 @@ jobs:
   # One kind cluster per suite, in parallel. Suites differ in the control planes
   # they install, which is why they are not sharded by scenario count.
   e2e:
+    name: e2e-${{ matrix.suite }}
     runs-on: ubuntu-24.04
     needs: image
     strategy:
@@ -292,7 +312,7 @@ jobs:
   ci:
     runs-on: ubuntu-24.04
     if: always()
-    needs: [changes, lint, unit-tests, race-tests, generated, image, e2e]
+    needs: [changes, lint, unit-tests, race-tests, generated, verify, image, e2e]
     steps:
       - name: Check job results
         env:
