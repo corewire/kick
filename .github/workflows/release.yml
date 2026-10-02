@@ -145,7 +145,7 @@ jobs:
         run: tar -czf "dist/kick-crds-${TAG}.tar.gz" config/crd/bases
 
       - name: Generate SBOM
-        uses: anchore/sbom-action@v0.24.2
+        uses: anchore/sbom-action@v0.24.3
         with:
           artifact-name: kick-sbom.spdx.json
           output-file: dist/kick-sbom.spdx.json
