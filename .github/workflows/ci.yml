@@ -167,7 +167,7 @@ jobs:
 
       - name: Upload feature coverage report
         if: always()
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: feature-coverage-report
           path: traceability/feature-coverage-report.md
@@ -217,7 +217,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Upload operator image
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: kick-image
           path: ${{ runner.temp }}/kick-image.tar
@@ -276,7 +276,7 @@ jobs:
         run: make kind-create
 
       - name: Download operator image
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@v8.0.2
         with:
           name: kick-image
           path: dist
@@ -297,7 +297,7 @@ jobs:
 
       - name: Upload scenario timings
         if: always()
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: e2e-timings-${{ matrix.suite }}
           path: ${{ env.E2E_REPORT_DIR }}
