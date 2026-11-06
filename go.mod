@@ -1,6 +1,6 @@
 module github.com/corewire/kick
 
-go 1.27.1
+go 1.27.3
 
 require (
 	github.com/prometheus/client_golang v1.24.1
