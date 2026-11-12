@@ -14,6 +14,7 @@ GITEA_PASSWORD="${GITEA_PASSWORD:-kick-e2e-throwaway}"
 
 # Cluster-internal base URL. Anonymous clone works, so Argo CD needs no
 # credentials; only pushes authenticate.
+# shellcheck disable=SC2034 # used by scripts that source this file
 GITEA_INTERNAL_URL="http://gitea.${GITEA_NS}.svc.cluster.local:3000"
 
 kc() { kubectl --kubeconfig "$KUBECONFIG_PATH" --context "$(gitea_context)" "$@"; }
@@ -36,7 +37,9 @@ gitea_context() {
 # Run a script from stdin inside the Gitea pod with "$@" set to the extra args.
 gitea_sh() { kc -n "$GITEA_NS" exec -i deploy/gitea -- sh -s -- "$@"; }
 
-gitea_repo_url() { echo "${GITEA_INTERNAL_URL}/${GITEA_USER}/${1}.git"; }
+# Git commands run inside the Gitea pod use loopback, not cluster DNS: a CoreDNS
+# timeout under parallel load failed seeding (KICK-E2E-077, issue #34).
+gitea_local_url() { echo "http://127.0.0.1:3000/${GITEA_USER}/${1}.git"; }
 
 # `gitea admin user create` refuses to run as root and needs the generated
 # app.ini, so it runs as the `git` user against the on-disk config.
@@ -88,7 +91,7 @@ EOF
 }
 
 _gitea_clone() {
-  gitea_sh "$1" "$(gitea_repo_url "$1")" <<'EOF'
+  gitea_sh "$1" "$(gitea_local_url "$1")" <<'EOF'
 set -eu
 work="/tmp/kick-e2e/$1"
 rm -rf "$work"
@@ -147,7 +150,7 @@ gitea_commit_file() {
 
 # Latest commit on main; used to assert a promotion wrote a commit.
 gitea_head_sha() {
-  gitea_sh "$(gitea_repo_url "$1")" <<'EOF'
+  gitea_sh "$(gitea_local_url "$1")" <<'EOF'
 set -eu
 git ls-remote "$1" refs/heads/main | cut -f1
 EOF
