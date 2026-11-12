@@ -37,13 +37,13 @@ authenticate image pulls, not application config.&lt;/p&gt;
 &lt;p&gt;An Argo &lt;code&gt;Rollout&lt;/code&gt; that uses &lt;code&gt;spec.workloadRef&lt;/code&gt; instead of an inline
 &lt;code&gt;spec.template&lt;/code&gt; has no pod spec of its own, so KICK discovers no dependencies
 for it. Select the referenced workload instead.&lt;/p&gt;
-&lt;h2&gt;Only proven references&lt;span class="hx:absolute hx:-mt-20" id="only-proven-references"&gt;&lt;/span&gt;
+&lt;h2 data-hextra-search-id="only-proven-references"&gt;Only proven references&lt;span class="hx:absolute hx:-mt-20" id="only-proven-references"&gt;&lt;/span&gt;
 &lt;a href="#only-proven-references" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;KICK restarts only on dependencies it can prove the workload consumes by reading
 the pod spec. There is deliberately no way to declare an extra dependency by
 name: a hand-maintained list drifts from reality, and a stale entry causes
 restarts nobody can explain. If an application reads a Secret through the API,
 create a &lt;code&gt;KickRequest&lt;/code&gt; from whatever triggers that change instead.&lt;/p&gt;
-&lt;h2&gt;Secrets Store CSI&lt;span class="hx:absolute hx:-mt-20" id="secrets-store-csi"&gt;&lt;/span&gt;
+&lt;h2 data-hextra-search-id="secrets-store-csi"&gt;Secrets Store CSI&lt;span class="hx:absolute hx:-mt-20" id="secrets-store-csi"&gt;&lt;/span&gt;
 &lt;a href="#secrets-store-csi" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;With &lt;code&gt;--enable-csi-integration&lt;/code&gt;, KICK watches &lt;code&gt;SecretProviderClassPodStatus&lt;/code&gt; and
 derives a content fingerprint from the mounted object versions reported by every
 pod of the class. Because a rotation reaches pods one at a time, KICK only acts
@@ -51,7 +51,7 @@ once every pod reports the same versions; while they disagree it re-checks
 shortly instead of restarting mid-rotation. The first observation is anchored to
 an epoch baseline, so enabling the integration never restarts anything by
 itself.&lt;/p&gt;
-&lt;h2&gt;Scoping with selectors&lt;span class="hx:absolute hx:-mt-20" id="scoping-with-selectors"&gt;&lt;/span&gt;
+&lt;h2 data-hextra-search-id="scoping-with-selectors"&gt;Scoping with selectors&lt;span class="hx:absolute hx:-mt-20" id="scoping-with-selectors"&gt;&lt;/span&gt;
 &lt;a href="#scoping-with-selectors" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;Discovery is always automatic — KICK never needs a hand-maintained dependency
 list. Two optional selectors on &lt;code&gt;spec.discovery&lt;/code&gt; narrow what a policy acts on:&lt;/p&gt;
 &lt;ul&gt;
@@ -94,7 +94,7 @@ otherwise the active revision&amp;rsquo;s creation time), computed per workload 
 &lt;/table&gt;
 &lt;p&gt;KICK always &lt;strong&gt;re-reads live state&lt;/strong&gt; immediately before restarting, so a rollout
 that started in the meantime is never restarted twice.&lt;/p&gt;
-&lt;h2&gt;Initial baseline&lt;span class="hx:absolute hx:-mt-20" id="initial-baseline"&gt;&lt;/span&gt;
+&lt;h2 data-hextra-search-id="initial-baseline"&gt;Initial baseline&lt;span class="hx:absolute hx:-mt-20" id="initial-baseline"&gt;&lt;/span&gt;
 &lt;a href="#initial-baseline" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;Freshness needs an authoritative change timestamp, and the first observation of
 a dependency never witnessed the change that produced the content it finds. KICK
 therefore dates that content from what the API server recorded: the source&amp;rsquo;s
@@ -124,7 +124,7 @@ it only ever delays or permits a restart that freshness already justified.&lt;/p
 KICK self-gates and restarts as soon as a dependency is stale. You add a gate
 when a restart must wait for a maintenance window, or until your GitOps tool has
 finished reconciling the workload.&lt;/p&gt;
-&lt;h2&gt;Two stages&lt;span class="hx:absolute hx:-mt-20" id="two-stages"&gt;&lt;/span&gt;
+&lt;h2 data-hextra-search-id="two-stages"&gt;Two stages&lt;span class="hx:absolute hx:-mt-20" id="two-stages"&gt;&lt;/span&gt;
 &lt;a href="#two-stages" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;The gate is evaluated in order. A restart runs only if &lt;strong&gt;both&lt;/strong&gt; stages allow it.&lt;/p&gt;
 &lt;div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code"&gt;
 &lt;div&gt;&lt;pre&gt;&lt;code&gt;stale workload ──▶ [ 1. native windows ] ──▶ [ 2. GitOps provider ] ──▶ restart
@@ -143,7 +143,7 @@ data-copied-label="Copied!"
 &lt;/button&gt;
 &lt;/div&gt;
 &lt;/div&gt;
-&lt;h3&gt;Stage 1 — native schedule windows&lt;span class="hx:absolute hx:-mt-20" id="stage-1--native-schedule-windows"&gt;&lt;/span&gt;
+&lt;h3 data-hextra-search-id="stage-1--native-schedule-windows"&gt;Stage 1 — native schedule windows&lt;span class="hx:absolute hx:-mt-20" id="stage-1--native-schedule-windows"&gt;&lt;/span&gt;
 &lt;a href="#stage-1--native-schedule-windows" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h3&gt;&lt;p&gt;&lt;code&gt;spec.schedule.windows[]&lt;/code&gt; are KICK-native cron windows evaluated without
 any provider. Each window is either &lt;code&gt;Allow&lt;/code&gt; or &lt;code&gt;Deny&lt;/code&gt;:&lt;/p&gt;
 &lt;ul&gt;
@@ -158,7 +158,7 @@ restart even if an &lt;code&gt;Allow&lt;/code&gt; window also matches.&lt;/li&gt
 &lt;p&gt;Each window takes a 5-field &lt;code&gt;cron&lt;/code&gt; expression, a &lt;code&gt;duration&lt;/code&gt;, and an optional
 IANA &lt;code&gt;timeZone&lt;/code&gt; (UTC by default). This stage never consults a GitOps tool, so a
 maintenance window works on its own.&lt;/p&gt;
-&lt;h3&gt;Stage 2 — GitOps provider&lt;span class="hx:absolute hx:-mt-20" id="stage-2--gitops-provider"&gt;&lt;/span&gt;
+&lt;h3 data-hextra-search-id="stage-2--gitops-provider"&gt;Stage 2 — GitOps provider&lt;span class="hx:absolute hx:-mt-20" id="stage-2--gitops-provider"&gt;&lt;/span&gt;
 &lt;a href="#stage-2--gitops-provider" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h3&gt;&lt;p&gt;&lt;code&gt;spec.gitOps.provider&lt;/code&gt; selects who owns the restart decision:&lt;/p&gt;
 &lt;table&gt;
 &lt;thead&gt;
@@ -208,7 +208,7 @@ in the &lt;code&gt;KickPolicy&lt;/code&gt;.&lt;/p&gt;
 &lt;code&gt;Application&lt;/code&gt; must report &lt;code&gt;Synced&lt;/code&gt;. An out-of-sync or still-reconciling owner
 blocks with &lt;code&gt;OwnerOutOfSync&lt;/code&gt; / &lt;code&gt;OwnerReconciling&lt;/code&gt;, so KICK never restarts against
 config the GitOps tool is mid-flight on.&lt;/p&gt;
-&lt;h2&gt;Blocking reasons&lt;span class="hx:absolute hx:-mt-20" id="blocking-reasons"&gt;&lt;/span&gt;
+&lt;h2 data-hextra-search-id="blocking-reasons"&gt;Blocking reasons&lt;span class="hx:absolute hx:-mt-20" id="blocking-reasons"&gt;&lt;/span&gt;
 &lt;a href="#blocking-reasons" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;The gate surfaces why a restart is waiting on &lt;code&gt;KickRequest.status.gate.reason&lt;/code&gt;:&lt;/p&gt;
 &lt;table&gt;
 &lt;thead&gt;
@@ -266,7 +266,7 @@ config the GitOps tool is mid-flight on.&lt;/p&gt;
 &lt;/tr&gt;
 &lt;/tbody&gt;
 &lt;/table&gt;
-&lt;h2&gt;Waiting behaviour&lt;span class="hx:absolute hx:-mt-20" id="waiting-behaviour"&gt;&lt;/span&gt;
+&lt;h2 data-hextra-search-id="waiting-behaviour"&gt;Waiting behaviour&lt;span class="hx:absolute hx:-mt-20" id="waiting-behaviour"&gt;&lt;/span&gt;
 &lt;a href="#waiting-behaviour" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;A blocked restart is not dropped. KICK persists the waiting phase and reason on
 the &lt;code&gt;KickRequest&lt;/code&gt; and re-evaluates the gate when either:&lt;/p&gt;
 &lt;ul&gt;
@@ -276,7 +276,7 @@ the &lt;code&gt;KickRequest&lt;/code&gt; and re-evaluates the gate when either:&
 &lt;/ul&gt;
 &lt;p&gt;The moment the gate flips to &lt;code&gt;Allowed&lt;/code&gt;, KICK re-reads live state and — if the
 workload is still stale — issues the restart.&lt;/p&gt;
-&lt;h2&gt;Example&lt;span class="hx:absolute hx:-mt-20" id="example"&gt;&lt;/span&gt;
+&lt;h2 data-hextra-search-id="example"&gt;Example&lt;span class="hx:absolute hx:-mt-20" id="example"&gt;&lt;/span&gt;
 &lt;a href="#example" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;Restart only inside a nightly window &lt;strong&gt;and&lt;/strong&gt; only once Argo CD has synced the
 owner:&lt;/p&gt;
 &lt;div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code"&gt;
@@ -309,7 +309,7 @@ data-copied-label="Copied!"
 &lt;p&gt;Native &lt;code&gt;schedule.windows&lt;/code&gt; gate &lt;em&gt;when&lt;/em&gt; KICK restarts; they are independent of the
 provider. Argo CD &lt;code&gt;AppProject&lt;/code&gt; sync windows still constrain when Argo itself
 syncs, and the Argo provider honors them as part of its own gate.&lt;/p&gt;
-&lt;h2&gt;See also&lt;span class="hx:absolute hx:-mt-20" id="see-also"&gt;&lt;/span&gt;
+&lt;h2 data-hextra-search-id="see-also"&gt;See also&lt;span class="hx:absolute hx:-mt-20" id="see-also"&gt;&lt;/span&gt;
 &lt;a href="#see-also" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;ul&gt;
 &lt;li&gt;&lt;a href="../freshness/"&gt;Freshness&lt;/a&gt; — what makes a restart &lt;em&gt;needed&lt;/em&gt; before the gate runs.&lt;/li&gt;
 &lt;li&gt;&lt;a href="../../reference/kickpolicy/"&gt;KickPolicy reference&lt;/a&gt; — every &lt;code&gt;gitOps&lt;/code&gt; field.&lt;/li&gt;
