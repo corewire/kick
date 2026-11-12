@@ -243,6 +243,8 @@ jobs:
             targets: test-e2e-csi
           - suite: kargo
             targets: test-e2e-kargo
+          - suite: flux
+            targets: test-e2e-flux
     env:
       IMAGE_ARCHIVE: ${{ github.workspace }}/dist/kick-image.tar
       E2E_REPORT_DIR: ${{ github.workspace }}/dist/e2e-reports

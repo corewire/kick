@@ -40,7 +40,8 @@ E2E_IDS_RECOVERY ?= 048 049 050 051
 E2E_IDS_ROLLOUTS ?= 060 061 062 063
 E2E_IDS_CSI ?= 064 065 066 067
 E2E_IDS_KARGO ?= 068 069 070 071 074 075 076
-E2E_IDS_NONCORE := $(E2E_IDS_ARGOCD) $(E2E_IDS_RECOVERY) $(E2E_IDS_ROLLOUTS) $(E2E_IDS_CSI) $(E2E_IDS_KARGO)
+E2E_IDS_FLUX ?= 077 078 079 080
+E2E_IDS_NONCORE := $(E2E_IDS_ARGOCD) $(E2E_IDS_RECOVERY) $(E2E_IDS_ROLLOUTS) $(E2E_IDS_CSI) $(E2E_IDS_KARGO) $(E2E_IDS_FLUX)
 QUICK_GO_TEST_REGEX ?= KickPolicy|RegistryGateResolver
 QUICK_E2E ?= 073
 
@@ -162,6 +163,11 @@ e2e-csi:
 e2e-kargo:
 	KICK_E2E_KUBECONFIG=$(KIND_KUBECONFIG) bash test/e2e/setup/kargo/install-kargo.sh
 
+# Installs the Flux source, kustomize and helm controllers.
+.PHONY: e2e-flux
+e2e-flux:
+	KICK_E2E_KUBECONFIG=$(KIND_KUBECONFIG) bash test/e2e/setup/flux/install-flux.sh
+
 # Shared prerequisites of every integration suite. Optional integration CRDs are
 # installed by the per-suite targets before e2e-install starts the manager.
 .PHONY: e2e-base-setup
@@ -183,8 +189,12 @@ e2e-csi-setup: e2e-base-setup e2e-csi e2e-install
 .PHONY: e2e-kargo-setup
 e2e-kargo-setup: e2e-base-setup e2e-rollouts e2e-kargo e2e-install
 
+# Flux syncs from Gitea and needs no Argo CD.
+.PHONY: e2e-flux-setup
+e2e-flux-setup: e2e-namespace e2e-git-server e2e-flux e2e-install
+
 .PHONY: test-e2e
-test-e2e: chainsaw e2e-base-setup e2e-rollouts e2e-csi e2e-kargo e2e-install
+test-e2e: chainsaw e2e-base-setup e2e-rollouts e2e-csi e2e-kargo e2e-flux e2e-install
 	@$(E2E_REPORT_MKDIR) true
 	KUBECONFIG=$(KIND_KUBECONFIG) $(CHAINSAW) test --config $(E2E_CHAINSAW_CONFIG_INTEGRATION) --kube-context $(KIND_CONTEXT) $(E2E_REPORT_FLAGS) test/e2e/scenarios
 
@@ -219,6 +229,11 @@ test-e2e-kargo: chainsaw e2e-kargo-setup
 	# Verification scenarios run AnalysisRuns. Full parallelism leaves Argo CD
 	# Applications Healthy with sync status Unknown until the assert budget ends.
 	$(call e2e_suite,kargo,-E,$(E2E_IDS_KARGO),$(E2E_CHAINSAW_CONFIG_INTEGRATION),--parallel 2)
+
+.PHONY: test-e2e-flux
+test-e2e-flux: E2E_REPORT_NAME = flux
+test-e2e-flux: chainsaw e2e-flux-setup
+	$(call e2e_suite,flux,-E,$(E2E_IDS_FLUX),$(E2E_CHAINSAW_CONFIG_INTEGRATION))
 
 # Runs a single scenario by ID or directory-name fragment. Uses the integration
 # timeout budget so it works for both core and integration scenarios; the

@@ -1,0 +1,77 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: kick-e2e-079-flux-helmrelease-owner-restarts
+spec:
+  steps:
+    - name: seed-repository
+      try:
+        - script:
+            content: ../../setup/gitea/seed.sh e2e-079 chart chart
+    - name: create-fixtures
+      try:
+        - apply:
+            file: resources.yaml
+    - name: wait-for-initial-install
+      try:
+        - assert:
+            resource:
+              apiVersion: helm.toolkit.fluxcd.io/v2
+              kind: HelmRelease
+              metadata:
+                name: app
+                namespace: kick-e2e-079
+              status:
+                (conditions[?type == 'Ready']):
+                  - status: "True"
+        - assert:
+            resource:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: app-079
+                namespace: kick-e2e-079
+                generation: 1
+                labels:
+                  helm.toolkit.fluxcd.io/name: app
+                  helm.toolkit.fluxcd.io/namespace: kick-e2e-079
+              status:
+                availableReplicas: 1
+    - name: rotate-secret
+      try:
+        - apply:
+            file: updated/secret.yaml
+    - name: assert-helmrelease-owner-restarts
+      try:
+        - assert:
+            resource:
+              apiVersion: kick.corewire.io/v1alpha1
+              kind: KickRequest
+              metadata:
+                name: deployment-app-079
+                namespace: kick-e2e-079
+              status:
+                phase: Succeeded
+                owner:
+                  provider: flux
+                  kind: HelmRelease
+                  namespace: kick-e2e-079
+                  name: app
+        # Exactly one rollout: generation 2, not 3.
+        - assert:
+            resource:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: app-079
+                namespace: kick-e2e-079
+                generation: 2
+              status:
+                availableReplicas: 1
+    - name: cleanup
+      try:
+        - delete:
+            ref:
+              apiVersion: v1
+              kind: Namespace
+              name: kick-e2e-079

@@ -54,7 +54,8 @@ maintenance window works on its own.
 | `None` *(default)* | KICK self-gates; this stage always allows. |
 | `ArgoCD` | Defer to Argo CD ownership and sync state. |
 | `Auto` | Detect the managing provider automatically. |
-| `Flux` | Reserved for Flux ownership (roadmap). |
+| `Flux` | Defer to Flux `Kustomization` / `HelmRelease` readiness ([guide](../../guides/flux/)). |
+| `Kargo` | Defer to Kargo promotion and verification, then Argo CD ([guide](../../guides/kargo/)). |
 
 With a real provider, KICK must resolve **exactly one** owner for the workload
 and confirm that owner is reconciled before it restarts.

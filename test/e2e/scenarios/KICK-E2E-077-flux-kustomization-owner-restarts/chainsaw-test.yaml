@@ -1,0 +1,116 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: kick-e2e-077-flux-kustomization-owner-restarts
+spec:
+  steps:
+    - name: seed-repository
+      try:
+        - script:
+            content: ../../setup/gitea/seed.sh e2e-077 manifests manifests
+    - name: create-fixtures
+      try:
+        - apply:
+            file: resources.yaml
+    - name: wait-for-initial-reconcile
+      try:
+        - assert:
+            resource:
+              apiVersion: kustomize.toolkit.fluxcd.io/v1
+              kind: Kustomization
+              metadata:
+                name: app
+                namespace: kick-e2e-077
+              status:
+                (conditions[?type == 'Ready']):
+                  - status: "True"
+        # generation 1 proves the pod template has not been touched yet.
+        - assert:
+            resource:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: app-077
+                namespace: kick-e2e-077
+                generation: 1
+                labels:
+                  kustomize.toolkit.fluxcd.io/name: app
+                  kustomize.toolkit.fluxcd.io/namespace: kick-e2e-077
+              status:
+                availableReplicas: 1
+    - name: change-secret-in-git
+      try:
+        - script:
+            content: ../../setup/gitea/commit-file.sh e2e-077 manifests updated/secret.yaml "rotate app-secret"
+        - script:
+            content: |
+              kubectl -n kick-e2e-077 annotate gitrepository repo reconcile.fluxcd.io/requestedAt=rotate --overwrite
+              kubectl -n kick-e2e-077 annotate kustomization app reconcile.fluxcd.io/requestedAt=rotate --overwrite
+        - assert:
+            resource:
+              apiVersion: v1
+              kind: Secret
+              metadata:
+                name: app-secret
+                namespace: kick-e2e-077
+              data:
+                # base64 of "beta"
+                token: YmV0YQ==
+    - name: assert-kustomization-owner-restarts
+      try:
+        - assert:
+            resource:
+              apiVersion: kick.corewire.io/v1alpha1
+              kind: KickRequest
+              metadata:
+                name: deployment-app-077
+                namespace: kick-e2e-077
+              status:
+                phase: Succeeded
+                owner:
+                  provider: flux
+                  kind: Kustomization
+                  namespace: kick-e2e-077
+                  name: app
+        # Exactly one rollout: generation 2, not 3.
+        - assert:
+            resource:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: app-077
+                namespace: kick-e2e-077
+                generation: 2
+    - name: flux-reconcile-keeps-restart
+      try:
+        # A later Flux apply must neither revert the restart nor trigger another.
+        - script:
+            content: kubectl -n kick-e2e-077 annotate kustomization app reconcile.fluxcd.io/requestedAt=stability --overwrite
+        - assert:
+            resource:
+              apiVersion: kustomize.toolkit.fluxcd.io/v1
+              kind: Kustomization
+              metadata:
+                name: app
+                namespace: kick-e2e-077
+              status:
+                lastHandledReconcileAt: stability
+                (conditions[?type == 'Ready']):
+                  - status: "True"
+        - assert:
+            resource:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: app-077
+                namespace: kick-e2e-077
+                generation: 2
+              status:
+                availableReplicas: 1
+    - name: cleanup
+      try:
+        - delete:
+            ref:
+              apiVersion: v1
+              kind: Namespace
+              name: kick-e2e-077

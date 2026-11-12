@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-080
+name: flux-missing-owner-blocks
+features:
+  - KICK-FEAT-031
+provider: flux
+class: failure
+required: true

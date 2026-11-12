@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/corewire/kick/internal/gitops"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -38,10 +39,22 @@ func (p *Provider) Detect(workload client.Object) gitops.DetectionResult {
 	return gitops.DetectionResult{Confident: true, Message: "flux ownership labels present"}
 }
 
-func (p *Provider) ResolveOwner(_ context.Context, workload client.Object) (gitops.Owner, error) {
+func (p *Provider) ResolveOwner(ctx context.Context, workload client.Object) (gitops.Owner, error) {
+	if hasKustomizationLabels(workload) && hasHelmReleaseLabels(workload) {
+		return gitops.Owner{}, ResolutionError{Reason: gitops.GateAmbiguousOwner, Message: "workload carries both Kustomization and HelmRelease ownership labels"}
+	}
 	owner := ownerFromLabels(workload)
 	if owner.Name == "" || owner.Namespace == "" {
 		return gitops.Owner{}, ResolutionError{Reason: gitops.GateOwnerUnknown, Message: "flux ownership labels missing"}
+	}
+	obj := &unstructured.Unstructured{}
+	obj.SetAPIVersion(owner.APIVersion)
+	obj.SetKind(owner.Kind)
+	if err := p.Client.Get(ctx, types.NamespacedName{Namespace: owner.Namespace, Name: owner.Name}, obj); err != nil {
+		if apierrors.IsNotFound(err) {
+			return gitops.Owner{}, ResolutionError{Reason: gitops.GateOwnerUnknown, Message: fmt.Sprintf("flux %s %s/%s not found", owner.Kind, owner.Namespace, owner.Name)}
+		}
+		return gitops.Owner{}, ResolutionError{Reason: gitops.GateProviderUnavailable, Message: err.Error()}
 	}
 	owner.Provider = p.Name()
 	return owner, nil
@@ -64,9 +77,14 @@ func (p *Provider) EvaluateGate(ctx context.Context, owner gitops.Owner, _ time.
 		return gitops.GateDecision{Allowed: false, Reconciled: false, Reconciling: false, Reason: gitops.GateOwnerOutOfSync, Message: "flux owner is suspended"}, nil
 	}
 
+	observed, _, _ := unstructured.NestedInt64(obj.Object, "status", "observedGeneration")
+	if observed < obj.GetGeneration() {
+		return gitops.GateDecision{Allowed: false, Reconciled: false, Reconciling: true, Reason: gitops.GateOwnerReconciling, Message: fmt.Sprintf("flux owner has observed generation %d of %d", observed, obj.GetGeneration())}, nil
+	}
+
 	readyStatus, readyReason, readyMsg := conditionSummary(obj, "Ready")
 	reconcilingStatus, _, _ := conditionSummary(obj, "Reconciling")
-	if reconcilingStatus == "True" {
+	if reconcilingStatus == "True" || readyStatus == "Unknown" {
 		return gitops.GateDecision{Allowed: false, Reconciled: false, Reconciling: true, Reason: gitops.GateOwnerReconciling, Message: messageOrDefault(readyMsg, "flux owner is reconciling")}, nil
 	}
 
@@ -121,6 +139,14 @@ func ownerFromLabels(workload client.Object) gitops.Owner {
 		return gitops.Owner{APIVersion: helmReleaseGVK.GroupVersion().String(), Kind: helmReleaseGVK.Kind, Namespace: namespace, Name: name}
 	}
 	return gitops.Owner{}
+}
+
+func hasKustomizationLabels(workload client.Object) bool {
+	return workload != nil && workload.GetLabels()[labelKustomizationName] != ""
+}
+
+func hasHelmReleaseLabels(workload client.Object) bool {
+	return workload != nil && workload.GetLabels()[labelHelmReleaseName] != ""
 }
 
 func conditionSummary(obj *unstructured.Unstructured, condType string) (status, reason, message string) {

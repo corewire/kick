@@ -1,0 +1,53 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: kick-e2e-080-flux-missing-owner-blocks
+spec:
+  steps:
+    - name: create-fixtures
+      try:
+        - apply:
+            file: resources.yaml
+        - assert:
+            resource:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: app-080
+                namespace: kick-e2e-080
+                generation: 1
+              status:
+                availableReplicas: 1
+    - name: rotate-secret
+      try:
+        - apply:
+            file: updated/secret.yaml
+    - name: assert-missing-owner-blocks
+      try:
+        - assert:
+            resource:
+              apiVersion: kick.corewire.io/v1alpha1
+              kind: KickRequest
+              metadata:
+                name: deployment-app-080
+                namespace: kick-e2e-080
+              status:
+                phase: WaitingForOwner
+                gate:
+                  reason: OwnerUnknown
+        # The gate never opens, so the pod template is never touched.
+        - assert:
+            resource:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: app-080
+                namespace: kick-e2e-080
+                generation: 1
+    - name: cleanup
+      try:
+        - delete:
+            ref:
+              apiVersion: v1
+              kind: Namespace
+              name: kick-e2e-080

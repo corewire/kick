@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-079
+name: flux-helmrelease-owner-restarts
+features:
+  - KICK-FEAT-031
+provider: flux
+class: behavior
+required: true
