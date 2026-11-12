@@ -74,8 +74,8 @@ jobs:
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false
     runs-on: ubuntu-24.04
     steps:
+      # Also on `closed`: removing the preview needs a git checkout.
       - name: Checkout
-        if: github.event.action != 'closed'
         uses: actions/checkout@v7.0.1
 
       - name: Setup Go
