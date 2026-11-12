@@ -7,13 +7,24 @@ Implement KICK incrementally without widening scope or inventing unresolved beha
 ## Required workflow
 
 1. Read `README.md`.
-2. Read the assigned file under `tasks/`.
-3. Read only the specification files listed in that task's `Dependencies` section.
+2. Read the assigned GitHub issue.
+3. Read only the specification files the issue links.
 4. Implement the smallest complete change satisfying the acceptance criteria.
 5. Add or update every required unit, Envtest, and e2e test.
 6. Update `traceability/features.yaml` and scenario metadata for changed behavior.
 7. Run the task's verification commands and `make feature-coverage`.
 8. Do not begin a later task unless explicitly assigned.
+
+## HARD RULE: project management
+
+GitHub issues + GitHub Project **kick** (https://github.com/orgs/corewire/projects/1) are the source of truth and must be up to date at all times. Milestones are not used. Planning files under `ai-docs/` are history, not a tracker. Load skill `.agents/skills/project-management/SKILL.md` before creating, starting, or closing work.
+
+1. Every work item has an issue before work starts: one `type:` label (feature, enhancement, bug, security, chore, upstream; templates in `.github/ISSUE_TEMPLATE/`), added to the project with Status (+ Severity for bug/security, Feature for feature). No untracked work.
+2. Every issue states **GOOD** (the target behaviour/quality bar) and **DONE** (checkable exit criteria) in its body.
+3. Commits reference the issue: `<conventional-type>: <what> (#N)`.
+4. Closing requires **PROOF**: a comment with commit(s) and the exact commands run + decisive output that show each DONE criterion met.
+5. Closing requires **REVIEW**: a subagent reviews the change/result against GOOD/DONE before closing; findings and their resolution go into the closing comment.
+6. Status changes (blocked, postponed, not planned) are reflected immediately: project Status/Sprint, `status:blocked` label, comment with reason.
 
 ## Framework
 

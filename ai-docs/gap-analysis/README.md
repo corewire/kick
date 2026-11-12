@@ -47,8 +47,9 @@ tests instead.
 
 ## Follow-up
 
-[06-follow-up-tasks.md](06-follow-up-tasks.md) records what remains, including
-one defect that makes the CSI integration a no-op end to end.
+[06-follow-up-tasks.md](06-follow-up-tasks.md) records the follow-up plan. All of it
+is done and closed as [#21](https://github.com/corewire/kick/issues/21)–[#28](https://github.com/corewire/kick/issues/28).
+Current work lives in the [kick project](https://github.com/orgs/corewire/projects/1).
 
 ## Evidence index
 
