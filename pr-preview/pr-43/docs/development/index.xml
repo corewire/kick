@@ -176,6 +176,10 @@ unintentionally.&lt;/p&gt;
 &lt;p&gt;Each e2e suite gets its own kind cluster because the suites install different
 control planes (see &lt;a href="../e2e-testing/"&gt;End-to-end tests&lt;/a&gt;). The &lt;code&gt;core&lt;/code&gt; job also
 runs the &lt;code&gt;recovery&lt;/code&gt; suite, which needs no extra control plane.&lt;/p&gt;
+&lt;p&gt;A failed suite uploads an &lt;code&gt;e2e-diagnostics-&amp;lt;suite&amp;gt;&lt;/code&gt; artifact with pod logs,
+events and the Argo CD, Kargo and KICK objects
+(&lt;a href="https://github.com/corewire/kick/blob/main/hack/e2e-diagnostics.sh"target="_blank" rel="noopener"&gt;script&lt;/a&gt;).
+Secrets and ConfigMaps are never collected.&lt;/p&gt;
 &lt;h2&gt;What each job proves&lt;span class="hx:absolute hx:-mt-20" id="what-each-job-proves"&gt;&lt;/span&gt;
 &lt;a href="#what-each-job-proves" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;table&gt;
 &lt;thead&gt;
@@ -260,10 +264,9 @@ data-copied-label="Copied!"
 &lt;/div&gt;
 &lt;h2&gt;Releases&lt;span class="hx:absolute hx:-mt-20" id="releases"&gt;&lt;/span&gt;
 &lt;a href="#releases" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;The &lt;a href="https://github.com/corewire/kick/blob/main/.github/workflows/release.yml"target="_blank" rel="noopener"&gt;release workflow&lt;/a&gt;
-runs Mondays at 06:00 UTC, on stable &lt;code&gt;vMAJOR.MINOR.PATCH&lt;/code&gt; tags, on an explicit
-&lt;code&gt;vMAJOR.MINOR.PATCH-rc&lt;/code&gt; tag, or manually from &lt;code&gt;main&lt;/code&gt;. An &lt;code&gt;-rc&lt;/code&gt; tag is a
-prerelease and is not the baseline for the next stable bump. Unchanged weeks
-are skipped; the first release uses the chart version.
+runs Mondays at 06:00 UTC, on stable &lt;code&gt;vMAJOR.MINOR.PATCH&lt;/code&gt; tags, or manually
+from &lt;code&gt;main&lt;/code&gt;. It only publishes stable releases; any other tag is rejected.
+Unchanged weeks are skipped; the first release uses the chart version.
 Subsequent releases inspect commits and merged PRs since the previous stable tag:&lt;/p&gt;
 &lt;table&gt;
 &lt;thead&gt;
@@ -328,7 +331,8 @@ Both Go module directives and the Docker builder update together in one
 groups, including their indirect entries.&lt;/p&gt;
 &lt;p&gt;Generated build output and archived specifications are excluded; KICK&amp;rsquo;s own
 image is a release output, not an external dependency. Updates use PRs and the
-same CI gates; automerge is not enabled. Configuration:
+same CI gates. Minor, patch and digest updates merge automatically once the
+required &lt;code&gt;ci&lt;/code&gt; check passes; major updates need a manual merge. Configuration:
 &lt;a href="https://github.com/corewire/kick/blob/main/renovate.json"target="_blank" rel="noopener"&gt;Renovate rules&lt;/a&gt;,
 &lt;a href="https://github.com/corewire/kick/blob/main/hack/tool-versions.mk"target="_blank" rel="noopener"&gt;tool pins&lt;/a&gt;.&lt;/p&gt;</description></item><item><title/><link>https://corewire.github.io/kick/docs/development/kamera-debugging/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://corewire.github.io/kick/docs/development/kamera-debugging/</guid><description>
 &lt;h1&gt;Kamera Debugging for KICK&lt;/h1&gt;&lt;p&gt;KICK includes optional kamera tooling for structural control-plane analysis and exploration artifact inspection.&lt;/p&gt;
