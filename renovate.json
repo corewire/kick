@@ -290,6 +290,18 @@
     },
     {
       "customType": "regex",
+      "description": "Flux version used to install the controllers for e2e scenarios.",
+      "managerFilePatterns": [
+        "/^test/e2e/setup/flux/install-flux\\.sh$/"
+      ],
+      "matchStrings": [
+        "FLUX_VERSION=\"\\$\\{FLUX_VERSION:-(?<currentValue>v\\d+\\.\\d+\\.\\d+)\\}\""
+      ],
+      "depNameTemplate": "fluxcd/flux2",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
       "description": "Kargo control plane chart version used for e2e scenarios.",
       "managerFilePatterns": [
         "/^test/e2e/setup/kargo/install-kargo\\.sh$/"

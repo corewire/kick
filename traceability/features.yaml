@@ -504,3 +504,22 @@ features:
   - KICK-E2E-074
   - KICK-E2E-075
   - KICK-E2E-076
+- id: KICK-FEAT-031
+  name: Flux owner gate
+  spec: ai-docs/kick-operator-specs/kick-specs/specs/18-future-flux-provider.md
+  task: https://github.com/corewire/kick/issues/37
+  tests:
+    unit: required
+    envtest: not_applicable
+    e2e: required
+  coverage:
+    unit:
+    - internal/gitops/flux/flux_provider_test.go
+  rationale:
+    envtest: Kustomization and HelmRelease CRDs are owned by Flux and not vendored
+      here, so envtest would assert an upstream schema rather than KICK behavior.
+  e2e:
+  - KICK-E2E-077
+  - KICK-E2E-078
+  - KICK-E2E-079
+  - KICK-E2E-080

@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kick-e2e-078
+---
+apiVersion: kick.corewire.io/v1alpha1
+kind: KickPolicy
+metadata:
+  name: default
+  namespace: kick-e2e-078
+spec:
+  discovery:
+    workloadSelector: {}
+  gitOps:
+    provider: Flux
+---
+# Managed outside Git so it can rotate while the Kustomization is suspended.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secret
+  namespace: kick-e2e-078
+stringData:
+  token: alpha
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: repo
+  namespace: kick-e2e-078
+spec:
+  interval: 1m
+  url: http://gitea.kick-e2e-git.svc.cluster.local:3000/kick-e2e/e2e-078.git
+  ref:
+    branch: main
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: app
+  namespace: kick-e2e-078
+spec:
+  interval: 1m
+  path: ./manifests
+  prune: true
+  targetNamespace: kick-e2e-078
+  sourceRef:
+    kind: GitRepository
+    name: repo

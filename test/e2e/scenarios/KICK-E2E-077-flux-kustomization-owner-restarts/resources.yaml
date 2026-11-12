@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kick-e2e-077
+---
+apiVersion: kick.corewire.io/v1alpha1
+kind: KickPolicy
+metadata:
+  name: default
+  namespace: kick-e2e-077
+spec:
+  discovery:
+    workloadSelector: {}
+  gitOps:
+    provider: Flux
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: repo
+  namespace: kick-e2e-077
+spec:
+  interval: 1m
+  url: http://gitea.kick-e2e-git.svc.cluster.local:3000/kick-e2e/e2e-077.git
+  ref:
+    branch: main
+---
+# kustomize-controller labels every applied object with
+# kustomize.toolkit.fluxcd.io/name and /namespace; that is the owner KICK resolves.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: app
+  namespace: kick-e2e-077
+spec:
+  interval: 1m
+  path: ./manifests
+  prune: true
+  targetNamespace: kick-e2e-077
+  sourceRef:
+    kind: GitRepository
+    name: repo

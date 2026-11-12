@@ -1,0 +1,117 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: kick-e2e-078-flux-suspended-owner-blocks
+spec:
+  steps:
+    - name: seed-repository
+      try:
+        - script:
+            content: ../../setup/gitea/seed.sh e2e-078 manifests manifests
+    - name: create-fixtures
+      try:
+        - apply:
+            file: resources.yaml
+    - name: wait-for-initial-reconcile
+      try:
+        - assert:
+            resource:
+              apiVersion: kustomize.toolkit.fluxcd.io/v1
+              kind: Kustomization
+              metadata:
+                name: app
+                namespace: kick-e2e-078
+              status:
+                (conditions[?type == 'Ready']):
+                  - status: "True"
+        - assert:
+            resource:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: app-078
+                namespace: kick-e2e-078
+                generation: 1
+              status:
+                availableReplicas: 1
+    - name: suspend-owner
+      try:
+        - patch:
+            resource:
+              apiVersion: kustomize.toolkit.fluxcd.io/v1
+              kind: Kustomization
+              metadata:
+                name: app
+                namespace: kick-e2e-078
+              spec:
+                suspend: true
+    - name: rotate-secret
+      try:
+        - apply:
+            file: updated/secret.yaml
+    - name: assert-suspended-owner-blocks
+      try:
+        - assert:
+            resource:
+              apiVersion: kick.corewire.io/v1alpha1
+              kind: KickRequest
+              metadata:
+                name: deployment-app-078
+                namespace: kick-e2e-078
+              status:
+                phase: WaitingForApplicationSync
+                gate:
+                  reason: OwnerOutOfSync
+        # The gate is closed, so the pod template is never touched.
+        - assert:
+            resource:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: app-078
+                namespace: kick-e2e-078
+                generation: 1
+    - name: resume-owner
+      try:
+        - patch:
+            resource:
+              apiVersion: kustomize.toolkit.fluxcd.io/v1
+              kind: Kustomization
+              metadata:
+                name: app
+                namespace: kick-e2e-078
+              spec:
+                suspend: false
+    - name: assert-restart-after-resume
+      try:
+        - assert:
+            resource:
+              apiVersion: kick.corewire.io/v1alpha1
+              kind: KickRequest
+              metadata:
+                name: deployment-app-078
+                namespace: kick-e2e-078
+              status:
+                phase: Succeeded
+                owner:
+                  provider: flux
+                  kind: Kustomization
+                  name: app
+        # Exactly one rollout after the gate opens.
+        - assert:
+            resource:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: app-078
+                namespace: kick-e2e-078
+                generation: 2
+    - name: cleanup
+      try:
+        # Flux finalizers prune applied objects first, which outlasts the default delete timeout.
+        - delete:
+            timeout: 2m
+            ref:
+              apiVersion: v1
+              kind: Namespace
+              name: kick-e2e-078

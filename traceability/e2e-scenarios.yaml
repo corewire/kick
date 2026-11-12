@@ -471,3 +471,27 @@ scenarios:
     status: required
     features:
       - KICK-FEAT-029
+  - id: KICK-E2E-077
+    name: flux kustomization owner restarts
+    directory: test/e2e/scenarios/KICK-E2E-077-flux-kustomization-owner-restarts
+    status: required
+    features:
+      - KICK-FEAT-031
+  - id: KICK-E2E-078
+    name: flux suspended owner blocks
+    directory: test/e2e/scenarios/KICK-E2E-078-flux-suspended-owner-blocks
+    status: required
+    features:
+      - KICK-FEAT-031
+  - id: KICK-E2E-079
+    name: flux helmrelease owner restarts
+    directory: test/e2e/scenarios/KICK-E2E-079-flux-helmrelease-owner-restarts
+    status: required
+    features:
+      - KICK-FEAT-031
+  - id: KICK-E2E-080
+    name: flux missing owner blocks
+    directory: test/e2e/scenarios/KICK-E2E-080-flux-missing-owner-blocks
+    status: required
+    features:
+      - KICK-FEAT-031
