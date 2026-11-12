@@ -183,9 +183,8 @@ jobs:
           SHA: ${{ needs.plan.outputs.sha }}
         run: |
           set -eu
-          # Create the tag via the refs API: a release with a target commit needs the
-          # `workflows` permission (never granted to GITHUB_TOKEN) once main has
-          # moved past a workflow change (cli/cli#9514).
+          # GITHUB_TOKEN cannot create a ref on a commit whose workflows differ from
+          # every branch tip (cli/cli#9514), so neither the refs API nor --target work then.
           # On a missing tag `gh api` exits non-zero and prints the error body.
           if existing=$(gh api "repos/$GH_REPO/commits/refs/tags/$TAG" --jq .sha 2>/dev/null); then
             if [[ "$existing" != "$SHA" ]]; then
@@ -193,6 +192,11 @@ jobs:
               exit 1
             fi
           else
+            drift=$(gh api "repos/$GH_REPO/compare/$SHA...main" --jq '[.files[]?.filename | select(startswith(".github/workflows/"))] | length')
+            if [[ "${drift:-0}" != "0" ]]; then
+              echo "main changed .github/workflows since $SHA; GITHUB_TOKEN cannot tag it. Re-run the release workflow on main." >&2
+              exit 1
+            fi
             gh api "repos/$GH_REPO/git/refs" -f ref="refs/tags/$TAG" -f sha="$SHA" >/dev/null
           fi
           gh release create "$TAG" dist/* --verify-tag --title "$TAG" --generate-notes --latest
