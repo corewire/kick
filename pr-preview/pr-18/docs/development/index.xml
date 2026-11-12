@@ -176,6 +176,10 @@ unintentionally.&lt;/p&gt;
 &lt;p&gt;Each e2e suite gets its own kind cluster because the suites install different
 control planes (see &lt;a href="../e2e-testing/"&gt;End-to-end tests&lt;/a&gt;). The &lt;code&gt;core&lt;/code&gt; job also
 runs the &lt;code&gt;recovery&lt;/code&gt; suite, which needs no extra control plane.&lt;/p&gt;
+&lt;p&gt;A failed suite uploads an &lt;code&gt;e2e-diagnostics-&amp;lt;suite&amp;gt;&lt;/code&gt; artifact with pod logs,
+events and the Argo CD, Kargo and KICK objects
+(&lt;a href="https://github.com/corewire/kick/blob/main/hack/e2e-diagnostics.sh"target="_blank" rel="noopener"&gt;script&lt;/a&gt;).
+Secrets and ConfigMaps are never collected.&lt;/p&gt;
 &lt;h2&gt;What each job proves&lt;span class="hx:absolute hx:-mt-20" id="what-each-job-proves"&gt;&lt;/span&gt;
 &lt;a href="#what-each-job-proves" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;table&gt;
 &lt;thead&gt;
