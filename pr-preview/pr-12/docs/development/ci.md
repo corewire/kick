@@ -23,6 +23,11 @@ Each e2e suite gets its own kind cluster because the suites install different
 control planes (see [End-to-end tests](../e2e-testing/)). The `core` job also
 runs the `recovery` suite, which needs no extra control plane.
 
+A failed suite uploads an `e2e-diagnostics-<suite>` artifact with pod logs,
+events and the Argo CD, Kargo and KICK objects
+([script](https://github.com/corewire/kick/blob/main/hack/e2e-diagnostics.sh)).
+Secrets and ConfigMaps are never collected.
+
 ## What each job proves
 
 | Job | Command |
@@ -122,7 +127,8 @@ groups, including their indirect entries.
 
 Generated build output and archived specifications are excluded; KICK's own
 image is a release output, not an external dependency. Updates use PRs and the
-same CI gates; automerge is not enabled. Configuration:
+same CI gates. Minor, patch and digest updates merge automatically once the
+required `ci` check passes; major updates need a manual merge. Configuration:
 [Renovate rules](https://github.com/corewire/kick/blob/main/renovate.json),
 [tool pins](https://github.com/corewire/kick/blob/main/hack/tool-versions.mk).
 
