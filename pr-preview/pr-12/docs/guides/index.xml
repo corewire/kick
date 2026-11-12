@@ -209,7 +209,120 @@ data-copied-label="Copied!"
 &lt;a href="#feature-mapping" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;ul&gt;
 &lt;li&gt;Kargo stage promotion gate: &lt;a href="https://github.com/corewire/kick/blob/main/traceability/features.yaml" target="_blank" rel="noopener"&gt;KICK-FEAT-025&lt;/a&gt;&lt;/li&gt;
 &lt;li&gt;Kargo verification-aware restarts: &lt;a href="https://github.com/corewire/kick/blob/main/traceability/features.yaml" target="_blank" rel="noopener"&gt;KICK-FEAT-029&lt;/a&gt;&lt;/li&gt;
-&lt;/ul&gt;</description></item><item><title>Running without GitOps</title><link>https://corewire.github.io/kick/docs/guides/without-gitops/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://corewire.github.io/kick/docs/guides/without-gitops/</guid><description>
+&lt;/ul&gt;</description></item><item><title>Flux</title><link>https://corewire.github.io/kick/docs/guides/flux/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://corewire.github.io/kick/docs/guides/flux/</guid><description>
+&lt;p&gt;With &lt;code&gt;provider: Flux&lt;/code&gt;, KICK restarts a Flux-managed workload only when its
+&lt;code&gt;Kustomization&lt;/code&gt; or &lt;code&gt;HelmRelease&lt;/code&gt; has finished reconciling. Verified against
+Flux v2.10.0 (&lt;a href="https://github.com/corewire/kick/blob/main/test/e2e/setup/flux/install-flux.sh" target="_blank" rel="noopener"&gt;installer&lt;/a&gt;).&lt;/p&gt;
+&lt;h2 data-hextra-search-id="enable-the-integration"&gt;Enable the integration&lt;span class="hx:absolute hx:-mt-20" id="enable-the-integration"&gt;&lt;/span&gt;
+&lt;a href="#enable-the-integration" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;On by default: &lt;code&gt;--enable-flux&lt;/code&gt; / Helm &lt;code&gt;integrations.flux.enabled&lt;/code&gt;. The manager
+skips it when the Flux CRDs are absent at start-up
+(&lt;a href="../../reference/configuration/"&gt;configuration&lt;/a&gt;).&lt;/p&gt;
+&lt;h2 data-hextra-search-id="policy"&gt;Policy&lt;span class="hx:absolute hx:-mt-20" id="policy"&gt;&lt;/span&gt;
+&lt;a href="#policy" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;div class="hextra-code-block hx:relative hx:mt-6 hx:first:mt-0 hx:group/code"&gt;
+&lt;div&gt;&lt;div class="highlight"&gt;&lt;pre tabindex="0" class="chroma"&gt;&lt;code class="language-yaml" data-lang="yaml"&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;apiVersion&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;kick.corewire.io/v1alpha1&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;kind&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;KickPolicy&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;metadata&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;name&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;default&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;namespace&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;kick-e2e-077&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="nt"&gt;spec&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;discovery&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;workloadSelector&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;{}&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;gitOps&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span class="line"&gt;&lt;span class="cl"&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="nt"&gt;provider&lt;/span&gt;&lt;span class="p"&gt;:&lt;/span&gt;&lt;span class="w"&gt; &lt;/span&gt;&lt;span class="l"&gt;Flux&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;&lt;div class="hextra-code-copy-btn-container hx:opacity-0 hx:transition hx:group-hover/code:opacity-100 hx:flex hx:gap-1 hx:absolute hx:m-[11px] hx:right-0 hx:top-0"&gt;
+&lt;button
+class="hextra-code-copy-btn hx:group/copybtn hx:cursor-pointer hx:transition-all hx:active:opacity-50 hx:bg-primary-700/5 hx:border hx:border-black/5 hx:text-gray-600 hx:hover:text-gray-900 hx:rounded-md hx:p-1.5 hx:dark:bg-primary-300/10 hx:dark:border-white/10 hx:dark:text-gray-400 hx:dark:hover:text-gray-50"
+title="Copy code"
+aria-label="Copy code"
+data-copied-label="Copied!"
+&gt;
+&lt;div class="hextra-copy-icon hx:group-[.copied]/copybtn:hidden hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;div class="hextra-success-icon hx:hidden hx:group-[.copied]/copybtn:block hx:pointer-events-none hx:h-4 hx:w-4"&gt;&lt;/div&gt;
+&lt;/button&gt;
+&lt;/div&gt;
+&lt;/div&gt;
+&lt;h2 data-hextra-search-id="how-the-owner-is-found"&gt;How the owner is found&lt;span class="hx:absolute hx:-mt-20" id="how-the-owner-is-found"&gt;&lt;/span&gt;
+&lt;a href="#how-the-owner-is-found" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;Flux labels every object it applies. KICK reads them from the workload
+(&lt;a href="https://github.com/corewire/kick/blob/main/internal/gitops/flux/provider.go" target="_blank" rel="noopener"&gt;provider&lt;/a&gt;):&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Labels&lt;/th&gt;
+&lt;th&gt;Owner&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;kustomize.toolkit.fluxcd.io/name&lt;/code&gt;, &lt;code&gt;/namespace&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;Kustomization&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;helm.toolkit.fluxcd.io/name&lt;/code&gt;, &lt;code&gt;/namespace&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;HelmRelease&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;The owner object must exist. No labels or a missing owner block with
+&lt;code&gt;OwnerUnknown&lt;/code&gt;; both label sets block with &lt;code&gt;AmbiguousOwner&lt;/code&gt;.&lt;/p&gt;
+&lt;h2 data-hextra-search-id="gate"&gt;Gate&lt;span class="hx:absolute hx:-mt-20" id="gate"&gt;&lt;/span&gt;
+&lt;a href="#gate" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Owner state&lt;/th&gt;
+&lt;th&gt;Gate reason&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;spec.suspend: true&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;OwnerOutOfSync&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;status.observedGeneration&lt;/code&gt; behind &lt;code&gt;metadata.generation&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;OwnerReconciling&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;Reconciling=True&lt;/code&gt; or &lt;code&gt;Ready=Unknown&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;OwnerReconciling&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;Ready=False&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;OwnerOutOfSync&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;code&gt;Ready=True&lt;/code&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;Allowed&lt;/code&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;A blocked request is re-checked every 30 seconds.&lt;/p&gt;
+&lt;h2 data-hextra-search-id="examples"&gt;Examples&lt;span class="hx:absolute hx:-mt-20" id="examples"&gt;&lt;/span&gt;
+&lt;a href="#examples" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;Scenario&lt;/th&gt;
+&lt;th&gt;Proves&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;a href="https://github.com/corewire/kick/tree/main/test/e2e/scenarios/KICK-E2E-077-flux-kustomization-owner-restarts" target="_blank" rel="noopener"&gt;KICK-E2E-077&lt;/a&gt;&lt;/td&gt;
+&lt;td&gt;Secret rotated in Git restarts once; a later Flux apply keeps it&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;a href="https://github.com/corewire/kick/tree/main/test/e2e/scenarios/KICK-E2E-078-flux-suspended-owner-blocks" target="_blank" rel="noopener"&gt;KICK-E2E-078&lt;/a&gt;&lt;/td&gt;
+&lt;td&gt;Suspended owner blocks; resume restarts once&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;a href="https://github.com/corewire/kick/tree/main/test/e2e/scenarios/KICK-E2E-079-flux-helmrelease-owner-restarts" target="_blank" rel="noopener"&gt;KICK-E2E-079&lt;/a&gt;&lt;/td&gt;
+&lt;td&gt;&lt;code&gt;HelmRelease&lt;/code&gt; owner restarts once&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;&lt;a href="https://github.com/corewire/kick/tree/main/test/e2e/scenarios/KICK-E2E-080-flux-missing-owner-blocks" target="_blank" rel="noopener"&gt;KICK-E2E-080&lt;/a&gt;&lt;/td&gt;
+&lt;td&gt;Missing owner blocks&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;Traceability: KICK-FEAT-031 in &lt;a href="https://github.com/corewire/kick/blob/main/traceability/features.yaml" target="_blank" rel="noopener"&gt;features.yaml&lt;/a&gt;.&lt;/p&gt;</description></item><item><title>Running without GitOps</title><link>https://corewire.github.io/kick/docs/guides/without-gitops/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://corewire.github.io/kick/docs/guides/without-gitops/</guid><description>
 &lt;p&gt;GitOps gating is the feature KICK is best known for, but it is &lt;strong&gt;not&lt;/strong&gt; a
 requirement. &lt;code&gt;spec.gitOps.provider&lt;/code&gt; defaults to &lt;code&gt;None&lt;/code&gt;, and a policy with no
 &lt;code&gt;gitOps&lt;/code&gt; block at all restarts workloads on any Kubernetes cluster.&lt;/p&gt;
