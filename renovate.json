@@ -8,7 +8,9 @@
   "labels": [
     "dependencies"
   ],
-  "dependencyDashboard": true,
+  "dependencyDashboard": {
+    "enabled": true
+  },
   "ignorePaths": [
     "**/node_modules/**",
     "**/vendor/**",
@@ -41,14 +43,6 @@
         "pinDigest"
       ],
       "automerge": true
-    },
-    {
-      "description": "busybox is referenced with and without the docker.io/library prefix; update both in one PR.",
-      "matchDepNames": [
-        "busybox",
-        "docker.io/library/busybox"
-      ],
-      "groupName": "busybox"
     },
     {
       "description": "Go toolchain version: the 'go' directive in go.mod and docs/go.mod and the Dockerfile builder image must move together. Renovate does not bump the directive by default, so opt in.",
