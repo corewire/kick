@@ -27,7 +27,8 @@ permissions:
   id-token: write
 
 concurrency:
-  group: docs-pages-${{ github.ref }}
+  # A closed PR's github.ref is the base branch; keying PR runs by number keeps them from cancelling the main deploy.
+  group: docs-pages-${{ github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number) || github.ref }}
   cancel-in-progress: true
 
 jobs:
