@@ -74,6 +74,15 @@ class AutomationTests(unittest.TestCase):
         self.assertIn("artifacts", jobs["publish"]["needs"])
         self.assertFalse(workflow["concurrency"]["cancel-in-progress"])
 
+    def test_publish_creates_tag_without_release_target(self) -> None:
+        # GITHUB_TOKEN gets 403 from `gh release create --target` once main has
+        # moved past a workflow change (cli/cli#9514).
+        workflow = yaml.safe_load((ROOT / ".github/workflows/release.yml").read_text())
+        script = next(step["run"] for step in workflow["jobs"]["publish"]["steps"] if "run" in step)
+        self.assertNotIn("--target", script)
+        self.assertIn("git/refs", script)
+        self.assertIn("--verify-tag", script)
+
     def test_release_chart_uses_matching_image_without_changing_sources(self) -> None:
         original = (ROOT / "charts/kick/values.yaml").read_bytes()
         version = "0.0.0-ci"
