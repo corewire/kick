@@ -264,10 +264,9 @@ data-copied-label="Copied!"
 &lt;/div&gt;
 &lt;h2 data-hextra-search-id="releases"&gt;Releases&lt;span class="hx:absolute hx:-mt-20" id="releases"&gt;&lt;/span&gt;
 &lt;a href="#releases" class="subheading-anchor" aria-label="Permalink for this section"&gt;&lt;/a&gt;&lt;/h2&gt;&lt;p&gt;The &lt;a href="https://github.com/corewire/kick/blob/main/.github/workflows/release.yml" target="_blank" rel="noopener"&gt;release workflow&lt;/a&gt;
-runs Mondays at 06:00 UTC, on stable &lt;code&gt;vMAJOR.MINOR.PATCH&lt;/code&gt; tags, on an explicit
-&lt;code&gt;vMAJOR.MINOR.PATCH-rc&lt;/code&gt; tag, or manually from &lt;code&gt;main&lt;/code&gt;. An &lt;code&gt;-rc&lt;/code&gt; tag is a
-prerelease and is not the baseline for the next stable bump. Unchanged weeks
-are skipped; the first release uses the chart version.
+runs Mondays at 06:00 UTC, on stable &lt;code&gt;vMAJOR.MINOR.PATCH&lt;/code&gt; tags, or manually
+from &lt;code&gt;main&lt;/code&gt;. It only publishes stable releases; any other tag is rejected.
+Unchanged weeks are skipped; the first release uses the chart version.
 Subsequent releases inspect commits and merged PRs since the previous stable tag:&lt;/p&gt;
 &lt;table&gt;
 &lt;thead&gt;
