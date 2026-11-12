@@ -90,10 +90,13 @@ if [[ "$1 $2" == "api repos/corewire/kick/commits/refs/tags/v1.2.3" ]]; then
     exit 1
   fi
   echo "$FAKE_TAG_SHA"
+elif [[ "$2" == repos/corewire/kick/compare/* ]]; then
+  echo "$FAKE_DRIFT"
 fi
 """
-        for existing, expected_rc, creates_ref in [("", 0, True), (sha, 0, False), ("b" * 40, 1, False)]:
-            with self.subTest(existing=existing), tempfile.TemporaryDirectory() as tmp:
+        cases = [("", "0", 0, True), (sha, "0", 0, False), ("b" * 40, "0", 1, False), ("", "1", 1, False)]
+        for existing, drift, expected_rc, creates_ref in cases:
+            with self.subTest(existing=existing, drift=drift), tempfile.TemporaryDirectory() as tmp:
                 work = Path(tmp)
                 (work / "bin").mkdir()
                 (work / "bin/gh").write_text(fake_gh)
@@ -102,7 +105,8 @@ fi
                 (work / "dist/kick.tgz").write_text("")
                 log = work / "gh.log"
                 env = {**os.environ, "PATH": f"{work / 'bin'}:{os.environ['PATH']}", "GH_LOG": str(log),
-                       "FAKE_TAG_SHA": existing, "GH_REPO": "corewire/kick", "TAG": "v1.2.3", "SHA": sha}
+                       "FAKE_TAG_SHA": existing, "FAKE_DRIFT": drift,
+                       "GH_REPO": "corewire/kick", "TAG": "v1.2.3", "SHA": sha}
                 completed = subprocess.run(["bash", "-e", "-c", script], cwd=work, env=env, capture_output=True, text=True)
                 self.assertEqual(completed.returncode, expected_rc, completed.stderr)
                 calls = log.read_text()
