@@ -132,6 +132,7 @@ e2e-install: manifests kustomize
 	$(KUSTOMIZE) build config/e2e | $(KUBECTL) --kubeconfig $(KIND_KUBECONFIG) --context $(KIND_CONTEXT) apply -f -
 	$(KUBECTL) --kubeconfig $(KIND_KUBECONFIG) --context $(KIND_CONTEXT) -n kick-system rollout restart deployment/kick-controller-manager
 	$(KUBECTL) --kubeconfig $(KIND_KUBECONFIG) --context $(KIND_CONTEXT) -n kick-system rollout status deployment/kick-controller-manager --timeout=180s
+	KICK_E2E_KUBECONFIG=$(KIND_KUBECONFIG) KICK_E2E_CONTEXT=$(KIND_CONTEXT) bash hack/e2e-wait-leader.sh
 
 # Installs the in-cluster Git server the GitOps scenarios sync from.
 .PHONY: e2e-git-server
