@@ -125,6 +125,7 @@ groups, including their indirect entries.
 
 Generated build output and archived specifications are excluded; KICK's own
 image is a release output, not an external dependency. Updates use PRs and the
-same CI gates; automerge is not enabled. Configuration:
+same CI gates. Minor, patch and digest updates merge automatically once the
+required `ci` check passes; major updates need a manual merge. Configuration:
 [Renovate rules](https://github.com/corewire/kick/blob/main/renovate.json),
 [tool pins](https://github.com/corewire/kick/blob/main/hack/tool-versions.mk).
