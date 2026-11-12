@@ -46,7 +46,9 @@ spec:
                 generation: 1
     - name: cleanup
       try:
+        # Flux finalizers prune applied objects first, which outlasts the default delete timeout.
         - delete:
+            timeout: 2m
             ref:
               apiVersion: v1
               kind: Namespace
