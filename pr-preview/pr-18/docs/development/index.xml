@@ -332,7 +332,8 @@ Both Go module directives and the Docker builder update together in one
 groups, including their indirect entries.&lt;/p&gt;
 &lt;p&gt;Generated build output and archived specifications are excluded; KICK&amp;rsquo;s own
 image is a release output, not an external dependency. Updates use PRs and the
-same CI gates; automerge is not enabled. Configuration:
+same CI gates. Minor, patch and digest updates merge automatically once the
+required &lt;code&gt;ci&lt;/code&gt; check passes; major updates need a manual merge. Configuration:
 &lt;a href="https://github.com/corewire/kick/blob/main/renovate.json"target="_blank" rel="noopener"&gt;Renovate rules&lt;/a&gt;,
 &lt;a href="https://github.com/corewire/kick/blob/main/hack/tool-versions.mk"target="_blank" rel="noopener"&gt;tool pins&lt;/a&gt;.&lt;/p&gt;</description></item><item><title/><link>https://corewire.github.io/kick/docs/development/kamera-debugging/</link><pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate><guid>https://corewire.github.io/kick/docs/development/kamera-debugging/</guid><description>
 &lt;h1&gt;Kamera Debugging for KICK&lt;/h1&gt;&lt;p&gt;KICK includes optional kamera tooling for structural control-plane analysis and exploration artifact inspection.&lt;/p&gt;
