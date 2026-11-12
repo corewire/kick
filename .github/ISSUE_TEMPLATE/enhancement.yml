@@ -1,0 +1,22 @@
+name: Enhancement
+description: "Improve existing behaviour."
+title: ""
+labels: ["type:enhancement"]
+projects: ["corewire/1"]
+body:
+  - type: textarea
+    id: what
+    attributes: {label: Current vs wanted, description: "What exists, what should change, why."}
+    validations: {required: true}
+  - type: textarea
+    id: good
+    attributes: {label: GOOD, description: "Target behaviour / quality bar."}
+    validations: {required: true}
+  - type: textarea
+    id: done
+    attributes: {label: DONE, description: "Checkable exit criteria. Each one must be provable by a command + output."}
+    validations: {required: true}
+  - type: textarea
+    id: proof
+    attributes: {label: PROOF plan, description: "Exact commands/tests that will prove DONE."}
+    validations: {required: true}

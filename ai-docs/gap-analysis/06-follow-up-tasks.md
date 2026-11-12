@@ -4,7 +4,10 @@ Work remaining after the five gap-analysis decisions were implemented
 (commits `9067d5e`, `acdc70a`). Ordered by severity: T1–T3 are defects in
 shipped code, T4–T7 are gaps.
 
-Nothing here is started.
+**Status: all done. History only.** T1–T8 are tracked and closed as
+[#21](https://github.com/corewire/kick/issues/21)–[#28](https://github.com/corewire/kick/issues/28)
+with proof. Current work lives in GitHub issues and the
+[kick project](https://github.com/orgs/corewire/projects/1).
 
 ---
 

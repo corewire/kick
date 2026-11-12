@@ -1,6 +1,7 @@
 # Kargo verification-aware restarts
 
-Status: implemented as [KICK-FEAT-029](../../traceability/features.yaml).
+Status: implemented as [KICK-FEAT-029](../../traceability/features.yaml),
+closed as [#29](https://github.com/corewire/kick/issues/29). History only.
 Verification waits live in
 [internal/gitops/kargo/verification.go](../../internal/gitops/kargo/verification.go).
 Optional reverification lives in
