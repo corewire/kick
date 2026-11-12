@@ -374,6 +374,12 @@ e2e-timing-summary:
 	@if [[ -z "$(E2E_REPORT_DIR)" ]]; then echo "E2E_REPORT_DIR is required"; exit 1; fi
 	@python3 tools/e2e_timing_summary.py $(E2E_REPORT_DIR)
 
+# Dumps control-plane logs, events and Argo CD/Kargo objects after a failed run.
+E2E_DIAG_DIR ?= dist/e2e-diagnostics
+.PHONY: e2e-diagnostics
+e2e-diagnostics:
+	KICK_E2E_CONTEXT=$(KIND_CONTEXT) KICK_E2E_KUBECONFIG=$(KIND_KUBECONFIG) bash hack/e2e-diagnostics.sh $(E2E_DIAG_DIR)
+
 .PHONY: tools
 tools: kustomize controller-gen setup-envtest golangci-lint chainsaw
 

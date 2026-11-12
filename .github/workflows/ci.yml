@@ -293,6 +293,18 @@ jobs:
           read -r -a targets <<< "$TARGETS"
           make "${targets[@]}"
 
+      - name: Collect diagnostics
+        if: failure()
+        run: make e2e-diagnostics E2E_DIAG_DIR=dist/e2e-diagnostics
+
+      - name: Upload diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: e2e-diagnostics-${{ matrix.suite }}
+          path: dist/e2e-diagnostics
+          if-no-files-found: ignore
+
       - name: Scenario timings
         if: always()
         run: make e2e-timing-summary >> "$GITHUB_STEP_SUMMARY"
