@@ -1,8 +1,6 @@
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/static/images/kick-long-light.png">
-    <img src="docs/static/images/kick-long-dark.png" alt="KICK" width="560">
-  </picture>
+  <img src="docs/static/images/kick-long-dark.png#gh-light-mode-only" alt="KICK" width="560">
+  <img src="docs/static/images/kick-long-light.png#gh-dark-mode-only" alt="KICK" width="560">
 </p>
 
 <p align="center">
