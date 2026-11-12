@@ -101,7 +101,10 @@ and its [tests](https://github.com/corewire/kick/blob/main/tools/release_plan_te
 
 After all CI gates pass, the workflow publishes and signs
 `ghcr.io/corewire/kick:vVERSION`, publishes `oci://ghcr.io/corewire/charts/kick`
-with the same version, then creates the GitHub release and tag. The release
+with the same version, then creates the tag through the git refs API and the
+GitHub release for it. `gh release create --target` is not used: with
+`GITHUB_TOKEN` it fails with 403 once `main` has moved past a workflow change
+([cli/cli#9514](https://github.com/cli/cli/issues/9514)). The release
 contains the chart, CRDs, SBOM, checksums, and generated notes. Publishing uses
 `GITHUB_TOKEN` and OIDC; GHCR package write access must be allowed for this repository.
 Proof: [publishing jobs](https://github.com/corewire/kick/blob/main/.github/workflows/release.yml).
