@@ -33,6 +33,8 @@ spec:
               metadata:
                 name: app-036
                 namespace: kick-e2e-036
+                # generation 1 proves the pod template has not been touched yet.
+                generation: 1
               status:
                 availableReplicas: 1
     - name: close-the-window
@@ -59,15 +61,18 @@ spec:
                 name: deployment-app-036
                 namespace: kick-e2e-036
               status:
+                phase: Succeeded
                 gate:
                   reason: Allowed
-        - script:
-            content: |
-              restarted_at=$(kubectl -n kick-e2e-036 get deployment app-036 -o jsonpath='{.spec.template.metadata.annotations.kubectl\.kubernetes\.io/restartedAt}')
-              if [ -z "$restarted_at" ]; then
-                echo "expected kick restart annotation on app-036"
-                exit 1
-              fi
+        # Exactly one rollout: generation 2, not 3.
+        - assert:
+            resource:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: app-036
+                namespace: kick-e2e-036
+                generation: 2
     - name: cleanup
       try:
         - script:
