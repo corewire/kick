@@ -5,6 +5,7 @@ import os
 import re
 import subprocess
 import tarfile
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -79,9 +80,37 @@ class AutomationTests(unittest.TestCase):
         # moved past a workflow change (cli/cli#9514).
         workflow = yaml.safe_load((ROOT / ".github/workflows/release.yml").read_text())
         script = next(step["run"] for step in workflow["jobs"]["publish"]["steps"] if "run" in step)
-        self.assertNotIn("--target", script)
-        self.assertIn("git/refs", script)
-        self.assertIn("--verify-tag", script)
+        sha = "a" * 40
+        # Fake gh: the tag lookup mimics the real CLI (error JSON on stdout, exit 1).
+        fake_gh = """#!/usr/bin/env bash
+echo "$*" >> "$GH_LOG"
+if [[ "$1 $2" == "api repos/corewire/kick/commits/refs/tags/v1.2.3" ]]; then
+  if [[ -z "$FAKE_TAG_SHA" ]]; then
+    echo '{"message":"No commit found for SHA: refs/tags/v1.2.3","status":"422"}'
+    exit 1
+  fi
+  echo "$FAKE_TAG_SHA"
+fi
+"""
+        for existing, expected_rc, creates_ref in [("", 0, True), (sha, 0, False), ("b" * 40, 1, False)]:
+            with self.subTest(existing=existing), tempfile.TemporaryDirectory() as tmp:
+                work = Path(tmp)
+                (work / "bin").mkdir()
+                (work / "bin/gh").write_text(fake_gh)
+                (work / "bin/gh").chmod(0o755)
+                (work / "dist").mkdir()
+                (work / "dist/kick.tgz").write_text("")
+                log = work / "gh.log"
+                env = {**os.environ, "PATH": f"{work / 'bin'}:{os.environ['PATH']}", "GH_LOG": str(log),
+                       "FAKE_TAG_SHA": existing, "GH_REPO": "corewire/kick", "TAG": "v1.2.3", "SHA": sha}
+                completed = subprocess.run(["bash", "-e", "-c", script], cwd=work, env=env, capture_output=True, text=True)
+                self.assertEqual(completed.returncode, expected_rc, completed.stderr)
+                calls = log.read_text()
+                self.assertNotIn("--target", calls)
+                self.assertEqual("git/refs" in calls, creates_ref, calls)
+                self.assertEqual("release create v1.2.3" in calls, expected_rc == 0, calls)
+                if expected_rc == 0:
+                    self.assertIn("--verify-tag", calls)
 
     def test_release_chart_uses_matching_image_without_changing_sources(self) -> None:
         original = (ROOT / "charts/kick/values.yaml").read_bytes()

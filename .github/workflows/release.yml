@@ -186,11 +186,13 @@ jobs:
           # Create the tag via the refs API: a release with a target commit needs the
           # `workflows` permission (never granted to GITHUB_TOKEN) once main has
           # moved past a workflow change (cli/cli#9514).
-          existing=$(gh api "repos/$GH_REPO/commits/refs/tags/$TAG" --jq .sha 2>/dev/null || true)
-          if [[ -z "$existing" ]]; then
+          # On a missing tag `gh api` exits non-zero and prints the error body.
+          if existing=$(gh api "repos/$GH_REPO/commits/refs/tags/$TAG" --jq .sha 2>/dev/null); then
+            if [[ "$existing" != "$SHA" ]]; then
+              echo "Tag $TAG points to $existing, expected $SHA" >&2
+              exit 1
+            fi
+          else
             gh api "repos/$GH_REPO/git/refs" -f ref="refs/tags/$TAG" -f sha="$SHA" >/dev/null
-          elif [[ "$existing" != "$SHA" ]]; then
-            echo "Tag $TAG points to $existing, expected $SHA" >&2
-            exit 1
           fi
           gh release create "$TAG" dist/* --verify-tag --title "$TAG" --generate-notes --latest
