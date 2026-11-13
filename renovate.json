@@ -8,9 +8,7 @@
   "labels": [
     "dependencies"
   ],
-  "dependencyDashboard": {
-    "enabled": true
-  },
+  "dependencyDashboard": true,
   "ignorePaths": [
     "**/node_modules/**",
     "**/vendor/**",
