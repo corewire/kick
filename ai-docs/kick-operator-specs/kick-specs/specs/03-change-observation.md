@@ -90,7 +90,8 @@ The change time an observation records is exactly:
 | `MetadataOnlyChange`, `NoChange` | unchanged |
 
 `λ(s)` is the tightest evidence the API server offers for when the observed
-content came to be. A write after creation (`λ(s) > γ(s)`) is recorded in whole
+content came to be. A write after creation (`λ(s) > γ(s)`, or more than one field
+manager, since a create request records exactly one) is recorded in whole
 seconds and is dated to the last instant of its second, `⌊τ⌋ + 1s − 1ns`: a
 rollout anchored in the same second then counts as older, and the ambiguity
 resolves to one restart rather than a lost rotation (issue #61). The date never
