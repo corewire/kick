@@ -2870,7 +2870,10 @@ record serialisation, status write, status read, coalescing — may truncate.
 A write the controller did not observe live is only known from
 \(\tau(m)\), which is already truncated. It is therefore dated to the end of
 its second, \(\lfloor \tau \rfloor + 1\mathrm{s} - 1\mathrm{ns}\), whenever
-\(\lambda(s) > \gamma(s)\): a rollout in the same second counts as older and
+\(\lambda(s) > \gamma(s)\) or \(s\) has more than one field manager (a create
+records exactly one, so a second proves a later write even within the creation
+second), and never later than the observation itself: a rollout in the same
+second counts as older and
 the ambiguity costs one restart instead of a lost rotation
 ([`lastWriteTime`](https://github.com/corewire/kick/blob/main/internal/observation/observer.go),
 [test](https://github.com/corewire/kick/blob/main/internal/observation/observer_test.go)).

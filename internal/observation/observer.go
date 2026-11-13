@@ -113,12 +113,19 @@ func (o *Observer) ObserveConfigMap(ctx context.Context, _ *corev1.ConfigMap, ne
 func lastWriteTime(obj metav1.Object) time.Time {
 	created := obj.GetCreationTimestamp().Time
 	latest := created
+	managers := 0
 	for _, entry := range obj.GetManagedFields() {
-		if entry.Time != nil && entry.Time.After(latest) {
+		if entry.Time == nil {
+			continue
+		}
+		managers++
+		if entry.Time.After(latest) {
 			latest = entry.Time.Time
 		}
 	}
-	if latest.After(created) {
+	// The create request records exactly one manager, so a second one is a later
+	// write even when it landed in the creation second.
+	if latest.After(created) || managers > 1 {
 		latest = latest.Truncate(time.Second).Add(time.Second - time.Nanosecond)
 	}
 	return latest.UTC()

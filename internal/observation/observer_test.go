@@ -199,6 +199,15 @@ func TestObserveBaselineAnchorsToLastWrite(t *testing.T) {
 			},
 			expected: createdAt,
 		},
+		{
+			// KICK-E2E-081 flake: create, rollout and rotation all in one second.
+			name: "rotated within the creation second",
+			managed: []metav1.ManagedFieldsEntry{
+				{Manager: "chainsaw", Time: ptr.To(metav1.NewTime(createdAt))},
+				{Manager: "kubectl-patch", Time: ptr.To(metav1.NewTime(createdAt))},
+			},
+			expected: createdAt.Add(time.Second - time.Nanosecond),
+		},
 	}
 
 	for _, tc := range tests {
