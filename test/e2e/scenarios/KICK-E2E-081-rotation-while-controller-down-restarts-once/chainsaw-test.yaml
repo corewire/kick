@@ -13,6 +13,12 @@ spec:
               set -eu
               kubectl -n kick-system scale deployment/kick-controller-manager --replicas=0
               kubectl -n kick-system wait --for=delete pod -l control-plane=controller-manager --timeout=120s
+              # The stopping leader releases its lease (LeaderElectionReleaseOnCancel).
+              holder=$(kubectl -n kick-system get lease kick.corewire.io -o jsonpath='{.spec.holderIdentity}')
+              if [ -n "$holder" ]; then
+                echo "expected the stopped manager to release the lease, holder=$holder" >&2
+                exit 1
+              fi
       cleanup:
         - script:
             content: |

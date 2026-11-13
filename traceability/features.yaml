@@ -87,6 +87,10 @@ features:
   - KICK-E2E-013
   - KICK-E2E-014
   - KICK-E2E-081
+  rationale:
+    e2e: A rotation landing in the same second as the rollout anchor cannot be forced
+      deterministically in e2e; KICK-E2E-081 covers the missed-rotation path end to end
+      and TestObserveMissedWriteInRolloutSecondIsNewer covers the same-second tie.
 - id: KICK-FEAT-006
   name: Durable change observations and recovery
   spec: specs/03-change-observation.md

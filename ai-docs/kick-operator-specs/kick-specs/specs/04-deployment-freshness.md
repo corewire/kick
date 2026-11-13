@@ -113,7 +113,8 @@ precision").
 Adoption is the first evaluation of a workload that already existed before KICK
 did. It is restart-free exactly when every in-scope source is dated no later
 than the rollout, which holds for sources untouched since before the workload
-rolled out.
+rolled out. A source written in the same second as the rollout cannot be
+ordered against it and produces one adoption restart (`03-change-observation`).
 
 A workload created after all of its sources were observed is never evaluated at
 all (`03-change-observation`, "Evaluation trigger") and has no `KickRequest`.

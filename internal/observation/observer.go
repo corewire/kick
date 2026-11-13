@@ -141,7 +141,9 @@ func (o *Observer) observe(ctx context.Context, identity SourceIdentity, rv, fin
 		// "newer" than the workload's rollout, so adopting a workload does not
 		// restart it, while a source written after that rollout still does.
 		baselineTime := observedAt
-		if !baselineAt.IsZero() {
+		// A write cannot postdate its observation, so end-of-second dating never
+		// exceeds it; a restart issued after this observation then supersedes it.
+		if !baselineAt.IsZero() && baselineAt.Before(observedAt) {
 			baselineTime = baselineAt.UTC()
 		}
 		record = Record{

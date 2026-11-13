@@ -85,7 +85,7 @@ The change time an observation records is exactly:
 
 | classification | recorded change time |
 | --- | --- |
-| `BaselineEstablished` | `λ(s)` |
+| `BaselineEstablished` | `min(λ(s), observation instant)`, with a post-creation write dated to the end of its second (below) |
 | `RelevantChange` | the wall-clock instant of the observation |
 | `MetadataOnlyChange`, `NoChange` | unchanged |
 
@@ -93,8 +93,10 @@ The change time an observation records is exactly:
 content came to be. A write after creation (`λ(s) > γ(s)`) is recorded in whole
 seconds and is dated to the last instant of its second, `⌊τ⌋ + 1s − 1ns`: a
 rollout anchored in the same second then counts as older, and the ambiguity
-resolves to one restart rather than a lost rotation (issue #61). A source never
-written since creation keeps `γ(s)`, so adoption stays restart-free.
+resolves to one restart rather than a lost rotation (issue #61). The date never
+exceeds the observation instant, because a write cannot postdate its
+observation; a restart KICK issues afterwards therefore supersedes it and no
+second restart follows. A source never written since creation keeps `γ(s)`.
 The wall-clock instant MUST NOT be used for a baseline: it
 would make freshness depend on the race between KICK starting up and the
 workload rolling out. `γ(s)` alone MUST NOT be used either: a rotation that

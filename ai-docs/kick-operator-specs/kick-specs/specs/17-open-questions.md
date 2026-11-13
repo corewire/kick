@@ -36,6 +36,8 @@ Required conclusion:
 - behavior across operator downtime;
 - metadata-only update handling.
 
+Resolved for Secrets and ConfigMaps in `03-change-observation` (baseline dating from `managedFields`, end-of-second dating of missed writes clamped to the observation instant; issue #61).
+
 ## 3. Current ReplicaSet selection
 
 Verify the most robust way to identify the ReplicaSet representing the Deployment's current Pod template during normal operation, rollout, rollback, pause, and history cleanup.
