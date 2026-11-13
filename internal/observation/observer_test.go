@@ -255,3 +255,28 @@ func TestObserveMissedWriteInRolloutSecondIsNewer(t *testing.T) {
 		t.Fatalf("change time %s leaves the write's second", result.ChangeTime())
 	}
 }
+
+// Seen within the write's own second, the change is dated no later than the
+// observation, so the restart KICK issues next supersedes it.
+func TestObserveMissedWriteNeverPostdatesObservation(t *testing.T) {
+	writtenAt := time.Date(2026, 11, 12, 17, 52, 48, 0, time.UTC)
+	observedAt := writtenAt.Add(200 * time.Millisecond)
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "s1",
+			Namespace:         "ns",
+			ResourceVersion:   "2",
+			CreationTimestamp: metav1.NewTime(writtenAt.Add(-time.Minute)),
+			ManagedFields:     []metav1.ManagedFieldsEntry{{Manager: "eso", Time: ptr.To(metav1.NewTime(writtenAt))}},
+		},
+		Data: map[string][]byte{"token": []byte("beta")},
+	}
+
+	result, err := NewObserver(NewMemoryStore(), nil).ObserveSecret(context.Background(), nil, secret, observedAt)
+	if err != nil {
+		t.Fatalf("observe baseline: %v", err)
+	}
+	if !result.ChangeTime().Equal(observedAt) {
+		t.Fatalf("change time = %s, want the observation instant %s", result.ChangeTime(), observedAt)
+	}
+}
