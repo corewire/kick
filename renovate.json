@@ -92,6 +92,16 @@
       "groupName": "kubernetes go modules"
     },
     {
+      "description": "kube-openapi must match the version k8s.io/apimachinery requires (newer digests need structured-merge-diff/v7); it moves via go mod tidy with the Kubernetes modules.",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchPackageNames": [
+        "k8s.io/kube-openapi"
+      ],
+      "enabled": false
+    },
+    {
       "description": "OpenTelemetry modules move together.",
       "matchManagers": [
         "gomod"
