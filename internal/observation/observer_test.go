@@ -266,7 +266,7 @@ func TestObserveMissedWriteInRolloutSecondIsNewer(t *testing.T) {
 }
 
 // Seen within the write's own second, the change is dated no later than the
-// observation, so the restart KICK issues next supersedes it.
+// observation, like a change KICK observes live.
 func TestObserveMissedWriteNeverPostdatesObservation(t *testing.T) {
 	writtenAt := time.Date(2026, 11, 12, 17, 52, 48, 0, time.UTC)
 	observedAt := writtenAt.Add(200 * time.Millisecond)
@@ -287,5 +287,33 @@ func TestObserveMissedWriteNeverPostdatesObservation(t *testing.T) {
 	}
 	if !result.ChangeTime().Equal(observedAt) {
 		t.Fatalf("change time = %s, want the observation instant %s", result.ChangeTime(), observedAt)
+	}
+}
+
+// A second field manager in the creation second must not make a workload that
+// rolled out in a later second look stale (issue #73).
+func TestObserveCreationSecondWriteIsOlderThanLaterRollout(t *testing.T) {
+	createdAt := time.Date(2026, 11, 13, 9, 8, 26, 0, time.UTC)
+	rolloutAnchor := createdAt.Add(time.Second)
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "s1",
+			Namespace:         "ns",
+			ResourceVersion:   "2",
+			CreationTimestamp: metav1.NewTime(createdAt),
+			ManagedFields: []metav1.ManagedFieldsEntry{
+				{Manager: "helm", Time: ptr.To(metav1.NewTime(createdAt))},
+				{Manager: "argocd-controller", Time: ptr.To(metav1.NewTime(createdAt))},
+			},
+		},
+		Data: map[string][]byte{"token": []byte("alpha")},
+	}
+
+	result, err := NewObserver(NewMemoryStore(), nil).ObserveSecret(context.Background(), nil, secret, createdAt.Add(time.Minute))
+	if err != nil {
+		t.Fatalf("observe baseline: %v", err)
+	}
+	if !result.ChangeTime().Before(rolloutAnchor) {
+		t.Fatalf("change time %s is not older than the rollout at %s", result.ChangeTime(), rolloutAnchor)
 	}
 }
