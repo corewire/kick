@@ -1,0 +1,92 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: kick-e2e-081-rotation-while-controller-down-restarts-once
+spec:
+  # Scales the KICK manager to zero, so no other scenario may run alongside.
+  concurrent: false
+  steps:
+    - name: stop-kick
+      try:
+        - script:
+            content: |
+              set -eu
+              kubectl -n kick-system scale deployment/kick-controller-manager --replicas=0
+              kubectl -n kick-system wait --for=delete pod -l control-plane=controller-manager --timeout=120s
+      cleanup:
+        - script:
+            content: |
+              set -eu
+              kubectl -n kick-system scale deployment/kick-controller-manager --replicas=1
+              kubectl -n kick-system rollout status deployment/kick-controller-manager --timeout=180s
+    - name: create-fixtures
+      try:
+        - apply:
+            file: resources.yaml
+        - assert:
+            resource:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: app-081
+                namespace: kick-e2e-081
+                generation: 1
+              status:
+                availableReplicas: 1
+    # The Pods already run with "alpha"; KICK never sees either version live.
+    - name: rotate-secret-while-kick-is-down
+      try:
+        - script:
+            content: |
+              set -eu
+              kubectl -n kick-e2e-081 patch secret app-secret --type merge -p '{"stringData":{"token":"beta"}}'
+    - name: start-kick
+      try:
+        - script:
+            content: |
+              set -eu
+              kubectl -n kick-system scale deployment/kick-controller-manager --replicas=1
+              kubectl -n kick-system rollout status deployment/kick-controller-manager --timeout=180s
+    - name: assert-exactly-one-restart
+      try:
+        - assert:
+            timeout: 3m
+            resource:
+              apiVersion: kick.corewire.io/v1alpha1
+              kind: KickRequest
+              metadata:
+                name: deployment-app-081
+                namespace: kick-e2e-081
+              status:
+                phase: Succeeded
+        - assert:
+            resource:
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: app-081
+                namespace: kick-e2e-081
+                generation: 2
+              status:
+                updatedReplicas: 1
+                availableReplicas: 1
+    - name: stays-stable
+      try:
+        - sleep:
+            duration: 30s
+        - script:
+            content: |
+              set -eu
+              generation=$(kubectl -n kick-e2e-081 get deployment app-081 -o jsonpath='{.metadata.generation}')
+              replicasets=$(kubectl -n kick-e2e-081 get replicaset -l app=app-081 --no-headers | wc -l | tr -d ' ')
+              if [ "$generation" != "2" ] || [ "$replicasets" != "2" ]; then
+                echo "expected one restart: generation=$generation replicasets=$replicasets" >&2
+                exit 1
+              fi
+    - name: cleanup
+      try:
+        - delete:
+            ref:
+              apiVersion: v1
+              kind: Namespace
+              name: kick-e2e-081

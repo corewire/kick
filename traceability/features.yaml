@@ -86,6 +86,7 @@ features:
   - KICK-E2E-012
   - KICK-E2E-013
   - KICK-E2E-014
+  - KICK-E2E-081
 - id: KICK-FEAT-006
   name: Durable change observations and recovery
   spec: specs/03-change-observation.md

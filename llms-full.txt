@@ -2867,6 +2867,14 @@ falling in the same second as the rollout it supersedes is affected. Hence no
 component on the path from the observation store to the freshness comparison —
 record serialisation, status write, status read, coalescing — may truncate.
 
+A write the controller did not observe live is only known from
+\(\tau(m)\), which is already truncated. It is therefore dated to the end of
+its second, \(\lfloor \tau \rfloor + 1\mathrm{s} - 1\mathrm{ns}\), whenever
+\(\lambda(s) > \gamma(s)\): a rollout in the same second counts as older and
+the ambiguity costs one restart instead of a lost rotation
+([`lastWriteTime`](https://github.com/corewire/kick/blob/main/internal/observation/observer.go),
+[test](https://github.com/corewire/kick/blob/main/internal/observation/observer_test.go)).
+
 ## 6. Rollout state and the freshness relation
 
 For a workload \(w\) the rollout inspector returns a **start time** and a

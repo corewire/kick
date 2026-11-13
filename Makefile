@@ -36,7 +36,7 @@ PKGS := $(shell go list ./... | grep -v '/ai-docs/' || true)
 # needs extra infrastructure, so adding a suite here removes it from core
 # automatically instead of requiring two edits that can drift apart.
 E2E_IDS_ARGOCD ?= 024 025 026 027 028 029 030 031 032 033 034 035 036 037 038 039 040 041 042
-E2E_IDS_RECOVERY ?= 048 049 050 051
+E2E_IDS_RECOVERY ?= 048 049 050 051 081
 E2E_IDS_ROLLOUTS ?= 060 061 062 063
 E2E_IDS_CSI ?= 064 065 066 067
 E2E_IDS_KARGO ?= 068 069 070 071 074 075 076

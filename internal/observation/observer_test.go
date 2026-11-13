@@ -189,7 +189,15 @@ func TestObserveBaselineAnchorsToLastWrite(t *testing.T) {
 				{Manager: "gitops", Time: ptr.To(metav1.NewTime(writtenAt))},
 				{Manager: "kubectl", Time: ptr.To(metav1.NewTime(createdAt))},
 			},
-			expected: writtenAt,
+			// A whole-second write time could be any instant in that second.
+			expected: writtenAt.Add(time.Second - time.Nanosecond),
+		},
+		{
+			name: "creation entry only",
+			managed: []metav1.ManagedFieldsEntry{
+				{Manager: "kubectl", Time: ptr.To(metav1.NewTime(createdAt))},
+			},
+			expected: createdAt,
 		},
 	}
 
@@ -218,5 +226,32 @@ func TestObserveBaselineAnchorsToLastWrite(t *testing.T) {
 				t.Fatalf("baseline change time = %s, want %s", result.ChangeTime(), tc.expected)
 			}
 		})
+	}
+}
+
+// Rollout anchors are whole seconds too, so a rotation KICK missed in the same
+// second as the rollout must still date after it (issue #61).
+func TestObserveMissedWriteInRolloutSecondIsNewer(t *testing.T) {
+	rolloutAnchor := time.Date(2026, 11, 12, 17, 52, 48, 0, time.UTC)
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "s1",
+			Namespace:         "ns",
+			ResourceVersion:   "2",
+			CreationTimestamp: metav1.NewTime(rolloutAnchor.Add(-time.Minute)),
+			ManagedFields:     []metav1.ManagedFieldsEntry{{Manager: "kubectl", Time: ptr.To(metav1.NewTime(rolloutAnchor))}},
+		},
+		Data: map[string][]byte{"token": []byte("beta")},
+	}
+
+	result, err := NewObserver(NewMemoryStore(), nil).ObserveSecret(context.Background(), nil, secret, rolloutAnchor.Add(13*time.Second))
+	if err != nil {
+		t.Fatalf("observe baseline: %v", err)
+	}
+	if !result.ChangeTime().After(rolloutAnchor) {
+		t.Fatalf("change time %s is not after rollout anchor %s", result.ChangeTime(), rolloutAnchor)
+	}
+	if !result.ChangeTime().Before(rolloutAnchor.Add(time.Second)) {
+		t.Fatalf("change time %s leaves the write's second", result.ChangeTime())
 	}
 }

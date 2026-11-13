@@ -90,7 +90,12 @@ The change time an observation records is exactly:
 | `MetadataOnlyChange`, `NoChange` | unchanged |
 
 `λ(s)` is the tightest evidence the API server offers for when the observed
-content came to be. The wall-clock instant MUST NOT be used for a baseline: it
+content came to be. A write after creation (`λ(s) > γ(s)`) is recorded in whole
+seconds and is dated to the last instant of its second, `⌊τ⌋ + 1s − 1ns`: a
+rollout anchored in the same second then counts as older, and the ambiguity
+resolves to one restart rather than a lost rotation (issue #61). A source never
+written since creation keeps `γ(s)`, so adoption stays restart-free.
+The wall-clock instant MUST NOT be used for a baseline: it
 would make freshness depend on the race between KICK starting up and the
 workload rolling out. `γ(s)` alone MUST NOT be used either: a rotation that
 happened before KICK first saw the source would be dated before the workload's
@@ -141,4 +146,5 @@ started from the current content of every source (see `04-deployment-freshness`,
 - Controller restart does not lose previously persisted observations.
 - Optional source creation enqueues current consumers.
 - A source rotated before KICK first observed it is dated to that rotation, not to its creation.
+- A rotation KICK did not observe live, written in the same second as the rollout anchor, restarts the workload exactly once.
 - A change recorded in the same second as the rollout it supersedes survives every persistence hop with its sub-second component intact.
