@@ -96,8 +96,10 @@ seconds and is dated to the last instant of its second, `⌊τ⌋ + 1s − 1ns`:
 rollout anchored in the same second then counts as older, and the ambiguity
 resolves to one restart rather than a lost rotation (issue #61). The date never
 exceeds the observation instant, because a write cannot postdate its
-observation; a restart KICK issues afterwards therefore supersedes it and no
-second restart follows. A source never written since creation keeps `γ(s)`.
+observation, so it is never dated later than a change KICK observed live at the
+same moment. Like a live change, it is superseded by a rollout anchored in a
+later second than the observation; a restart anchored in the observation's own
+second can leave it stale and cost one further restart. A source never written since creation keeps `γ(s)`.
 The wall-clock instant MUST NOT be used for a baseline: it
 would make freshness depend on the race between KICK starting up and the
 workload rolling out. `γ(s)` alone MUST NOT be used either: a rotation that
