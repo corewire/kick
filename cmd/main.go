@@ -133,6 +133,9 @@ func main() {
 		HealthProbeBindAddress: opts.probeAddr,
 		LeaderElection:         opts.leaderElection,
 		LeaderElectionID:       "kick.corewire.io",
+		// Safe because main exits as soon as the manager stops; a replacement pod
+		// takes over immediately instead of waiting for the lease to expire.
+		LeaderElectionReleaseOnCancel: true,
 		Cache: cache.Options{
 			ByObject: map[client.Object]cache.ByObject{
 				// Helm release storage Secrets are never consumed by a pod template,

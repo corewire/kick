@@ -106,12 +106,20 @@ func (o *Observer) ObserveConfigMap(ctx context.Context, _ *corev1.ConfigMap, ne
 // cache had not synced yet), and dating the content to the creation instead
 // would hide the rotation for good, because every later observation matches the
 // baseline.
+//
+// The API server records that write in whole seconds, so it is dated to the
+// last instant of its second: a rollout anchored in the same second then counts
+// as older, and the ambiguity resolves to one restart instead of a lost change.
 func lastWriteTime(obj metav1.Object) time.Time {
-	latest := obj.GetCreationTimestamp().Time
+	created := obj.GetCreationTimestamp().Time
+	latest := created
 	for _, entry := range obj.GetManagedFields() {
 		if entry.Time != nil && entry.Time.After(latest) {
 			latest = entry.Time.Time
 		}
+	}
+	if latest.After(created) {
+		latest = latest.Truncate(time.Second).Add(time.Second - time.Nanosecond)
 	}
 	return latest.UTC()
 }

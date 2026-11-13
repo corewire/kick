@@ -1,0 +1,7 @@
+scenarioID: KICK-E2E-081
+name: rotation-while-controller-down-restarts-once
+features:
+  - KICK-FEAT-005
+provider: core
+class: recovery
+required: true

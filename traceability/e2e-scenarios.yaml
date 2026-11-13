@@ -495,3 +495,9 @@ scenarios:
     status: required
     features:
       - KICK-FEAT-031
+  - id: KICK-E2E-081
+    name: rotation while controller down restarts once
+    directory: test/e2e/scenarios/KICK-E2E-081-rotation-while-controller-down-restarts-once
+    status: required
+    features:
+      - KICK-FEAT-005
