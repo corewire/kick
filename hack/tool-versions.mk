@@ -4,7 +4,7 @@
 # on the Makefile invalidated every cached binary on unrelated Makefile edits,
 # which cost a full tool rebuild (~3 minutes) per run.
 KUSTOMIZE_VERSION ?= v5.8.3
-CONTROLLER_TOOLS_VERSION ?= v0.22.0
+CONTROLLER_TOOLS_VERSION ?= v0.23.0
 ENVTEST_VERSION ?= v0.25.2
 ENVTEST_K8S_VERSION ?= 1.37.0
 GOLANGCI_LINT_VERSION ?= v2.15.0
