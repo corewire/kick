@@ -23,7 +23,7 @@ jobs:
   # Cluster work is the expensive half of this pipeline, so a change that cannot
   # affect the operator must not pay for it.
   changes:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     outputs:
       code: ${{ steps.filter.outputs.code }}
     steps:
@@ -53,7 +53,7 @@ jobs:
           fi
 
   lint:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
@@ -84,7 +84,7 @@ jobs:
         run: make vulncheck
 
   unit-tests:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
@@ -99,7 +99,7 @@ jobs:
         run: make test
 
   race-tests:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
@@ -114,7 +114,7 @@ jobs:
         run: make test-race
 
   generated:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
@@ -174,7 +174,7 @@ jobs:
           path: traceability/feature-coverage-report.md
 
   verify:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: [lint, unit-tests, race-tests, generated]
     if: always()
     steps:
@@ -194,7 +194,7 @@ jobs:
 
   # Built once and handed to every e2e job, instead of once per job.
   image:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: changes
     if: needs.changes.outputs.code == 'true'
     steps:
@@ -228,7 +228,7 @@ jobs:
   # they install, which is why they are not sharded by scenario count.
   e2e:
     name: e2e-${{ matrix.suite }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: image
     strategy:
       fail-fast: false
@@ -325,7 +325,7 @@ jobs:
   # Single required status check: every job above has to have succeeded or been
   # skipped on purpose.
   ci:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     if: always()
     needs: [changes, lint, unit-tests, race-tests, generated, verify, image, e2e]
     steps:
