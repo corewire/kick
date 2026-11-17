@@ -1,0 +1,195 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="1500" viewBox="0 0 1180 1500" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#334155"/>
+    </marker>
+    <style>
+      .box   { fill:#ffffff; stroke:#334155; stroke-width:1.5; rx:8; }
+      .ctrl  { fill:#eef2ff; stroke:#4338ca; stroke-width:1.5; }
+      .term  { fill:#ecfdf5; stroke:#059669; stroke-width:1.5; }
+      .wait  { fill:#fffbeb; stroke:#d97706; stroke-width:1.5; }
+      .fail  { fill:#fef2f2; stroke:#dc2626; stroke-width:1.5; }
+      .fix   { fill:#fdf4ff; stroke:#c026d3; stroke-width:2; }
+      .lane  { fill:#f8fafc; stroke:#cbd5e1; stroke-width:1; }
+      .t     { font-size:13px; fill:#0f172a; }
+      .tb    { font-size:14px; font-weight:600; fill:#0f172a; }
+      .sub   { font-size:11px; fill:#475569; }
+      .lbl   { font-size:12px; fill:#334155; }
+      .lane-t{ font-size:13px; font-weight:700; fill:#64748b; letter-spacing:1px; }
+      .edge  { stroke:#334155; stroke-width:1.5; fill:none; marker-end:url(#arrow); }
+      .fixt  { font-size:11px; fill:#a21caf; font-weight:600; }
+    </style>
+  </defs>
+
+  <text x="40" y="34" font-size="20" font-weight="700" fill="#0f172a">KICK — dependency change → restart flow</text>
+  <text x="40" y="54" class="sub">Verified live on kind-kick-dev. Magenta = correctness fix made this session.</text>
+
+  <!-- ===================== LANE 1: OBSERVATION ===================== -->
+  <rect x="20" y="70" width="1140" height="300" rx="10" class="lane"/>
+  <text x="36" y="92" class="lane-t">1 · SOURCE OBSERVATION  (Secret / ConfigMap controller)</text>
+
+  <rect x="60" y="108" width="230" height="52" rx="8" class="box"/>
+  <text x="75" y="130" class="tb">Secret / ConfigMap event</text>
+  <text x="75" y="148" class="sub">create · update · resync</text>
+
+  <rect x="60" y="200" width="230" height="70" rx="8" class="box"/>
+  <text x="75" y="222" class="tb">Observe*(obj)</text>
+  <text x="75" y="240" class="sub">fingerprint(data) vs stored</text>
+  <text x="75" y="256" class="sub">observer.go</text>
+
+  <!-- classification -->
+  <rect x="360" y="104" width="240" height="44" rx="8" class="term"/>
+  <text x="375" y="131" class="t">NoChange · MetadataOnlyChange</text>
+  <text x="605" y="131" class="sub">→ ignore</text>
+
+  <rect x="360" y="160" width="360" height="62" rx="8" class="fix"/>
+  <text x="375" y="182" class="tb">BaselineEstablished (first sight)</text>
+  <text x="375" y="200" class="fixt">FIX 3: record change-time = source.creationTimestamp</text>
+  <text x="375" y="215" class="sub">so a dep created with its workload is NOT “newer” → no spurious kick</text>
+
+  <rect x="360" y="234" width="360" height="58" rx="8" class="box"/>
+  <text x="375" y="256" class="tb">RelevantChange (data differs)</text>
+  <text x="375" y="274" class="sub">record change-time = now (observedAt)</text>
+
+  <rect x="360" y="304" width="360" height="52" rx="8" class="box"/>
+  <text x="375" y="326" class="tb">LookupConsumingWorkloads</text>
+  <text x="375" y="344" class="sub">Deployment · StatefulSet · DaemonSet  (field index)</text>
+
+  <rect x="770" y="234" width="350" height="122" rx="8" class="box"/>
+  <text x="785" y="256" class="tb">EnqueueForConsumers</text>
+  <text x="785" y="276" class="sub">apply discovery.workloadSelector</text>
+  <text x="785" y="292" class="sub">+ discovery.dependencySelector</text>
+  <text x="785" y="312" class="sub">imagePullSecrets are ignored</text>
+  <text x="785" y="332" class="sub">→ one target ref per consuming workload</text>
+
+  <path class="edge" d="M175,160 L175,200"/>
+  <path class="edge" d="M290,225 L356,126"/>
+  <path class="edge" d="M290,232 L356,190"/>
+  <path class="edge" d="M290,245 L356,258"/>
+  <path class="edge" d="M540,292 L540,304"/>
+  <path class="edge" d="M540,222 L540,234"/>
+  <path class="edge" d="M720,330 L770,320"/>
+
+  <!-- ===================== LANE 2: COALESCE ===================== -->
+  <rect x="20" y="384" width="1140" height="150" rx="10" class="lane"/>
+  <text x="36" y="406" class="lane-t">2 · COALESCE  (one active KickRequest per target)</text>
+
+  <rect x="360" y="420" width="440" height="96" rx="8" class="fix"/>
+  <text x="375" y="442" class="tb">Coalescer.EnsureActiveRequest</text>
+  <text x="375" y="462" class="sub">name = &lt;kind&gt;-&lt;name&gt;  (Deployment: bare &lt;name&gt;)</text>
+  <text x="375" y="480" class="sub">create, or reopen a terminal request → Pending</text>
+  <text x="375" y="498" class="fixt">FIX 1: on reopen, clear status.currentRollout</text>
+
+  <rect x="840" y="420" width="280" height="96" rx="8" class="box"/>
+  <text x="855" y="442" class="tb">status.latestObservedDependencyChange</text>
+  <text x="855" y="462" class="sub">advanced to the change time</text>
+  <text x="855" y="482" class="sub">duplicate refs / multiple changes</text>
+  <text x="855" y="500" class="sub">coalesce into the SAME request</text>
+
+  <path class="edge" d="M945,356 L945,420"/>
+  <path class="edge" d="M840,468 L800,468"/>
+  <path class="edge" d="M580,516 L580,548"/>
+
+  <!-- ===================== LANE 3: RECONCILE ===================== -->
+  <rect x="20" y="548" width="1140" height="920" rx="10" class="lane"/>
+  <text x="36" y="570" class="lane-t">3 · KICKREQUEST RECONCILE</text>
+
+  <!-- terminal guard -->
+  <polygon points="580,586 700,624 580,662 460,624" class="wait" stroke-width="1.5"/>
+  <text x="520" y="620" class="t">terminal phase?</text>
+  <text x="520" y="636" class="sub">Succeeded/NoLongerReq/Failed</text>
+  <rect x="740" y="596" width="360" height="56" rx="8" class="term"/>
+  <text x="755" y="620" class="tb">reconcileTerminalRequest</text>
+  <text x="755" y="638" class="sub">retention TTL → keep or delete (no re-eval)</text>
+  <text x="712" y="612" class="lbl">yes</text>
+  <path class="edge" d="M700,624 L740,624"/>
+
+  <rect x="470" y="700" width="220" height="48" rx="8" class="box"/>
+  <text x="485" y="724" class="tb">resolve KickPolicy</text>
+  <text x="485" y="740" class="sub">PolicyMatcher (workloadSelector)</text>
+  <text x="590" y="686" class="lbl">no</text>
+  <path class="edge" d="M580,662 L580,700"/>
+
+  <!-- gate: native windows -->
+  <polygon points="580,772 720,812 580,852 440,812" class="box"/>
+  <text x="516" y="808" class="t">native schedule.windows?</text>
+  <text x="516" y="824" class="sub">Allow / Deny cron</text>
+  <path class="edge" d="M580,748 L580,772"/>
+
+  <rect x="770" y="788" width="330" height="48" rx="8" class="wait"/>
+  <text x="785" y="812" class="tb">evaluate window</text>
+  <text x="785" y="828" class="sub">closed → WaitingForGate (OutsideSchedule)</text>
+  <text x="726" y="800" class="lbl">yes</text>
+  <path class="edge" d="M720,812 L770,812"/>
+
+  <!-- provider gate -->
+  <polygon points="580,884 720,924 580,964 440,924" class="box"/>
+  <text x="512" y="920" class="t">gitOps.provider</text>
+  <text x="512" y="936" class="sub">None (default) · Auto · ArgoCD · Flux</text>
+  <text x="590" y="874" class="lbl">no window / window open</text>
+  <path class="edge" d="M580,852 L580,884"/>
+
+  <rect x="770" y="884" width="350" height="120" rx="8" class="wait"/>
+  <text x="785" y="906" class="tb">GateResolver (provider ≠ None)</text>
+  <text x="785" y="926" class="sub">resolve GitOps owner (annotation / fallback)</text>
+  <text x="785" y="944" class="sub">no owner → WaitingForOwner (OwnerUnknown)</text>
+  <text x="785" y="962" class="sub">≥2 owners → blocked · out-of-sync → wait</text>
+  <text x="785" y="982" class="sub">synced &amp; owned → Allowed</text>
+  <text x="726" y="912" class="lbl">Auto/ArgoCD/Flux</text>
+  <path class="edge" d="M720,924 L770,924"/>
+
+  <!-- freshness -->
+  <rect x="430" y="1000" width="300" height="60" rx="8" class="ctrl"/>
+  <text x="445" y="1022" class="tb">evaluateFreshnessAndExecute</text>
+  <text x="445" y="1040" class="sub">deps = Extract + scope; latest = store</text>
+  <text x="445" y="1055" class="sub">gate = Allowed</text>
+  <text x="512" y="992" class="lbl">None → self-gated Allowed</text>
+  <path class="edge" d="M580,964 L580,1000"/>
+  <path class="edge" d="M945,1004 L945,1020 L730,1020" />
+
+  <polygon points="580,1084 720,1126 580,1168 440,1126" class="fix"/>
+  <text x="527" y="1116" class="t">rollout Complete?</text>
+  <text x="516" y="1134" class="fixt">FIX 2: kind-aware</text>
+  <text x="512" y="1150" class="sub">Deployment: current RS ready</text>
+  <path class="edge" d="M580,1060 L580,1084"/>
+
+  <rect x="770" y="1096" width="330" height="60" rx="8" class="wait"/>
+  <text x="785" y="1120" class="tb">WaitingForRollout</text>
+  <text x="785" y="1138" class="sub">STS/DaemonSet: observedGeneration current</text>
+  <text x="726" y="1112" class="lbl">no (in progress)</text>
+  <path class="edge" d="M720,1126 L770,1126"/>
+
+  <!-- stale decision -->
+  <polygon points="580,1196 740,1238 580,1280 420,1238" class="box"/>
+  <text x="470" y="1234" class="t">latestChange &gt; rolloutStart ?</text>
+  <text x="486" y="1250" class="sub">(stale &amp; consumed)</text>
+  <text x="590" y="1188" class="lbl">yes</text>
+  <path class="edge" d="M580,1168 L580,1196"/>
+
+  <rect x="770" y="1214" width="330" height="48" rx="8" class="term"/>
+  <text x="785" y="1238" class="tb">NoLongerRequired</text>
+  <text x="785" y="1254" class="sub">already fresh — no restart</text>
+  <text x="746" y="1226" class="lbl">no</text>
+  <path class="edge" d="M740,1238 L770,1238"/>
+
+  <rect x="440" y="1312" width="280" height="52" rx="8" class="ctrl"/>
+  <text x="455" y="1336" class="tb">markExecuting → RestartExecutor</text>
+  <text x="455" y="1354" class="sub">stamp kubectl.kubernetes.io/restartedAt</text>
+  <text x="590" y="1300" class="lbl">yes → restart required</text>
+  <path class="edge" d="M580,1280 L580,1312"/>
+
+  <rect x="440" y="1396" width="280" height="52" rx="8" class="term"/>
+  <text x="455" y="1420" class="tb">rollout progresses → Succeeded</text>
+  <text x="455" y="1438" class="sub">new ReplicaSet / pod template restart</text>
+  <path class="edge" d="M580,1364 L580,1396"/>
+
+  <!-- legend -->
+  <rect x="770" y="1300" width="350" height="150" rx="8" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="786" y="1322" class="tb">Legend</text>
+  <rect x="786" y="1334" width="16" height="12" class="ctrl"/><text x="810" y="1344" class="sub">controller action</text>
+  <rect x="786" y="1354" width="16" height="12" class="term"/><text x="810" y="1364" class="sub">terminal / no-restart</text>
+  <rect x="786" y="1374" width="16" height="12" class="wait"/><text x="810" y="1384" class="sub">waiting / blocked</text>
+  <rect x="786" y="1394" width="16" height="12" class="fix"/><text x="810" y="1404" class="sub">correctness fix (this session)</text>
+  <text x="786" y="1428" class="sub">FIX1 coalescer.go · FIX2 freshness/evaluator.go</text>
+  <text x="786" y="1444" class="sub">FIX3 observation/observer.go</text>
+</svg>
