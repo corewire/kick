@@ -7,7 +7,7 @@ set -euo pipefail
 
 CONTEXT="${KICK_E2E_CONTEXT:-kind-kick-dev}"
 KUBECONFIG_PATH="${KICK_E2E_KUBECONFIG:-.kubeconfig-kind-kick-dev}"
-FLUX_VERSION="${FLUX_VERSION:-v2.10.0}"
+FLUX_VERSION="${FLUX_VERSION:-v2.10.1}"
 FLUX_NS="flux-system"
 
 kc() { kubectl --kubeconfig "$KUBECONFIG_PATH" --context "$CONTEXT" "$@"; }
