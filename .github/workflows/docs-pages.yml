@@ -37,7 +37,7 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
@@ -73,7 +73,7 @@ jobs:
 
   deploy-pr-preview:
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       # Also on `closed`: removing the preview needs a git checkout.
       - name: Checkout
